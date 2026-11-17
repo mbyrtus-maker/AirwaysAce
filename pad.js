@@ -1,6 +1,7 @@
 /* =====================================================================
    Gamepad flying (DualSense, DualShock, Xbox: any pad the browser maps to the "standard" layout).
    In flight only; menus stay mouse and keyboard. Works alongside the mouse and keyboard.
+   Every button can be remapped on the Controller screen (G.save.padMap); below are the defaults.
 
      Left stick    pitch and roll (stick back = climb)       Right stick   swing the aim point / look
      R2            guns                                      L2            rockets
@@ -17,9 +18,39 @@ const DZ = 0.14;
 const dz = v => Math.abs(v) < DZ ? 0 : Math.sign(v)*((Math.abs(v) - DZ)/(1 - DZ));
 const curve = v => Math.sign(v)*v*v*0.55 + v*0.45;   // gentle near the middle, full at the edge
 
+/* Every remappable action, its default button, and how it's labelled on the Controller screen. */
+const ACTIONS = [
+  {id:'fire',    label:'Guns',                          def:B.r2},
+  {id:'rockets', label:'Rockets',                       def:B.l2},
+  {id:'thrUp',   label:'Throttle up',                   def:B.r1},
+  {id:'thrDown', label:'Throttle down / brake',         def:B.l1},
+  {id:'nitro',   label:'Nitro (and drop off the trapeze)', def:B.cross},
+  {id:'roll',    label:'Barrel roll (toward the left stick)', def:B.circle},
+  {id:'immel',   label:'Immelmann',                     def:B.triangle},
+  {id:'splits',  label:'Split-S',                       def:B.square},
+  {id:'flaps',   label:'Flaps',                         def:B.l3},
+  {id:'gear',    label:'Landing gear',                  def:B.create},
+  {id:'look',    label:'Look back (hold) / view (tap)', def:B.r3},
+  {id:'view',    label:'Chase / cockpit view',          def:B.touch},
+  {id:'attack',  label:'Wingmen: attack',               def:B.up},
+  {id:'cover',   label:'Wingmen: cover me',             def:B.right},
+  {id:'zep',     label:'Wingmen: the zeppelin',         def:B.left},
+  {id:'form',    label:'Wingmen: form up (twice: home)', def:B.down},
+  {id:'home',    label:'Wingmen: go home',              def:-1},
+  {id:'pause',   label:'Pause / resume',                def:B.options}
+];
+const DEFAULTS = Object.fromEntries(ACTIONS.map(a => [a.id, a.def]));
+const NAMES = {
+  ps:['Cross', 'Circle', 'Square', 'Triangle', 'L1', 'R1', 'L2', 'R2', 'Create', 'Options', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'PS', 'Touchpad'],
+  xb:['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS click', 'RS click', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Guide', 'Share']
+};
+
 const Pad = G.pad = {
   index:-1, prev:[], hold:{}, r3T:0, lx:0, ly:0, rx:0, ry:0, active:false, lastUsed:-1e9, downT:0, name:'',
+  ACTIONS, DEFAULTS,
   sens:() => G.save.padSens || 1,
+  map(){ return Object.assign({}, DEFAULTS, G.save.padMap || {}); },
+  btnName(i){ if (i == null || i < 0) return '—'; const set = /xbox|xinput|microsoft/i.test(this.name) ? NAMES.xb : NAMES.ps; return set[i] || 'Button ' + i; },
 
   pick(){
     const list = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
@@ -30,54 +61,108 @@ const Pad = G.pad = {
   },
   /* called every frame by the UI loop, before the game updates */
   poll(g, dt, now){
+    if (this.capturing) return;   // the Controller screen is listening for a button
     const p = this.pick(); if (!p) { this.active = false; this.lx = this.ly = this.rx = this.ry = 0; return; }
-    const btn = i => { const b = p.buttons[i]; return !!b && (b.pressed || b.value > 0.4); };
-    const val = i => p.buttons[i] ? p.buttons[i].value : 0;
-    const press = i => btn(i) && !this.prev[i];
-    const ax = p.axes || [];
-    this.lx = dz(ax[0] || 0); this.ly = dz(ax[1] || 0); this.rx = dz(ax[2] || 0); this.ry = dz(ax[3] || 0);
+    const M = this.map();
+    const raw = i => { const b = p.buttons[i]; return !!b && (b.pressed || b.value > 0.4); };
+    const btn = a => M[a] >= 0 && raw(M[a]);
+    const press = a => M[a] >= 0 && raw(M[a]) && !this.prev[M[a]];
+    const release = a => M[a] >= 0 && !raw(M[a]) && this.prev[M[a]];
+    const ax = p.axes || [], swap = !!G.save.padSwap;
+    const L = swap ? [2, 3] : [0, 1], Rr = swap ? [0, 1] : [2, 3];
+    this.lx = dz(ax[L[0]] || 0); this.ly = dz(ax[L[1]] || 0); this.rx = dz(ax[Rr[0]] || 0); this.ry = dz(ax[Rr[1]] || 0);
     const used = this.lx || this.ly || this.rx || this.ry || p.buttons.some((b, i) => b && b.pressed && i !== 16);
     if (used) this.lastUsed = now;
     this.active = now - this.lastUsed < 4000;
 
     if (g && !g.done) {
-      if (press(B.options)) { if (g.paused) G.UI.resume(); else G.UI.pause(true); }
+      if (press('pause')) { if (g.paused) G.UI.resume(); else G.UI.pause(true); }
       if (!g.paused) {
-        const k = g.keys;
         let dropped = false;
-        if (g.mission.awaitDrop && (press(B.cross) || press(B.r2))) { G.audio.init(); g.mission.drop(); dropped = true; }
+        if (g.mission.awaitDrop && (press('nitro') || press('fire'))) { G.audio.init(); g.mission.drop(); dropped = true; }
         // held controls are read by playerControl below
-        this.hold = {fire:btn(B.r2), rk:val(B.l2) > 0.4, up:btn(B.r1), down:btn(B.l1)};
-        // R3: hold to look back, tap to switch chase / cockpit
-        if (press(B.r3)) { this.r3T = now; g.lookBack = true; }
-        if (!btn(B.r3) && this.prev[B.r3]) { g.lookBack = false; if (now - this.r3T < 250) g.key('KeyC', true), g.key('KeyC', false); }
+        this.hold = {fire:btn('fire'), rk:btn('rockets'), up:btn('thrUp'), down:btn('thrDown')};
+        // look back: hold; a quick tap switches chase / cockpit
+        if (press('look')) { this.r3T = now; g.lookBack = true; }
+        if (release('look')) { g.lookBack = false; if (now - this.r3T < 250) g.key('KeyC', true), g.key('KeyC', false); }
         // aim point from the right stick, as the mouse would move it
-        if (this.rx || this.ry) g.onMouse(curve(this.rx)*1100*dt*this.sens(), curve(this.ry)*850*dt*this.sens());
-        // one-press actions
+        if (this.rx || this.ry) g.onMouse(curve(this.rx)*1100*dt*this.sens(), curve(this.ry)*850*dt*this.sens()*(G.save.padInvertAim ? -1 : 1));
+        const tap = c => { g.key(c, true); g.key(c, false); };
         if (g.running) {
-          if (press(B.cross) && !dropped) g.key('ShiftLeft', true), g.key('ShiftLeft', false);
-          if (press(B.circle)) g.stunt(this.lx < -0.25 ? 'rollL' : 'rollR');
-          if (press(B.triangle)) g.stunt('immel');
-          if (press(B.square)) g.stunt('splits');
+          if (press('nitro') && !dropped) tap('ShiftLeft');
+          if (press('roll')) g.stunt(this.lx < -0.25 ? 'rollL' : 'rollR');
+          if (press('immel')) g.stunt('immel');
+          if (press('splits')) g.stunt('splits');
         }
-        if (press(B.l3)) g.key('KeyF', true), g.key('KeyF', false);
-        if (press(B.create)) g.key('KeyG', true), g.key('KeyG', false);
-        if (press(B.touch)) g.key('KeyC', true), g.key('KeyC', false);
-        const order = c => { g.key(c, true); g.key(c, false); };
-        if (press(B.up)) order('Digit1');
-        if (press(B.right)) order('Digit2');
-        if (press(B.left)) order('Digit3');
-        if (press(B.down)) { if (now - this.downT < 450) order('Digit5'); else order('Digit4'); this.downT = now; }
+        if (press('flaps')) tap('KeyF');
+        if (press('gear')) tap('KeyG');
+        if (press('view')) tap('KeyC');
+        if (press('attack')) tap('Digit1');
+        if (press('cover')) tap('Digit2');
+        if (press('zep')) tap('Digit3');
+        if (press('home')) tap('Digit5');
+        if (press('form')) { if (M.home < 0 && now - this.downT < 450) tap('Digit5'); else tap('Digit4'); this.downT = now; }
       }
     }
-    this.prev = p.buttons.map((b, i) => btn(i));
+    this.prev = p.buttons.map((b, i) => raw(i));
   },
   /* feel a hit: stronger for heavier hits; a no-op where the browser or pad has no rumble */
   rumble(strength = 0.5, ms = 120){
-    if (!this.active) return;
+    if (!this.active || G.save.padRumble === false) return;
     const p = this.pick(), a = p && p.vibrationActuator;
     if (!a || !a.playEffect) return;
     try { a.playEffect('dual-rumble', {duration:ms, strongMagnitude:Math.min(1, strength), weakMagnitude:Math.min(1, strength*0.7)}).catch(() => {}); } catch (e) {}
+  },
+
+  /* ---------- the Controller screen: remap buttons, sticks and feel ---------- */
+  open(from){
+    this.from = from || (G.game && G.game.paused ? 'pause' : 'menu');
+    G.UI.screen('controls'); this.renderScreen();
+    if (!this.screenLoop) { const loop = () => { const el = document.getElementById('controls'); if (!el || el.hidden) { this.screenLoop = null; this.capturing = null; return; } this.screenTick(); this.screenLoop = requestAnimationFrame(loop); }; this.screenLoop = requestAnimationFrame(loop); }
+  },
+  close(){ this.capturing = null; if (this.from === 'pause' && G.game && G.game.paused) G.UI.screen('pause'); else G.UI.menu(); },
+  listen(id){ this.capturing = id; this.capPrev = null; this.renderScreen(); },
+  clear(id){ this.setMap(id, -1); },
+  reset(){ G.save.padMap = {}; G.save.padSwap = false; G.save.padSens = 1; G.save.padInvertAim = false; G.save.padRumble = true; G.persist(); this.capturing = null; this.renderScreen(); },
+  setMap(id, b){
+    const M = this.map();
+    // a button does one job: whatever had it before takes this action's old button
+    if (b >= 0) for (const a of ACTIONS) if (a.id !== id && M[a.id] === b) M[a.id] = M[id];
+    M[id] = b;
+    const diff = {}; for (const a of ACTIONS) if (M[a.id] !== DEFAULTS[a.id]) diff[a.id] = M[a.id];
+    G.save.padMap = diff; G.persist(); this.capturing = null; this.renderScreen();
+  },
+  setOpt(k, v){ G.save[k] = v; G.persist(); this.renderScreen(); },
+  screenTick(){
+    const p = this.pick(), st = document.getElementById('padState');
+    if (st) st.textContent = p ? `Connected: ${p.id.replace(/\(.*?\)/g, '').trim().slice(0, 60)}` : 'No controller found. Plug one in or pair it, then press any button.';
+    if (!this.capturing || !p) return;
+    const now = p.buttons.map(b => !!b && (b.pressed || b.value > 0.5));
+    if (!this.capPrev) { this.capPrev = now; return; }   // ignore whatever was already held when listening started
+    const i = now.findIndex((d, j) => d && !this.capPrev[j]);
+    this.capPrev = now;
+    if (i >= 0) { if (i === 16) return; this.setMap(this.capturing, i); }   // the PS / Guide button belongs to the system
+  },
+  renderScreen(){
+    const el = document.getElementById('padBody'); if (!el) return;
+    const M = this.map(), S = G.save, esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]));
+    el.innerHTML = `<div class="kicker">Settings</div><h2 class="deco" style="font-size:44px;margin:6px 0 4px">Controller</h2>
+      <p class="pad-state" id="padState"></p>
+      <div class="pad-grid">${ACTIONS.map(a => {
+        const cap = this.capturing === a.id;
+        return `<div class="pad-row${cap ? ' cap' : ''}"><span>${esc(a.label)}</span><b>${cap ? 'Press a button…' : esc(this.btnName(M[a.id]))}</b>
+          <button class="btn ghost sm" onclick="G.pad.${cap ? 'listen(null)' : `listen('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button>${a.id === 'home' || a.id === 'view' ? `<button class="btn ghost sm" onclick="G.pad.clear('${a.id}')" title="Unbind">✕</button>` : ''}</div>`;
+      }).join('')}</div>
+      <div class="pad-opts">
+        <label><span>Aim speed (right stick)</span><input type="range" min="0.4" max="2" step="0.05" value="${S.padSens || 1}" oninput="G.save.padSens = +this.value; G.persist()"></label>
+        <label><input type="checkbox" ${S.padSwap ? 'checked' : ''} onchange="G.pad.setOpt('padSwap', this.checked)"> Swap sticks (right stick flies, left aims)</label>
+        <label><input type="checkbox" ${S.invert ? 'checked' : ''} onchange="G.pad.setOpt('invert', this.checked)"> Invert pitch (the same setting as the mouse's)</label>
+        <label><input type="checkbox" ${S.padInvertAim ? 'checked' : ''} onchange="G.pad.setOpt('padInvertAim', this.checked)"> Invert the aim stick's up and down</label>
+        <label><input type="checkbox" ${S.padRumble !== false ? 'checked' : ''} onchange="G.pad.setOpt('padRumble', this.checked)"> Rumble</label>
+      </div>
+      <p class="co-note">Giving a button to a new job swaps it with whatever had it. The left stick (or the right, swapped) always flies, and the other always aims. With "go home" unbound, pressing form up twice quickly sends the wingmen home.</p>
+      <div class="row"><button class="btn ghost sm" onclick="G.pad.reset()">Defaults</button><button class="btn" onclick="G.pad.close()">Done</button></div>`;
+    this.screenTick();
   }
 };
 

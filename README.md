@@ -22,7 +22,8 @@ Guests who join mid-flight drop in from the Margaret's trapeze.
 
 A DualSense, DualShock or Xbox pad works in flight (menus stay mouse and keyboard). Plug it in or pair it over Bluetooth,
 then press any button. Left stick flies, right stick aims, R2 guns, L2 rockets, R1/L1 throttle. The full layout is in
-the in-game help (H) and at the top of `pad.js`.
+the in-game help (H) and at the top of `pad.js`. Every button can be remapped on the Controller screen
+(main menu or pause), which also has aim speed, stick swap, inverts and rumble.
 
 ## Code map
 

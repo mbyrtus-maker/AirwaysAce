@@ -13,7 +13,7 @@ addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight, fal
 G.HUD.init();
 
 const UI = G.UI = {
-  screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact']) $(s).hidden = s !== id; },
+  screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact', 'controls']) if ($(s)) $(s).hidden = s !== id; },
   /* ---------- main menu ---------- */
   menu(){
     if (G.Net) setTimeout(() => G.Net.render(), 0);

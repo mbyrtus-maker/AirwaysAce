@@ -44,3 +44,13 @@ set(13, true); tick(1); set(13, false); tick(3); set(13, true); tick(1); set(13,
 const e = g.addPlane({loadout:G.stockLoadout('vandal'), team:1, name:'X', pos:P.pos.clone().addScaledVector(P.fwd, -100), speed:60});
 P.damage(30, 0, G.AMMO.slug, e); console.log('rumble on a hit:', rumbles.slice(-1)[0]);
 set(9, true); tick(1); set(9, false); tick(1); console.log('Options pauses:', g.paused);
+// ---- remapping ----
+set(9, true); tick(1); set(9, false); tick(1);   // unpause
+G.pad.capturing = 'fire'; G.pad.capPrev = null; G.pad.screenTick(); set(0, true); G.pad.screenTick(); set(0, false);
+const M = G.pad.map(); console.log('remap: guns now on', G.pad.btnName(M.fire), '| nitro moved to', G.pad.btnName(M.nitro), '| saved diff', JSON.stringify(G.save.padMap));
+shots0 = g.playerShots; set(0, true); tick(15); set(0, false); console.log('Cross now fires guns:', g.playerShots - shots0 > 0);
+const keys = []; const k0 = g.key.bind(g); g.key = (c, d) => { if (d) keys.push(c); return k0(c, d); }; set(7, true); tick(1); set(7, false); tick(1); g.key = k0; console.log('R2 now triggers nitro:', keys.includes('ShiftLeft'));
+G.save.padSwap = true; P.q.set(0, 0, 0, 1); P.axes(); g.aimYaw = 0; g.aimPitch = 0; tick(2); const yy = P.fwd.y; pad.axes[3] = 0.9; tick(25); pad.axes[3] = 0; console.log('swapped sticks: right stick back climbs:', yy.toFixed(2), '->', P.fwd.y.toFixed(2));
+G.pad.reset(); console.log('defaults restored: guns on', G.pad.btnName(G.pad.map().fire), 'swap', G.save.padSwap);
+G.pad.capturing = 'gear'; G.pad.capPrev = null; set(7, true); G.pad.screenTick(); G.pad.screenTick(); set(7, false); console.log('a button already held when listening starts is ignored:', G.pad.capturing === 'gear');
+G.pad.capturing = null;

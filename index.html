@@ -43,7 +43,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .title .sub{font-family:var(--f-type);color:#f3d9a4;margin:12px 0 18px;font-size:16px}
 .mcol{display:flex;flex-direction:column;gap:14px}
 .callrow{display:flex;gap:10px;align-items:stretch}
-#coop .row{gap:8px;align-items:center;flex-wrap:wrap}#coCode{width:84px;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:6px 10px;font-family:var(--f-deco);font-size:20px;letter-spacing:.2em;text-transform:uppercase;border-radius:2px}.co-code{font-size:14px;opacity:.85}.co-code b{font-family:var(--f-deco);font-size:26px;letter-spacing:.18em;margin-left:8px;color:var(--gold,#f2c14e)}.co-list{margin:8px 0;padding-left:18px;font-size:14px}.co-note{font-size:13px;opacity:.75;margin:8px 0 0}.padhelp{font-size:12.5px;opacity:.8;margin:10px 0 0;line-height:1.5}#mCall{flex:1;min-width:0;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:8px 12px;font-family:var(--f-deco);font-size:28px;letter-spacing:.05em;border-radius:2px}
+#coop .row{gap:8px;align-items:center;flex-wrap:wrap}#coCode{width:84px;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:6px 10px;font-family:var(--f-deco);font-size:20px;letter-spacing:.2em;text-transform:uppercase;border-radius:2px}.co-code{font-size:14px;opacity:.85}.co-code b{font-family:var(--f-deco);font-size:26px;letter-spacing:.18em;margin-left:8px;color:var(--gold,#f2c14e)}.co-list{margin:8px 0;padding-left:18px;font-size:14px}.co-note{font-size:13px;opacity:.75;margin:8px 0 0}.padhelp{font-size:12.5px;opacity:.8;margin:10px 0 0;line-height:1.5}#padBody{max-width:760px;width:94vw;max-height:88vh;overflow:auto}.pad-state{font-size:13px;opacity:.75;margin:0 0 10px}.pad-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}.pad-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-bottom:1px solid var(--line);font-size:14px}.pad-row span{flex:1}.pad-row b{min-width:92px;text-align:right;font-family:var(--f-deco);letter-spacing:.04em}.pad-row.cap{background:rgba(242,193,78,.12)}.pad-row.cap b{color:#f2c14e}.pad-opts{display:grid;gap:8px;margin:14px 0 6px;font-size:14px}.pad-opts label{display:flex;align-items:center;gap:10px}.pad-opts input[type=range]{flex:1}@media (max-width:700px){.pad-grid{grid-template-columns:1fr}}#mCall{flex:1;min-width:0;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:8px 12px;font-family:var(--f-deco);font-size:28px;letter-spacing:.05em;border-radius:2px}
 #mCall.need{border-color:var(--red);animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .lbl{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:6px;display:block}
@@ -225,7 +225,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
   <div class="hp" id="hHelp" hidden><div class="controls">
     <kbd>Mouse</kbd><span>Aim (the plane follows)</span><kbd>Left click</kbd><span>Guns</span><kbd>Right click / Space</kbd><span>Rockets</span>
     <kbd>W / S</kbd><span>Throttle</span><kbd>A / D</kbd><span>Roll</span><kbd>Q / E</kbd><span>Rudder</span><kbd>↑ / ↓</kbd><span>Pitch</span>
-    <kbd>Double-tap A / D</kbd><span>Barrel roll (dodges fire)</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps (land, dock, skyhook)</span><kbd>G</kbd><span>Landing gear (retractable planes)</span><kbd>Double-tap Q / E</kbd><span>Snap turn</span><kbd>1–5</kbd><span>Wingmen: attack, cover, zeppelin, form, go home</span><kbd>C</kbd><span>Chase / cockpit</span><kbd>V</kbd><span>Look back</span><kbd>M</kbd><span>Sound</span><kbd>H</kbd><span>This help</span><kbd>Esc</kbd><span>Pause</span></div><p class="padhelp"><b>Controller:</b> left stick flies · right stick aims · R2 guns · L2 rockets · R1/L1 throttle · Cross nitro (and drops you off the trapeze) · Circle barrel roll · Triangle Immelmann · Square Split-S · L3 flaps · Create/View gear · R3 hold to look back, tap for cockpit · D-pad wingmen (down twice: send home) · Options pause</p></div>
+    <kbd>Double-tap A / D</kbd><span>Barrel roll (dodges fire)</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps (land, dock, skyhook)</span><kbd>G</kbd><span>Landing gear (retractable planes)</span><kbd>Double-tap Q / E</kbd><span>Snap turn</span><kbd>1–5</kbd><span>Wingmen: attack, cover, zeppelin, form, go home</span><kbd>C</kbd><span>Chase / cockpit</span><kbd>V</kbd><span>Look back</span><kbd>M</kbd><span>Sound</span><kbd>H</kbd><span>This help</span><kbd>Esc</kbd><span>Pause</span></div><p class="padhelp"><b>Controller</b> (defaults; remap them from the menu or pause screen): left stick flies · right stick aims · R2 guns · L2 rockets · R1/L1 throttle · Cross nitro (and drops you off the trapeze) · Circle barrel roll · Triangle Immelmann · Square Split-S · L3 flaps · Create/View gear · R3 hold to look back, tap for cockpit · D-pad wingmen (down twice: send home) · Options pause</p></div>
 </div>
 
 <div class="screen" id="menu" hidden><div class="wrap">
@@ -233,7 +233,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
     <div class="title"><div class="kicker">The Lucky Thirteen present</div><h1 class="deco">Ace of the<br>Airways</h1><p class="sub">1937. The nation's in pieces, the highways belong to the sky, and the sky belongs to whoever can hold it.</p></div>
     <div class="card"><label class="lbl" for="mCall">Your callsign</label>
       <div class="callrow"><input id="mCall" maxlength="18" placeholder="Callsign" autocomplete="off" spellcheck="false"><button class="btn" id="mFly" onclick="UI.fly()">Fly</button></div>
-      <div class="row" style="margin-top:10px"><button class="btn ghost sm" onclick="UI.hangar()">Hangar</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn ghost sm" onclick="UI.hangar()">Hangar</button><button class="btn ghost sm" onclick="G.pad.open('menu')">Controller</button></div>
     </div>
     <div class="card" id="coop"></div>
     <div class="missions" id="mList"></div>
@@ -261,8 +261,8 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 
 <div class="screen" id="pause" hidden><div class="card"><div class="kicker">Paused</div><h2 class="deco" style="font-size:48px;margin:6px 0 12px">Holding pattern</h2>
   <div class="controls"><kbd>Mouse</kbd><span>Aim</span><kbd>Left / right click</kbd><span>Guns / rockets</span><kbd>W / S</kbd><span>Throttle</span><kbd>C</kbd><span>View</span></div>
-  <div class="row" id="pStd"><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" onclick="UI.restart()">Restart</button><button class="btn ghost" onclick="UI.menu()">Quit to menu</button></div>
-  <div class="row" id="pOpen" hidden><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" id="pAbandon" onclick="UI.abandonJob()">Abandon job</button><button class="btn ghost" onclick="UI.returnHome()">Back to the Margaret</button></div></div></div>
+  <div class="row" id="pStd"><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" onclick="UI.restart()">Restart</button><button class="btn ghost" onclick="G.pad.open('pause')">Controller</button><button class="btn ghost" onclick="UI.menu()">Quit to menu</button></div>
+  <div class="row" id="pOpen" hidden><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" id="pAbandon" onclick="UI.abandonJob()">Abandon job</button><button class="btn ghost" onclick="UI.returnHome()">Back to the Margaret</button><button class="btn ghost" onclick="G.pad.open('pause')">Controller</button></div></div></div>
 
 <div class="screen" id="debrief" hidden><div class="card"><div id="dBody"></div>
   <div class="row" id="dTest"><button class="btn" onclick="UI.fly()">Fly again</button><button class="btn ghost" onclick="UI.hangar()">Hangar</button><button class="btn ghost" onclick="UI.menu()">Menu</button></div>
@@ -279,6 +279,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 
 <div class="screen" id="contact" hidden><div class="card" id="ctBody"></div></div>
 
+<div class="screen" id="controls" hidden><div class="card" id="padBody"></div></div>
 <div class="screen" id="loading" hidden>Warming up the engine…</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
