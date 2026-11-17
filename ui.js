@@ -488,7 +488,8 @@ function frame(now){
   const g = G.game; if (!g) return;
   try {
     // without pointer lock the mouse works as a joystick: distance from centre turns the aim point
-    if (!locked() && joy.on && g.running && !g.paused) { const dz = v => Math.abs(v) < 0.08 ? 0 : (v - Math.sign(v)*0.08)/0.92; g.onMouse(dz(joy.x)*900*dt, dz(joy.y)*700*dt); }
+    if (G.pad) G.pad.poll(g, dt, now);
+    if (!locked() && joy.on && g.running && !g.paused && !(G.pad && G.pad.active)) { const dz = v => Math.abs(v) < 0.08 ? 0 : (v - Math.sign(v)*0.08)/0.92; g.onMouse(dz(joy.x)*900*dt, dz(joy.y)*700*dt); }
     g.update(dt); g.render();
   } catch (e) { console.error('Ace of the Airways frame error', e); if (!frame.warned) { frame.warned = true; G.HUD.toast('Something went wrong: ' + e.message); } }
 }

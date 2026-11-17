@@ -43,7 +43,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .title .sub{font-family:var(--f-type);color:#f3d9a4;margin:12px 0 18px;font-size:16px}
 .mcol{display:flex;flex-direction:column;gap:14px}
 .callrow{display:flex;gap:10px;align-items:stretch}
-#coop .row{gap:8px;align-items:center;flex-wrap:wrap}#coCode{width:84px;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:6px 10px;font-family:var(--f-deco);font-size:20px;letter-spacing:.2em;text-transform:uppercase;border-radius:2px}.co-code{font-size:14px;opacity:.85}.co-code b{font-family:var(--f-deco);font-size:26px;letter-spacing:.18em;margin-left:8px;color:var(--gold,#f2c14e)}.co-list{margin:8px 0;padding-left:18px;font-size:14px}.co-note{font-size:13px;opacity:.75;margin:8px 0 0}#mCall{flex:1;min-width:0;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:8px 12px;font-family:var(--f-deco);font-size:28px;letter-spacing:.05em;border-radius:2px}
+#coop .row{gap:8px;align-items:center;flex-wrap:wrap}#coCode{width:84px;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:6px 10px;font-family:var(--f-deco);font-size:20px;letter-spacing:.2em;text-transform:uppercase;border-radius:2px}.co-code{font-size:14px;opacity:.85}.co-code b{font-family:var(--f-deco);font-size:26px;letter-spacing:.18em;margin-left:8px;color:var(--gold,#f2c14e)}.co-list{margin:8px 0;padding-left:18px;font-size:14px}.co-note{font-size:13px;opacity:.75;margin:8px 0 0}.padhelp{font-size:12.5px;opacity:.8;margin:10px 0 0;line-height:1.5}#mCall{flex:1;min-width:0;background:#0b0f17;border:1px solid var(--line);color:var(--cream);padding:8px 12px;font-family:var(--f-deco);font-size:28px;letter-spacing:.05em;border-radius:2px}
 #mCall.need{border-color:var(--red);animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .lbl{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:6px;display:block}
@@ -225,7 +225,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
   <div class="hp" id="hHelp" hidden><div class="controls">
     <kbd>Mouse</kbd><span>Aim (the plane follows)</span><kbd>Left click</kbd><span>Guns</span><kbd>Right click / Space</kbd><span>Rockets</span>
     <kbd>W / S</kbd><span>Throttle</span><kbd>A / D</kbd><span>Roll</span><kbd>Q / E</kbd><span>Rudder</span><kbd>↑ / ↓</kbd><span>Pitch</span>
-    <kbd>Double-tap A / D</kbd><span>Barrel roll (dodges fire)</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps (land, dock, skyhook)</span><kbd>G</kbd><span>Landing gear (retractable planes)</span><kbd>Double-tap Q / E</kbd><span>Snap turn</span><kbd>1–5</kbd><span>Wingmen: attack, cover, zeppelin, form, go home</span><kbd>C</kbd><span>Chase / cockpit</span><kbd>V</kbd><span>Look back</span><kbd>M</kbd><span>Sound</span><kbd>H</kbd><span>This help</span><kbd>Esc</kbd><span>Pause</span></div></div>
+    <kbd>Double-tap A / D</kbd><span>Barrel roll (dodges fire)</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps (land, dock, skyhook)</span><kbd>G</kbd><span>Landing gear (retractable planes)</span><kbd>Double-tap Q / E</kbd><span>Snap turn</span><kbd>1–5</kbd><span>Wingmen: attack, cover, zeppelin, form, go home</span><kbd>C</kbd><span>Chase / cockpit</span><kbd>V</kbd><span>Look back</span><kbd>M</kbd><span>Sound</span><kbd>H</kbd><span>This help</span><kbd>Esc</kbd><span>Pause</span></div><p class="padhelp"><b>Controller:</b> left stick flies · right stick aims · R2 guns · L2 rockets · R1/L1 throttle · Cross nitro (and drops you off the trapeze) · Circle barrel roll · Triangle Immelmann · Square Split-S · L3 flaps · Create/View gear · R3 hold to look back, tap for cockpit · D-pad wingmen (down twice: send home) · Options pause</p></div>
 </div>
 
 <div class="screen" id="menu" hidden><div class="wrap">
@@ -297,5 +297,6 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 <script src="story.js"></script>
 <script src="open.js"></script>
 <script src="net.js"></script>
+<script src="pad.js"></script>
 <script src="ui.js"></script>
 </body></html>

@@ -18,6 +18,12 @@ Guests who join mid-flight drop in from the Margaret's trapeze.
 - Some strict networks (corporate firewalls, some mobile carriers) block direct WebRTC links. PeerJS has no relay
   server by default, so those players can't connect.
 
+## Controllers
+
+A DualSense, DualShock or Xbox pad works in flight (menus stay mouse and keyboard). Plug it in or pair it over Bluetooth,
+then press any button. Left stick flies, right stick aims, R2 guns, L2 rockets, R1/L1 throttle. The full layout is in
+the in-game help (H) and at the top of `pad.js`.
+
 ## Code map
 
 | File | What's in it |
@@ -31,6 +37,7 @@ Guests who join mid-flight drop in from the Margaret's trapeze.
 | `game.js` | The game loop, missions' shared code |
 | `story.js`, `open.js` | Story campaign, open skies |
 | `net.js` | Co-op |
+| `pad.js` | Controller support |
 | `ui.js`, `hud.js`, `index.html` | Screens and HUD |
 
 ## Tests (Node, no browser)
@@ -39,4 +46,5 @@ Guests who join mid-flight drop in from the Margaret's trapeze.
 node tools/run.js .                                   # smoke test: every mission, every plane; ends "all clear"
 node tools/coop.js . host 47011 nightjar 45 &         # co-op: a host and a guest over a local socket
 node tools/coop.js . guest 47011 nightjar 45
+node tools/padtest.js .                                # controller: every button against a fake DualSense
 ```
