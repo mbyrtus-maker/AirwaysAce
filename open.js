@@ -988,11 +988,18 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const P = g.player, sc = this.sc; if (!P.alive || P.onGround || P.frozen) { sc.cont = 0; return; }
     const agl = P.pos.y - this.ground(P.pos.x, P.pos.z), mph = P.speed/MPH;
     sc.cont -= dt;
+    // knife-edge has to be earned: wings within ~20° of vertical, nose roughly level, low and fast, held for 3 s before it scores
+    const KE = 3, edge = Math.abs(P.right.y) > 0.94 && Math.abs(P.fwd.y) < 0.3 && agl < 150 && mph > 90 && !P.man;
+    if (edge) {
+      const was = sc.ke || 0; sc.ke = was + dt;
+      if (sc.ke < KE && Math.floor(sc.ke*2) !== Math.floor(was*2)) G.HUD.toast(`Knife-edge… hold it ${(KE - sc.ke).toFixed(1)} s`);
+      if (was < KE && sc.ke >= KE) { this.award(300, 'KNIFE-EDGE', true); if (g.audio) g.audio.ding(); sc.keT = 0; }
+    } else sc.ke = 0;
     if (sc.cont <= 0) {
       sc.cont = 0;
       if (agl < 18 && mph > 125 && !g.runwayAt(P.pos)) { this.award(55, 'HEDGE-HOPPING', true); sc.cont = 0.5; }
       else if (P.up.y < -0.65 && !P.man) { this.award(40, 'INVERTED', true); sc.cont = 0.5; }
-      else if (Math.abs(P.right.y) > 0.85 && agl < 150 && !P.man) { this.award(40, 'KNIFE-EDGE', true); sc.cont = 0.5; }
+      else if (sc.ke >= KE) { this.award(40, `KNIFE-EDGE ${Math.floor(sc.ke)}s`, true); sc.cont = 0.5; }
     }
     // under a bridge
     for (const A of this.arches) {
