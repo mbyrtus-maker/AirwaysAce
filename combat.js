@@ -178,7 +178,7 @@ G.Airship = class {
     const props = this.obj.userData.props || [];
     for (const p of props) if (p.parent && p.parent.visible !== false) p.rotation.z += dt*9*(this.speed/Math.max(1, this.speed0) + 0.2);
     if ((this.state !== 'fighting' && this.state !== 'running') || this.g.done) { this.sync(); return; }
-    const foes = this.g.planes.filter(p => p.alive && !p.docked && p.team !== this.team && !p.invuln && !p.duel);
+    const foes = this.g.planes.filter(p => p.alive && !p.docked && !p.noTarget && p.team !== this.team && !p.invuln && !p.duel);
     const nearest = (mz, lo, hi) => { let best = null, bd = hi; for (const f of foes) { const d = f.pos.distanceTo(mz); if (d > lo && d < bd) { bd = d; best = f; } } return [best, bd]; };
     // machine guns: the Margaret's three stations, or a Raider's live gun blisters
     const mgs = this.comps ? this.alivePart('mg').map(c => (c.gun || (c.gun = {p:c.pos, cd:Math.random()}))) : this.guns;

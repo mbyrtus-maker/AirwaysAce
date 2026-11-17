@@ -223,7 +223,7 @@ G.Plane = class {
       const mz = tA.copy(t.pos).applyQuaternion(this.q).add(this.pos);
       if (!t.tgt || !this.inArc(t, t.tgt, mz)) {
         t.tgt = null; let bd = 600;
-        for (const q of g.planes) { if (!q.alive || q.team === this.team || q.invuln || q.docked) continue; const d = q.pos.distanceTo(mz); if (d < bd && this.inArc(t, q, mz)) { bd = d; t.tgt = q; } }
+        for (const q of g.planes) { if (!q.alive || q.team === this.team || q.invuln || q.docked || q.noTarget) continue; const d = q.pos.distanceTo(mz); if (d < bd && this.inArc(t, q, mz)) { bd = d; t.tgt = q; } }
         if (!t.tgt) { t.rest = 0.4; continue; }
         t.burst = 0.6 + Math.random()*0.6;
         const e = 0.13 + (this.isPlayer || this.team === 0 ? 0 : 0.01); t.bias.set((Math.random() - 0.5)*e, (Math.random() - 0.5)*e, (Math.random() - 0.5)*e);   // this burst's aiming error

@@ -26,7 +26,14 @@ const H = G.HUD = {
   objective(t){ $('hGoal').textContent = t; },
   sides(list){
     const k = JSON.stringify(list); if (k === this.sk) return; this.sk = k;
-    $('hSides').innerHTML = list.map(s => `<li data-st="${s.st}"><span class="st"></span><span>${esc(s.text)}</span><b>${esc(s.val)}</b></li>`).join('');
+    $('hSides').innerHTML = list.map(s => `<li data-st="${s.st}"${s.secret ? ' class="sec"' : ''}><span class="st"></span><span>${s.secret ? 'Secret · ' : ''}${esc(s.text)}</span><b>${esc(s.val)}</b></li>`).join('');
+  },
+  /* undercover episodes: how far the Brethren still trust you (null hides the meter) */
+  cover(v, note){
+    const el = $('hCover'); if (!el) return;
+    if (v == null) { el.hidden = true; this.cv = null; return; }
+    const k = Math.round(v) + '|' + (note || ''); if (k === this.cv) return; this.cv = k; el.hidden = false;
+    el.innerHTML = `<span>Cover</span><i><b style="width:${Math.max(0, Math.min(100, v))}%" class="${v < 25 ? 'lo' : v < 50 ? 'mid' : ''}"></b></i><em>${Math.round(v)}%</em>${note ? `<small>${esc(note)}</small>` : ''}`;
   },
   wing(g){
     const el = document.getElementById('hWing'); const W = g.wingmen || [];

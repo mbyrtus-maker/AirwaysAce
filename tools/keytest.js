@@ -8,7 +8,7 @@ const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v)
 global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
 global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
 const dir = process.argv[2];
-const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'net', 'pad', 'keys', 'ui'];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'story2', 'net', 'pad', 'keys', 'ui'];
 for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
 const G = global.G, V3 = THREE.Vector3;
 let errs = 0; const fail = (where, e) => { errs++; console.log('ERROR in', where, '\n ', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n  ') : e); };

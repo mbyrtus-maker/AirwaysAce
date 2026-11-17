@@ -17,7 +17,7 @@ G.Pilot = class {
     if (gh < 400) { const floor = -0.25 + (400 - gh)/400*0.4; if (dir.y < floor) { dir.y = floor; dir.normalize(); } }
     return this.p.steer(dir);
   }
-  enemies(){ return this.g.planes.filter(q => q.alive && !q.docked && q.team !== this.p.team); }
+  enemies(){ return this.g.planes.filter(q => q.alive && !q.docked && !q.noTarget && q.team !== this.p.team); }
   pickTarget(){
     if (this.role === 'strafe' && this.shipTarget && this.shipTarget.alive) return this.shipTarget;
     if (this.role === 'strafe') { const s = this.g.ships.find(s => s.alive && s.team !== this.p.team && (!s.state || s.state === 'fighting' || s.state === 'running')); if (s) return s; }

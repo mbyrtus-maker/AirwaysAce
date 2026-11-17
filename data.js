@@ -60,6 +60,8 @@ G.hasMod = id => (G.save.mods || []).includes(id);
 G.hookTop = P => (P && P.L && (P.L.mods || []).includes('winch') ? 125 : 105)*MPH;
 /* ---------- Liveries: paint schemes found or won ---------- */
 G.LIVERIES = {
+  brimstone:  {name:'Brimstone', paint:[0x161616, 0xe0742a, 0x9e1b1b], from:'A treasure in the Calavera Isles'},
+  blackthirteen:{name:'Black Thirteen', paint:[0x161616, 0xe8e0cc, 0x9e1b1b], from:'Volume II, Chapter 4'},
   barnstormer:{name:'Barnstormer', paint:[0xd94f2a, 0xf1e9d6, 0x1f2a44], from:'10,000 stunt points'},
   goldleaf:   {name:'Gold Leaf', paint:[0x151312, 0xdba63e, 0xf1e9d6], from:'60,000 stunt points'},
   halcyon:    {name:'Halcyon Blue', paint:[0x6fb0d9, 0xf1e9d6, 0x1f3b6b], from:'A treasure on Halcyon Island'},
@@ -129,7 +131,9 @@ G.GANG_FLEET = {
   rattlers:{vandal:2, jackal:2, highwayman:1},
   wolves:  {vandal:2, mantis:1, sparrowhawk:1, grackle:1},
   corsairs:{vandal:2, bulldog:2, thunderbuss:1},
-  customs: {gallant:2, highwayman:1}
+  customs: {gallant:2, highwayman:1},
+  brethren:{vandal:2, bulldog:2, highwayman:1, thunderbuss:1},
+  navy:    {gallant:3, sparrowhawk:1, highwayman:1}
 };
 G.HEAVY = new Set(['highwayman', 'grackle', 'ironclad', 'thunderbuss']);
 G.gangChassis = (gang, i, n, used = {}) => {

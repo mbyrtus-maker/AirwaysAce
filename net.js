@@ -430,6 +430,7 @@ for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['fee
     const g = G.game;
     if (g && g.netHost && Net.links.length && !Net.quiet) {
       const m = fn(...a);
+      if (k === 'objective') { if (Net.lastObj === m.text) return orig.apply(this, a); Net.lastObj = m.text; }   // objectives are set every frame; send changes only
       if (m.text && k === 'feed') m.text = String(m.text).replace(/^You\b/, G.save.callsign || 'The host');
       Net.broadcast(Object.assign({t:'hud'}, m));
     }

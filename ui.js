@@ -273,6 +273,7 @@ Object.assign(UI, {
     halcyon:'M-62 -8 C-60 -44 -14 -54 24 -42 C60 -30 72 6 54 30 C32 56 -24 56 -46 36 C-62 22 -64 8 -62 -8Z',
     badlands:'M-84 -30 L-46 -58 L28 -52 L80 -24 L88 26 L44 56 L-30 52 L-80 24Z',
     frostback:'M-94 12 L-66 -28 L-36 -16 L-6 -52 L22 -22 L52 -48 L90 -8 L74 30 L-52 38Z',
+    calavera:'M-46 6 C-56 -20 -40 -52 0 -54 C40 -52 56 -20 46 6 C44 14 36 18 32 24 L32 32 L28 38 L22 32 L16 38 L10 32 L4 38 L-2 32 L-8 38 L-14 32 L-20 38 L-26 32 L-30 38 L-32 32 L-32 24 C-36 18 -44 14 -46 6Z',
     keys:'M-74 2 C-74 -8 -50 -10 -46 0 C-44 10 -72 12 -74 2Z M-34 -28 C-34 -42 4 -42 6 -28 C6 -16 -32 -14 -34 -28Z M12 8 C12 -6 60 -8 62 8 C62 22 12 24 12 8Z M-22 32 C-22 24 2 24 2 32 C2 40 -22 40 -22 32Z M44 -34 C44 -42 62 -42 62 -34 C62 -28 44 -28 44 -34Z'
   },
   /* The chart's art is painted once onto a canvas and cached as an image: newsprint, engraved sea, rippled coasts,
@@ -301,6 +302,12 @@ Object.assign(UI, {
       const sym = (fn, n) => { for (let i = 0; i < n; i++) { const sx = cx + (R() - 0.5)*150, sy = cy + (R() - 0.5)*80; if (x.isPointInPath(p, sx, sy)) fn(sx, sy); } };
       if (id === 'frostback') sym((sx, sy) => { x.beginPath(); x.moveTo(sx - 9, sy + 6); x.lineTo(sx, sy - 9); x.lineTo(sx + 9, sy + 6); x.stroke(); x.beginPath(); x.moveTo(sx - 3, sy - 4); x.lineTo(sx, sy - 9); x.lineTo(sx + 3, sy - 4); x.fill(); }, 26);
       if (id === 'badlands') sym((sx, sy) => { x.beginPath(); x.moveTo(sx - 10, sy + 5); x.lineTo(sx - 6, sy - 4); x.lineTo(sx + 6, sy - 4); x.lineTo(sx + 10, sy + 5); x.stroke(); for (let h = -4; h < 5; h += 3) { x.beginPath(); x.moveTo(sx - 7, sy + h); x.lineTo(sx + 7, sy + h); x.lineWidth = 0.7; x.stroke(); x.lineWidth = 1.6; } }, 20);
+      if (id === 'calavera') {   // the eye sockets and nose in heavy ink, and a smoking crown
+        x.fillStyle = ink + '.85)'; for (const s of [-1, 1]) { x.beginPath(); x.ellipse(cx + s*17*k, cy + 3*k, 10*k, 8*k, 0, 0, 7); x.fill(); }
+        x.beginPath(); x.moveTo(cx, cy + 12*k); x.lineTo(cx - 5*k, cy + 22*k); x.lineTo(cx + 5*k, cy + 22*k); x.closePath(); x.fill();
+        x.strokeStyle = ink + '.7)'; x.lineWidth = 1.4; for (let i = 0; i < 4; i++) { x.beginPath(); x.arc(cx - 6 + i*5, cy - 44*k - i*9, 5 + i*2, 0, 7); x.stroke(); }
+        x.fillStyle = 'rgba(200,70,30,.55)'; x.beginPath(); x.ellipse(cx + 17*k, cy + 3*k, 6*k, 4.5*k, 0, 0, 7); x.fill();
+      }
       if (id === 'keys') sym((sx, sy) => { x.beginPath(); for (let a = 0; a < 5; a++) { x.moveTo(sx, sy - 6); x.lineTo(sx + Math.cos(a*1.26 - 1.57)*7, sy - 6 + Math.sin(a*1.26 - 1.57)*5 + 3); } x.moveTo(sx, sy - 6); x.lineTo(sx + 1, sy + 4); x.stroke(); }, 30);
       if (id === 'halcyon') { sym((sx, sy) => { x.beginPath(); x.arc(sx, sy, 3, 0, 7); x.stroke(); x.beginPath(); x.moveTo(sx, sy + 3); x.lineTo(sx, sy + 7); x.stroke(); }, 22); const tx = cx + 58, ty = cy + 18; for (let i = 0; i < 6; i++) x.fillRect(tx + i*5, ty - 6 - (i % 3)*4, 3.5, 8 + (i % 3)*4); }
       x.restore();
@@ -343,7 +350,7 @@ Object.assign(UI, {
     $('cShip').setAttribute('transform', `translate(${here.chart[0] + 36} ${here.chart[1] - 48})`);
     const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid);
     const night = G.timeOfDay() === 'night', move = sel !== here ? UI.travelCost(here, sel) : null;
-    const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS'}[sel.id];
+    const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS', calavera:'PIRATE BRETHREN DENY "KING" RUMOURS; VOLCANO RUMBLES'}[sel.id];
     $('cSide').innerHTML = `<div class="np-mast"><span>Day ${O.day}</span><b>THE CHART TABLE</b><span>${esc(G.timeLabel())}</span></div>
       <div class="np-kick">${esc(sel.nation)}${sel === here ? ' · the Margaret is here' : ''}</div><h3 class="np-h">${esc(sel.name)}</h3><div class="np-sub">${esc(head)}</div>
       <p class="np-body">${esc(sel.blurb)}</p>
@@ -351,7 +358,7 @@ Object.assign(UI, {
       <ul class="np-list">${sites.map(s => { const C = G.CONTACTS[s.contact], js = jobsFor(s.contact), done = js.filter(j => (O.jobs[j.id] || {}).done).length, nj = js.filter(j => j.night).length;
         return `<li><b>${esc(C.name)}</b><span>${esc(s.name)}, ${s.kind === 'hook' ? 'by skyhook' : 'airfield'}. ${C.local ? 'Gossip, rumours and free repairs.' : `${done} of ${js.length} jobs done${nj ? `, ${nj} after dark` : ''}.`}</span></li>`; }).join('')}
         <li><b>Treasure</b><span>${sel.treasures.filter(t => O.found[t.id]).length} of ${sel.treasures.length} found.</span></li>
-        <li><b>Bandits</b><span>${esc((sel.danger > 0.5 ? 'Plenty of ' : sel.danger > 0.3 ? 'Some ' : 'A few ') + ({tigers:'Paper Tigers', rattlers:'Rattlesnake Gang', wolves:'Frost Wolves', corsairs:'Corsairs'}[sel.gang] || 'pirates'))}${night ? ', more at night' : ''}.</span></li>
+        <li><b>Bandits</b><span>${esc((sel.danger > 0.5 ? 'Plenty of ' : sel.danger > 0.3 ? 'Some ' : 'A few ') + ({tigers:'Paper Tigers', rattlers:'Rattlesnake Gang', wolves:'Frost Wolves', corsairs:'Corsairs', brethren:'Brethren of the Black Flag'}[sel.gang] || 'pirates'))}${night ? ', more at night' : ''}.</span></li>
         <li><b>Stunts</b><span>${O.stuntTotal.toLocaleString()} points all told; best chain ${O.stuntBest.toLocaleString()}.</span></li></ul>
       <div class="np-foot"><span>Kitty <b>$${S.cash.toLocaleString()}</b></span>
         ${move ? `<button class="btn sm" ${S.cash < move.cash ? 'disabled' : ''} onclick="UI.travel('${sel.id}')">Sail here · ${move.hours} h · $${move.cash}</button>` : `<button class="btn ghost sm" onclick="UI.wait()">${night ? 'Wait until morning' : G.timeOfDay() === 'evening' ? 'Wait until night' : 'Wait until dusk'}</button>`}</div>
@@ -409,6 +416,7 @@ G.portrait = (L = {}) => {
     beret:'<ellipse cx="96" cy="58" rx="40" ry="13" fill="#1f1714"/><circle cx="96" cy="46" r="3" fill="#1f1714"/>',
     bowler:'<ellipse cx="90" cy="66" rx="46" ry="7" fill="#1f1714"/><path d="M60 66 C60 34 120 34 120 66Z" fill="#26221f"/>',
     naval:'<path d="M54 70 L58 48 L122 48 L126 70Z" fill="#f1e9d6"/><rect x="54" y="66" width="72" height="8" fill="#1f2a44"/><path d="M52 74 Q90 84 128 74 L120 80 Q90 86 60 80Z" fill="#111"/><circle cx="90" cy="60" r="5" fill="#dba63e"/>',
+    tricorn:'<path d="M30 70 Q90 40 150 70 Q120 62 90 66 Q60 62 30 70Z" fill="#1a1414"/><path d="M52 68 C56 36 124 36 128 68Z" fill="#221a1a"/><path d="M30 70 Q90 84 150 70" stroke="#b88a2a" stroke-width="2" fill="none"/><path d="M84 50 L96 50 L90 60Z" fill="#e8e0cc"/>',
     scarf:'<path d="M54 80 C50 44 130 44 126 80 C112 66 70 66 54 80Z" fill="#d94f4f"/><path d="M124 74 L138 96 L128 98Z" fill="#d94f4f"/>',
     none:''}[L.hat || 'none'];
   const hair = L.hair || '#3a2a1a', skin = L.skin || '#e2b48e', coat = L.coat || '#3a3a44';

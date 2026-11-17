@@ -8,7 +8,7 @@ const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v)
 global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
 global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
 const dir = process.argv[2];
-const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'net', 'pad', 'keys', 'ui'];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'story2', 'net', 'pad', 'keys', 'ui'];
 for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
 const G = global.G, V3 = THREE.Vector3;
 let errs = 0; const fail = (where, e) => { errs++; console.log('ERROR in', where, '\n ', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n  ') : e); };
@@ -76,7 +76,7 @@ const later = (fn, ms = 120) => new Promise(r => setTimeout(() => { try { fn(); 
   await later(() => { const g = G.game; if (!g || g.mission.id !== 'c2m2') throw new Error('devFly c2m2 failed'); g.mission.drop(); step(g, 60); G.UI.dev(); G.UI.devWin(false); console.log('dev flows ok'); });
 })();
 // story regression
-for (const id of ['ambush', 'nightjar', 'c1m1', 'c2m1', 'c2m3', 'c3m1', 'c3m3']) { try { const g = new G.Game(R, G.MISSIONS[id]); g.mission.drop && g.mission.awaitDrop && g.mission.drop(); step(g, 200); } catch (e) { fail('story ' + id, e); } }
+for (const id of ['ambush', 'nightjar', 'c1m1', 'c2m1', 'c2m3', 'c3m1', 'c3m3', 'c4m1', 'c4m2', 'c4m3', 'c5m1', 'c5m2', 'c5m3', 'c6m1', 'c6m2', 'c6m3']) { try { const g = new G.Game(R, G.MISSIONS[id]); g.mission.drop && g.mission.awaitDrop && g.mission.drop(); step(g, 200); } catch (e) { fail('story ' + id, e); } }
 console.log(errs ? `\n${errs} error(s)` : '\nno errors');
 setTimeout(() => { console.log(errs ? `${errs} error(s) total` : 'all clear'); process.exit(errs ? 1 : 0); }, 4000);
 process.on('uncaughtException', e => { fail('async', e); });

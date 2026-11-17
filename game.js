@@ -41,7 +41,7 @@ G.Game = class {
     this.planes = []; this.pilots = []; this.ships = []; this.audio = G.audio;
     this.initCombat();
     this.t = 0; this.running = false; this.paused = false; this.done = false; this.view = G.save.view || 'chase'; this.lookBack = false;
-    this.kills = 0; this.playerShots = 0; this.events = [];
+    this.kills = 0; this.playerShots = 0; this.events = []; if (G.HUD.cover) G.HUD.cover(null);
     this.runways = [];
     this.keys = {}; this.aimYaw = 0; this.aimPitch = -0.12; this.aimDir = new V3();
     this.camPos = new V3(); this.camLook = new V3();
@@ -94,7 +94,7 @@ G.Game = class {
   spawnWingmen(n){
     const P = this.player; this.wingmen = [];
     for (const c of G.CREW.slice(0, n)) {
-      const L = G.stockLoadout('gallant'); L.paint = c.paint;
+      const L = this.mission.crewLoadout ? this.mission.crewLoadout(c) : G.stockLoadout('gallant'); if (!this.mission.crewLoadout) L.paint = c.paint;
       // abeam of the player, well clear of the Margaret; nudged out of her hull if needed
       const pos = P.pos.clone().addScaledVector(P.fwd, 10 - (c.back ? 40 : 0)).addScaledVector(P.right, c.side*45).add(new V3(0, c.back ? 12 : -10, 0));
       for (const s of this.ships) for (let i = 0; i < 20 && s.inside(pos, 30); i++) pos.addScaledVector(tA.copy(pos).sub(s.pos).setY(0).normalize(), 15).y -= 6;
@@ -273,7 +273,7 @@ G.MISSIONS.ambush = {
   },
   /* shared opening: the Margaret, the player on her trapeze, the hanging camera */
   launch(g, line, o = {}){
-    const ship = this.ship = g.addShip({team:0, name:'Lucky Margaret', pos:o.pos || new V3(0, 720, -600), heading:o.heading ?? 0.2, speed:9, turn:o.turn ?? 0.004,
+    const ship = this.ship = g.addShip({team:0, name:o.shipName || 'Lucky Margaret', paint:o.shipPaint, pos:o.pos || new V3(0, 720, -600), heading:o.heading ?? 0.2, speed:9, turn:o.turn ?? 0.004,
       hp:4000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8), new V3(0, 23, -20)]});
     const L = Object.assign({}, o.load || G.save.load, {mods:(G.save.mods || []).slice()});
     const P = g.player = g.addPlane({loadout:L, team:0, player:true, name:G.save.callsign || 'Ace', callsign:G.save.callsign || 'Ace', speed:0, throttle:0.9});

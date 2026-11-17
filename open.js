@@ -25,8 +25,11 @@ const GANGS = {
   rattlers:{name:'Rattlesnake Gang', paints:[[0xc8a25a, 0x5a3b22, 0x2d2d2d], [0x8a5a2a, 0xe8d8b0, 0x2d2d2d]]},
   wolves:  {name:'Frost Wolves', paints:[[0x5a6470, 0xe8edf2, 0x8e231c], [0xe8edf2, 0x3a4048, 0x8e231c]]},
   corsairs:{name:'Corsairs', paints:[[0x1f6f9e, 0xf1e9d6, 0xd94f4f], [0x0f3b55, 0xd9b44a, 0xd94f4f]]},
-  customs: {name:'Customs', paints:[[0x22324a, 0xf1e9d6, 0xd9b44a]]}
+  customs: {name:'Customs', paints:[[0x22324a, 0xf1e9d6, 0xd9b44a]]},
+  brethren:{name:'Brethren of Calavera', paints:[[0x161616, 0xe8e0cc, 0x9e1b1b], [0x3a1010, 0x1a1a1a, 0xe0742a], [0x1f1f24, 0xb88a2a, 0xe8e0cc]]},
+  navy:    {name:'the Navy', paints:[[0x2a3a52, 0xe8edf2, 0xb88a2a]]}
 };
+G.GANGS = GANGS;
 
 /* =====================================================================
    Regions. Places are found on the region's own terrain when the chart first needs them, so they always land
@@ -139,6 +142,37 @@ const REG = G.REGIONS = {
       {id:'k4', name:'Blackwater doubloons', at:'kcove', hint:'Pirates buried doubloons in Blackwater Cove, out east. The crabs are guarding them.', reward:{cash:3500}},
       {id:'k5', name:'Keeper\'s lamp oil', at:'klight', off:[40, -30], hint:'The Maravilla lighthouse keeper sells "lamp oil" by the crate. Look round the back.', reward:{cash:5000}},
       {id:'k6', name:'The grotto chest', at:'grotto', ledge:7, hint:'Rosa\'s grandfather kept a chest on a ledge inside Smuggler\'s Grotto, a sea cave through an island in the far south of the Keys, round the bend where the tunnel turns. You\'ll have to fly in to reach it.', reward:{mod:'gyro', cash:1500}}
+    ]},
+  calavera:{id:'calavera', name:'The Calavera Isles', nation:'Brethren of the Black Flag', seed:6613, terrain:'calavera', chart:[292, 330], danger:0.85, gang:'brethren',
+    blurb:'Fly high enough and the islands grin at you: a volcanic skull with a smoking crown, a lagoon for one eye and a lake of fire for the other. The Brethren of the Black Flag run every harbour on it, and nobody flies the Calavera without paying somebody.',
+    margaret:{x:0, y:720, z:-6400},
+    sites:[
+      {id:'jawbone', kind:'strip', name:'Port Jawbone', contact:'molly', at:{want:'flat', x:-1300, z:-3000, r:900}, r:430, yaw:1.57, town:22, strip:{sign:'PORT JAWBONE', walls:0x4a3a32, trim:0x9e1b1b, accent:0xe8e0cc, grass:0x3a3a2a, tar:0x2a2626, signCol:'#e8e0cc', signGlow:'#ff6a3a'}},
+      {id:'smoke', kind:'hook', name:'Smoke Harbour', contact:'sam', at:{want:'land', x:-3050, z:-600, r:700}, r:300, town:true, tower:{h:86, w:34, walls:0x3a3434, sign:'SMOKE HARBOUR YARDS', signCol:'#e0742a', signGlow:'#ffd08a'}},
+      {id:'ashfall', kind:'strip', name:'Ashfall', contact:'hanne', at:{want:'flat', x:3000, z:-2500, r:900}, r:380, yaw:0.4, town:14, strip:{sign:'ASHFALL SULPHUR CO.', walls:0xd8c890, trim:0x5a5a52, accent:0xd9b44a, grass:0x5a5a40, signCol:'#2a2410', signGlow:'#f2e24e'}},
+      {id:'gallows', kind:'hook', name:'Gallows Point', contact:'lucien', at:{want:'land', x:950, z:-1300, r:600}, r:200, town:true, tower:{h:78, w:30, walls:0x2a2224, sign:'THE GALLOWS', signCol:'#9e1b1b', signGlow:'#ff8a6a'}},
+      {id:'cinder', kind:'strip', name:'Cinder Cove', contact:'pike', at:{want:'flat', x:-3700, z:2600, r:1100}, r:360, yaw:2.6, town:9, strip:{sign:'CINDER COVE', walls:0x8a7a6a, trim:0x1f3b4a, accent:0xd94f4f, grass:0x3a4a30, signCol:'#e8e0cc', signGlow:'#9ef0e0'}}
+    ],
+    marks:[
+      {id:'keep', kind:'keep', name:'Brimstone Keep', at:{want:'land', x:0, z:2200, r:500}},
+      {id:'cranium', kind:'volcano', name:'Mount Cranium', at:{want:'high', x:0, z:3000, r:600}, plume:2.2},
+      {id:'burning', kind:'lava', name:'the Burning Eye', at:{x:1750, z:-600}, r:900},
+      {id:'cheekw', kind:'volcano', name:'the west cheekbone', at:{want:'high', x:-3050, z:-1150, r:400}, plume:0.9},
+      {id:'cheeke', kind:'volcano', name:'the east cheekbone', at:{want:'high', x:3050, z:-1150, r:400}, plume:1.1},
+      {id:'teeth', kind:'none', name:'the Teeth', at:{x:0, z:-4100}},
+      {id:'galleon', kind:'hulk', name:'the wreck of the Santa Muerte', at:{want:'land', x:4300, z:1700, r:1500}}
+    ],
+    tunnels:[
+      {id:'gullet', name:'the Devil\'s Gullet', shape:'s', amp:34, len:[300, 640], bw:34, bh:24, bonus:3000},
+      {id:'ember', name:'the Ember Tube', shape:'bend', amp:40, len:[220, 480], bw:32, bh:22},
+      {id:'jawarch', name:'the Jaw Arch', shape:'bend', amp:24, len:[160, 360], bw:30, bh:18, sea:true}
+    ],
+    treasures:[
+      {id:'v1', name:'The Santa Muerte\'s silver', at:'galleon', off:[30, -20], hint:'A Spanish galleon ran onto the east coast of the Calavera with a hold full of silver. Fly low over the wreck.', reward:{cash:4000}},
+      {id:'v2', name:'Crater gold', at:'cranium', hint:'Old Brimstone\'s first crew hid their gold on the rim of Mount Cranium. Nobody goes up there. It\'s on fire.', reward:{livery:'brimstone', cash:2500}},
+      {id:'v3', name:'The Teeth Run', at:[0, -4000], race:{circuit:{at:[0, -4000], r:1600, n:10, agl:26}, low:true}, hint:'Pirates race through the channels between the Teeth. Wave-top height, and mind the fangs.', reward:{cash:4500}},
+      {id:'v4', name:'Pike\'s rum cache', at:'cinder', off:[260, 180], hint:'"Bilge" Pike buried a cache of navy rum somewhere east of Cinder Cove and drank the map.', reward:{cash:3000}},
+      {id:'v5', name:'The Gullet chest', at:'gullet', ledge:7, hint:'There\'s a chest on a ledge inside the Devil\'s Gullet, a lava tube under the crown. Fly in slow and look right.', reward:{mod:'drums', cash:2000}}
     ]}
 };
 
@@ -164,6 +198,19 @@ G.CONTACTS = {
     hello:['Peace be with you, flyer. And with your engine.', 'We pray for the fishermen, the sailors, and lately the pilots.'], gossip:['I hear many confessions. Rosa Marchetti\'s are the longest.', 'The Commodore means well. The corsairs mean otherwise.']}),
   mae:LOCAL({club:true, name:'"One-Eyed" Mae Shaughnessy', role:'Landlady, the Tortuga Arms', music:'caravan', look:{skin:'#e0a888', hair:'#b5562a', hat:'scarf', lips:true, coat:'#3a2418', earring:true},
     hello:['Well, aren\'t you a pretty thing. Pull up a barrel.', 'No fighting in my house. Outside, you can do as you like.'], gossip:['Corsairs drink here, navy drinks here. Nobody shoots anybody. My rules.', 'The Barracuda\'s captain owes me for a broken mirror.']}),
+  hanne:LOCAL({name:'Hanne Vos', role:'Mine foreman, Ashfall', look:{skin:'#e8c0a0', hair:'#d8c890', hat:'cap', lips:true, coat:'#5a5a40'},
+    hello:['Sulphur, flyer. Smells like the devil\'s laundry. You get used to it.', 'The Brethren take a third of every load. The volcano takes the rest of us.'], gossip:['Brimstone\'s men have been buying every ton of steel we can dig. Steel for what, in a volcano?', 'At night the Burning Eye lights the whole cheek red. The children call it the Devil winking.']}),
+  pike:LOCAL({name:'"Bilge" Pike', role:'Smuggler, Cinder Cove', look:{skin:'#d9a07a', hair:'#6a5a4a', hat:'scarf', tache:true, coat:'#3a2a1a', earring:true},
+    hello:['Ahoy. You\'re not navy. Navy knocks.', 'Sit down. Mind the crate, it\'s ticking. Probably a clock.'], gossip:['Every rum-runner from here to Maravilla pays Black Molly. Them as don\'t, swim.', 'Something big\'s being built in the Burning Eye. You can hear the riveting at night, over the bubbling.']}),
+  molly:{club:true, name:'"Black" Molly Quinn', role:'Quartermaster of the Brethren, Port Jawbone', music:'caravan', look:{skin:'#e0a888', hair:'#1f1714', hat:'tricorn', lips:true, coat:'#2a1a1a', earring:true},
+    hello:['New faces in Port Jawbone. How exciting. How suspicious.', 'Sit. Drink. Tell me something true, and I\'ll know if you don\'t.', 'You fly a pretty ship, Thirteen. Whose was she before?'],
+    shop:[{mod:'drums'}, {mod:'plate'}]},
+  sam:{name:'"Smokestack" Sam Okafor', role:'Shipwright, Smoke Harbour Yards', music:'sidewalk', look:{skin:'#7a4a30', hair:'#1f1714', hat:'cap', glasses:true, coat:'#3a3530'},
+    hello:['Mind the slipway. And the sparks. And me.', 'You want it faster, louder or uglier? I do all three.'],
+    shop:[{mod:'winch'}, {mod:'spars'}, {chassis:'bulldog', price:19000}, {chassis:'thunderbuss', price:27000}]},
+  lucien:{club:true, name:'"Lucky" Lucien Delacroix', role:'Proprietor, the Gallows', music:'jetaime', look:{skin:'#c88a60', hair:'#3a2a1a', hat:'bowler', tache:true, coat:'#4a1a2a'},
+    hello:['Welcome to the Gallows. The name is a joke. Mostly.', 'Cards, dice or aeroplanes? I take bets on all three.'],
+    shop:[]},
   hollis:{name:'Augustin Hollis', role:'Chief designer, Halcyon Aero Works', music:'sidewalk', look:{skin:'#e2b48e', hair:'#b8b2a8', hat:'none', glasses:true, tache:true, coat:'#3a4a5a'},
     hello:['Ah, my favourite test pilot. Mind the drafting tables.', 'Come in, come in. Don\'t touch anything that\'s smoking.', 'You flew in through the gallery again. You know there\'s a door?'],
     shop:[{mod:'nitro'}, {mod:'gyro'}, {mod:'spars'}, {chassis:'sparrowhawk', price:14000}, {chassis:'ironclad', price:24000}]},
@@ -256,6 +303,20 @@ G.JOBS = [
   {id:'rosa_bribe', contact:'rosa', type:'errand', title:'A gift for the Commodore', pay:2500, time:300, cargo:'A case of very old rum', fragile:{damage:true},
    legs:[{how:'hook', site:'fort', say:'The Commodore\'s aide took the case without a word. Diplomacy!'}],
    blurb:'A case of very old rum for Commodore Hale, delivered by the fort\'s skyhook. It\'s a gift. Gifts are not bribes. Don\'t let anyone put holes in it.', go:'Tell him it\'s from an admirer.'},
+  // ---- the Calavera Isles ----
+  {id:'molly_cutter', contact:'molly', type:'bounty', title:'The revenue cutter', pay:5500, at:'teeth', gang:'navy', n:3, waves:[2], rep:1,
+   zep:{name:'Vigilant', paint:{hull:0x2a3a52, band:0xe8edf2, trim:0xb88a2a, scale:0.75, hpMul:0.7}},
+   blurb:'A navy revenue cutter is sniffing round the Teeth, stopping our rum boats. Sink her, or make her strike her colours. Molly doesn\'t mind which.', go:'Fly the black flag, Thirteen. Proudly.'},
+  {id:'molly_rum', contact:'molly', type:'errand', title:'Rum for Cinder Cove', pay:3600, night:true, time:300, cargo:'Forty cases of navy rum', fragile:{hard:true},
+   legs:[{how:'land', site:'cinder', say:'Pike\'s lads are unloading. He\'s already opened one.'}],
+   blurb:'Forty cases of rum, liberated from the navy, wanted at Cinder Cove tonight. Land soft. Broken bottles come out of your share.', go:'Lights off over the Keep. Brimstone doesn\'t like traffic at night.'},
+  {id:'sam_teeth', contact:'sam', type:'race', title:'The Fang Derby', pay:3800, rivals:3, laps:1, low:true, course:{circuit:{at:'teeth', r:1300, n:9, agl:30}},
+   blurb:'Sam\'s apprentices race the Fang Derby through the Teeth every Sunday. Win it and Sam\'s yard owes you a favour.', go:'Low, fast, and don\'t bite anything.'},
+  {id:'sam_steel', contact:'sam', type:'errand', title:'Steel from Ashfall', pay:3000, time:300, cargo:'Rolled steel plate',
+   legs:[{how:'land', site:'ashfall', say:'Hanne\'s men are loading the plate. Heavy stuff.'}, {how:'hook', site:'smoke', say:'Steel delivered. Sam\'s already cutting it.'}],
+   blurb:'Pick up steel plate at Ashfall and bring it back to the Yards by skyhook. Brimstone wants it yesterday, and won\'t say what for.', go:'Don\'t ask what it\'s for. I don\'t.'},
+  {id:'lucien_show', contact:'lucien', type:'stunt', title:'A show for the punters', pay:2800, at:'gallows', r:800, target:6000, time:180, gates:3,
+   blurb:'Lucien\'s punters want a show over the Gallows. Score 6,000 stunt points in three minutes and he\'ll cut you in on the betting.', go:'Make them gasp. Gasping punters bet badly.'},
   {id:'hale_patrol', contact:'hale', type:'bounty', title:'Sink the Barracuda', pay:6000, at:'isle', gang:'corsairs', n:3, waves:[2],
    zep:{name:'Barracuda', paint:{hull:0x1f3b4a, band:0xd94f4f, trim:0xd9b44a, scale:0.78, hpMul:0.7}},
    blurb:'The corsair raider Barracuda is anchored off Corsair Isle with a fighter screen. Sink her or force her to surrender.', go:'Fair winds. Unfair gunnery.'},
@@ -283,6 +344,9 @@ G.ACES = {
   rosa:[{id:'barracuda', name:'"Barracuda" Joe Castellano', chassis:'vandal', paint:[0x1f6f9e, 0xd94f4f, 0xf1e9d6], skill:0.72, purse:2000, line:'That\'s my stool, flyboy. Wanna make something of it?'},
         {id:'sirena', name:'"Sea Witch" Marisol Romano', chassis:'highwayman', paint:[0x0f3b55, 0x5fe0b0, 0xd9b44a], skill:0.86, purse:4500, line:'Rosa\'s little sister. And the better pilot. Don\'t tell her.'}],
   ramon:[{id:'gila', name:'"Gila Monster" Ruiz', chassis:'jackal', paint:[0x2b2b2b, 0xe0742a, 0xf2c14e], skill:0.82, purse:3800, line:'Nobody leaves Cíbola without dancing with the Gila Monster.'}],
+  lucien:[{id:'ironjaw', name:'"Ironjaw" Ezra Thatch', chassis:'bulldog', paint:[0x161616, 0x9e1b1b, 0xe8e0cc], skill:0.78, purse:3000, line:'You\'re sitting in my chair, mate. Outside. Up.'},
+           {id:'widow', name:'"Mother" Hester Gaunt', chassis:'highwayman', paint:[0x2a1a2a, 0xb88a2a, 0x9e1b1b], skill:0.88, purse:5500, guns:[['60', 'ex'], ['40', 'ap']], line:'Ironjaw\'s my boy. Nobody shoots my boy but me.'}],
+  molly:[{id:'brand', name:'Jonah "the Brand" Kettle', chassis:'jackal', paint:[0x3a1010, 0xe0742a, 0x1a1a1a], skill:0.8, purse:3200, line:'Molly says you\'re trouble. I say you\'re a target.'}],
   lucia:[{id:'vaquero', name:'"El Vaquero" Mateo Romero', chassis:'gallant', paint:[0x8e231c, 0xf2c14e, 0x2b2b2b], skill:0.74, purse:2200, line:'My aunt says I must not fight guests. My aunt is not here.'}],
   otto:[{id:'jager', name:'"Jäger" Max Brandt', chassis:'sparrowhawk', paint:[0x2f4a30, 0xe8e0d0, 0x8e231c], skill:0.78, purse:2800, line:'My father pours your schnapps. I pour your lead. Ha!'}],
   mae:[{id:'patch', name:'"Patch" O\'Rourke', chassis:'vandal', paint:[0x2b2b2b, 0xd94f4f, 0xf2c14e], skill:0.74, purse:2000, line:'Mae says no fighting in her house. So come outside.'},
@@ -328,6 +392,26 @@ function layout(R){
   if (R.cavern) L.tunnels.push(planCavern(R).gate);
   return (R._L = L);
 }
+G.regionLayout = id => layout(REG[id]);
+/* A region's scenery for a story episode: landmarks, tunnels, towns and their airstrips and skyhooks, built by the
+   same code as open skies. Call tick(dt) every frame for the smoke, beacons and the solid towers and tunnels. */
+G.regionScene = (g, id, o = {}) => {
+  const R = REG[id], L = layout(R), c = Object.create(G.MISSIONS.open);
+  Object.assign(c, {g, R, L, time:g.world.time, night:g.world.time === 'night', anim:[], towers:[], arches:[], caves:[], tunnels:[], cavern:null, P:{}, markObj:{}, job:null, phase:1,
+    sc:{chain:0, mult:1, last:-99, label:'', session:0, cont:0, shown:''}, story:true});
+  for (const md of R.marks) { const p = L.marks[md.id]; c.P[md.id] = new V3(p.x, Math.max(g.world.height(p.x, p.z), 0.4), p.z); c.buildMark(g, md, c.P[md.id]); }
+  if (R.cavern) c.buildCavern(g, planCavern(R));
+  for (const T of L.tunnels) { c.tunnels.push(c.buildTunnel(g, T)); c.P[T.td.id] = new V3(T.mid.x, T.floor, T.mid.z); }
+  c.sites = R.sites.map(sd => c.buildSite(g, sd, L.sites[sd.id]));
+  for (const s of c.sites) c.P[s.id] = s.point;
+  if (o.traffic !== false) { const T = g.traffic || (g.traffic = new G.Traffic(g)), stops = c.sites.filter(s => !s.def.cavern).map(s => s.point), pairs = [];
+    for (let i = 0; i < stops.length; i++) for (let j = i + 1; j < stops.length; j++) pairs.push([stops[i], stops[j]]);
+    T.routes(pairs.slice(0, 5), {night:c.night}); }
+  c.tick = dt => { g.markers = []; for (const a of c.anim) a(dt); c.towerHit(g); c.caveHit(g); c.tunnelHit(g); c.cavernHit(g); };
+  c.worldOpts = time => ({seed:R.seed, region:R.terrain, time, flats:G.regionFlats(R), cuts:G.regionCuts(R)});
+  return c;
+};
+G.regionWorld = (id, time) => { const R = REG[id]; return {seed:R.seed, region:R.terrain, time, flats:G.regionFlats(R), cuts:G.regionCuts(R)}; };
 /* ---------- tunnel and cavern planning, on the region's own terrain ---------- */
 const hashStr = s => [...s].reduce((a, c) => (a*31 + c.charCodeAt(0)) >>> 0, 7);
 const boreTop = (td, x) => td.bh - td.bw/2 + Math.sqrt(Math.max(0, (td.bw/2)**2 - x*x));   // a Roman arch, measured from the floor
@@ -434,6 +518,45 @@ function buildHideout(){
   [[0, 0, 0x8e5a2a], [14, 6, 0x6a7a4a], [-10, 9, 0x8a6a44]].forEach(([x, z, c]) => g.add(mesh(CONE(5, 6, 6), c, x, 3, z)));
   for (let i = 0; i < 5; i++) g.add(mesh(BOX(2, 1.4, 1.6), 0x6b4a2b, -4 + i*2.2, 0.7, -8));
   g.add(mesh(BOX(2, 0.2, 2), 0xd94f2a, 6, 0.15, -2));
+  return g;
+}
+/* Brimstone Keep: a black-stone fortress on the flank of Mount Cranium, with a skull banner on the tallest tower. */
+function buildKeep(){
+  const g = new THREE.Group(), st = 0x2a2626, st2 = 0x3a3432;
+  for (let i = 0; i < 8; i++) { const a = i*Math.PI/4, x = Math.sin(a)*26, z = Math.cos(a)*26; g.add(mesh(BOX(22, 12, 4), st, x, 6, z, {ry:a})); }
+  for (let i = 0; i < 4; i++) { const a = i*Math.PI/2 + Math.PI/4, x = Math.sin(a)*28, z = Math.cos(a)*28; g.add(mesh(CYL(5, 6, 20, 8), st2, x, 10, z)); g.add(mesh(CONE(6.5, 7, 8), 0x5a1a1a, x, 23.5, z)); }
+  g.add(mesh(BOX(18, 22, 18), st2, 0, 11, 0)); g.add(mesh(CYL(5, 6, 14, 8), st, 0, 29, 0)); g.add(mesh(CONE(6.5, 8, 8), 0x5a1a1a, 0, 40, 0));
+  g.add(mesh(CYL(0.25, 0.25, 14, 5), 0x2a2420, 0, 51, 0));
+  const flag = mesh(BOX(0.2, 5, 8), 0x111111, 0, 55, 4); g.add(flag);
+  g.add(mesh(BOX(0.3, 1.6, 1.8), 0xe8e0cc, 0.1, 55.4, 4.2)); g.add(mesh(BOX(0.3, 0.4, 3.6), 0xe8e0cc, 0.1, 53.8, 4.2, {rx:0.6})); g.add(mesh(BOX(0.3, 0.4, 3.6), 0xe8e0cc, 0.1, 53.8, 4.2, {rx:-0.6}));
+  for (let i = 0; i < 6; i++) { const w = mesh(BOX(1.2, 2, 0.3), 0x2a1a10, -6 + i*2.4, 15, 9.1, {mat:{emissive:0xffa040, emissiveIntensity:0.9}}); g.add(w); }
+  return g;
+}
+/* A volcano's smoke: a leaning column of grey puffs that drift up and are recycled, with a red glow in the crater. */
+function buildPlume(s, night){
+  const g = new THREE.Group(), puffs = [], mat = new THREE.MeshBasicMaterial({color:0x5a5450, transparent:true, opacity:0.32, depthWrite:false, fog:true});
+  const geo = new THREE.IcosahedronGeometry(1, 1);
+  for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(geo, mat); m.userData.t = i/14; g.add(m); puffs.push(m); }
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(60*s, 16), new THREE.MeshBasicMaterial({color:0xff5a1a, transparent:true, opacity:0.8, depthWrite:false})); glow.rotation.x = -Math.PI/2; glow.position.y = -20*s; g.add(glow);
+  if (night) { const L = new THREE.PointLight(0xff6a2a, 2.2, 900*s, 1.6); L.position.y = 30; g.add(L); }
+  g.userData.tick = dt => {
+    for (const m of puffs) {
+      m.userData.t = (m.userData.t + dt*0.022) % 1; const t = m.userData.t, r = (24 + t*150)*s;
+      m.position.set(t*t*260*s, t*620*s, t*90*s); m.scale.setScalar(r); m.material.opacity = 0.32*(1 - t);
+    }
+    glow.material.opacity = 0.6 + Math.sin(performance.now()*0.002)*0.2;
+  };
+  g.userData.tick(0);
+  return g;
+}
+/* The Burning Eye: a glowing skin over the lava crust, breathing slowly, with steam rising off it. */
+function buildLava(r, night){
+  const g = new THREE.Group();
+  const skin = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({color:0xff6a1a, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending}));
+  skin.rotation.x = -Math.PI/2; skin.scale.set(1.15, 0.92, 1); g.add(skin);
+  const steam = buildPlume(1.4, night); steam.position.set(r*0.2, 0, -r*0.1); g.add(steam);
+  if (night) { const L = new THREE.PointLight(0xff5a1a, 3, r*3, 1.4); L.position.y = 160; g.add(L); }
+  g.userData.tick = dt => { steam.userData.tick(dt); skin.material.opacity = 0.28 + 0.1*Math.sin(performance.now()*0.0013); };
   return g;
 }
 function buildHulk(){
@@ -564,6 +687,9 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (md.kind === 'mine') { o = buildMine(); w.addBlocker({x:p.x, z:p.z, hw:4, hd:4, top:p.y + 19}); }
     if (md.kind === 'hideout') o = buildHideout();
     if (md.kind === 'hulk') o = buildHulk();
+    if (md.kind === 'keep') { o = buildKeep(); w.addBlocker({x:p.x, z:p.z, hw:30, hd:30, top:p.y + 28}); }
+    if (md.kind === 'volcano') { o = buildPlume(md.plume || 1, this.night); this.anim.push(o.userData.tick); }
+    if (md.kind === 'lava') { p.y = 3.4; o = buildLava(md.r || 800, this.night); this.anim.push(o.userData.tick); }
     if (md.kind === 'cave') { p.y = 0.4; const C = Object.assign({}, md.cave), yaw = G.rng(md.id.length*97)()*Math.PI; C.P = cavePath(C); o = buildCave(C); o.rotation.y = yaw; const cv = {obj:o, C, name:md.name, t:-99, yaw, seen:null}; this.caves.push(cv); if (this.night) this.anim.push(() => { if (Math.random() < 0.6) { const e = Math.random() < 0.5 ? C.P[0] : C.P[C.P.length - 1], sd = Math.random() < 0.5 ? 1 : -1, l = new V3(e.x + e.lx*sd*(C.bw/2 - 1.5), C.bh*0.55, e.z + e.lz*sd*(C.bw/2 - 1.5)).applyAxisAngle(UP, yaw).add(p); this.g.fx.fire.emit(l.x, l.y, l.z, 0, 0.6, 0, 2.2, 0.35, 1, 0.75, 0.35, 0.9, 0, 1, 0); } }); }
     if (md.kind === 'viaduct') {
       const len = 300, n = 5, hs = []; for (let i = 0; i <= n; i++) hs.push(Math.max(w.height(p.x - len/2 + i*len/n, p.z), 2));
@@ -620,7 +746,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
      Round a skyhook hotel the blocks next to the hotel and along its gallery lanes stay open. */
   buildTown(g, c, r, sd, hook){
     const w = g.world, h = this.ground(c.x, c.z, true), B = 58, T = g.traffic || (g.traffic = new G.Traffic(g)), rr = G.rng(sd.id.length*131 + 7);
-    const cols = this.R.id === 'badlands' ? [0xc9a27a, 0xb5885a, 0xd9b48a, 0x9a7a5a] : this.R.id === 'keys' ? [0xf1e6d0, 0xe8c8a0, 0xd9e8e0, 0xf2d8b0] : this.R.id === 'frostback' ? [0xe8e0d0, 0x8a5a3a, 0xd8d0c0, 0x6b4a2b] : [0xd8c6a4, 0xc9b38f, 0xe2d4b6, 0xb9a891];
+    const cols = this.R.id === 'badlands' ? [0xc9a27a, 0xb5885a, 0xd9b48a, 0x9a7a5a] : this.R.id === 'keys' ? [0xf1e6d0, 0xe8c8a0, 0xd9e8e0, 0xf2d8b0] : this.R.id === 'frostback' ? [0xe8e0d0, 0x8a5a3a, 0xd8d0c0, 0x6b4a2b] : this.R.id === 'calavera' ? [0x5a4a42, 0x8a6a52, 0x3a3432, 0xa08870, 0x6a2a24] : [0xd8c6a4, 0xc9b38f, 0xe2d4b6, 0xb9a891];
     T.streets({x:c.x, z:c.z, r}, h, B, 10);
     const ax = hook ? Math.sin(hook.ty) : 0, az = hook ? Math.cos(hook.ty) : 0, bulbs = [];
     for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) {

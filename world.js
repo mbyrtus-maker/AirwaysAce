@@ -31,7 +31,8 @@ G.TERRAIN = {
   halcyon:{},
   badlands:{desert:true, conifers:0, broadleaf:520, treeScale:0.55, treeMax:260, rocks:1600, rock:[0.62, 0.32, 0.22], water:0x3b6f7a, beach:2, snow:900},
   frostback:{cold:true, conifers:5200, broadleaf:300, coniferShare:0.95, treeMax:230, rocks:1400, snow:215, water:0x24506a},
-  keys:{tropic:true, conifers:0, broadleaf:2400, treeMax:120, rocks:500, beach:9, water:0x1c8fae}
+  keys:{tropic:true, conifers:0, broadleaf:2400, treeMax:120, rocks:500, beach:9, water:0x1c8fae},
+  calavera:{volcanic:true, tropic:true, conifers:0, broadleaf:1500, treeMax:110, rocks:1800, rock:[0.24, 0.22, 0.22], beach:4, water:0x1a5466, snow:99999}
 };
 const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
 let DETAIL = null;
@@ -122,6 +123,13 @@ G.World = class {
       r = 0.72*band*lum; g = 0.46*band*lum; b = 0.30*band*lum;
       const scrub = sm(0.05, 0.4, n(x*0.004 + 31, z*0.004 - 17, 3))*(1 - sm(0.25, 0.5, slope));
       r += (0.55 - r)*scrub*0.45; g += (0.52 - g)*scrub*0.45; b += (0.34 - b)*scrub*0.45;
+    } else if (RT.volcanic) {
+      // black basalt and red scoria, green jungle in the low wet places, grey ash up high
+      const sc = sm(-0.1, 0.4, n(x*0.0028 + 7, z*0.0028 + 2, 3)), jungle = sm(0.05, 0.3, n(x*0.003 + 31, z*0.003 - 17, 3))*(1 - sm(60, 160, hh))*(1 - sm(0.3, 0.55, slope));
+      r = (0.2 + 0.2*sc)*lum; g = (0.18 + 0.05*sc)*lum; b = (0.17 + 0.03*sc)*lum;
+      r += (0.16*lum - r)*jungle; g += (0.4*lum - g)*jungle; b += (0.14*lum - b)*jungle;
+      const ash = sm(200, 420, hh + v1*60); r += (0.55 - r)*ash*0.7; g += (0.53 - g)*ash*0.7; b += (0.5 - b)*ash*0.7;
+      if (this.terr === 'calavera' && this.skullD(x, z).eyeR > 0) { const glow = 0.5 + 0.5*sm(-0.2, 0.4, n(x*0.006 + 3, z*0.006, 3)); return [0.95*glow + 0.15, 0.32*glow + 0.05, 0.06]; }
     } else {
       if (RT.cold) { r *= 0.86; g *= 0.94; b *= 1.05; }
       const forest = sm(0.0, 0.2, n(x*0.003 + 31, z*0.003 - 17, 3));
@@ -129,8 +137,8 @@ G.World = class {
       const mud = sm(0.12, 0.42, n(x*0.0075 + 50, z*0.0075 - 80, 3))*0.6;
       r += (0.60*lum - r)*mud*0.6; g += (0.44*lum - g)*mud*0.6; b += (0.26*lum - b)*mud*0.6;
     }
-    const sand = sm(RT.beach || 4, 0.5, hh);
-    r += (0.93 - r)*sand; g += (0.84 - g)*sand; b += (0.6 - b)*sand;
+    const sand = sm(RT.beach || 4, 0.5, hh), sc0 = RT.volcanic ? [0.2, 0.19, 0.19] : [0.93, 0.84, 0.6];   // black sand on the volcanic isles
+    r += (sc0[0] - r)*sand; g += (sc0[1] - g)*sand; b += (sc0[2] - b)*sand;
     if (hh < -2) { const w = sm(-2, -12, hh); r += (0.33 - r)*w; g += (0.35 - g)*w; b += (0.3 - b)*w; }
     const rock = Math.min(1, sm(0.32, 0.7, slope) + sm(170, 245, hh)*0.55);
     const rl = 0.9 + v2*0.2, rc = RT.rock || [0.56, 0.49, 0.42]; r += (rc[0]*rl - r)*rock; g += (rc[1]*rl - g)*rock; b += (rc[2]*rl - b)*rock;   // warm sandstone grey
@@ -171,6 +179,7 @@ G.World = class {
     if (this.terr === 'badlands') return this.rawBadlands(x, z, wx, wz);
     if (this.terr === 'frostback') return this.rawFrost(x, z, wx, wz);
     if (this.terr === 'keys') return this.rawKeys(x, z, wx, wz);
+    if (this.terr === 'calavera') return this.rawSkull(x, z);
     // Mostly broad, rolling lowland with a few gentle hills...
     let h = 30 + n(wx*0.00038, wz*0.00038, 4)*70;
     h += n(x*0.0016 + 5, z*0.0016 - 9, 3)*17;
@@ -215,6 +224,40 @@ G.World = class {
     if (h > 0) h = h*0.7 + Math.max(0, n(x*0.0025 + 3, z*0.0025, 3))*80*sm(0, 30, h);
     h += n(x*0.02, z*0.02, 2)*0.8;
     return Math.max(h, -36);
+  }
+  /* The Calavera Isles: a volcanic island shaped like a skull when seen from the air (north is +z, so the cranium is
+     north and the teeth face south). Two eye calderas: the west one flooded (Smoke Harbour's lagoon), the east one a lava
+     lake (the Burning Eye). A sea inlet for the nose, a row of tooth islets along the jaw, Mount Cranium on the crown. */
+  skullD(x, z){
+    const u = x, v = -z, n = this.noise, wob = n(x*0.0011 + 4, z*0.0011 - 2, 3)*140;
+    const ell = (cx, cv, rx, rv) => (1 - Math.hypot((u - cx)/rx, (v - cv)/rv))*Math.min(rx, rv);
+    const crown = 4300 - Math.hypot(u, v + 1500);
+    const wv = v < 0 ? 3900 : 3900 - 1300*Math.min(1, v/3600), face = v < -200 ? -1e4 : Math.min(3600 - v, wv - Math.abs(u), v + 2000);
+    let d = Math.max(crown, face) + wob;
+    // the teeth: islets along the bottom of the jaw, with channels between them you can fly through
+    const P = 720, cu = ((u + 1e5 + P/2) % P) - P/2;
+    const tooth = Math.min(250 - Math.abs(cu), v - 3480, 4700 - v - Math.abs(cu)*0.35, 2500 - Math.abs(u));
+    d = Math.max(d, tooth);
+    const eyeL = ell(-1750, 600, 1150, 950), eyeR = ell(1750, 600, 1150, 950);
+    const nose = Math.min(v - 1550, 2950 - v, 650*(v - 1550)/1400 - Math.abs(u));
+    return {d:Math.min(d, -eyeL, -eyeR, -nose), eyeL, eyeR, tooth};
+  }
+  rawSkull(x, z){
+    const n = this.noise, S = this.skullD(x, z), d = S.d;
+    if (S.eyeR > 0) return 3 + n(x*0.004, z*0.004, 2)*1.5;   // the Burning Eye: a crust of cooling lava, just above the sea
+    let h;
+    if (d < 0) h = -6 - 42*sm(0, 450, -d);
+    else h = 3 + 46*sm(0, 380, d) + 60*sm(250, 1800, d) + n(x*0.0016 + 8, z*0.0016 - 3, 3)*28*sm(100, 600, d);
+    // the tooth islets stand up as basalt pillars
+    if (S.tooth > -60) h = Math.max(h, (S.tooth > 0 ? 34 + sm(0, 120, S.tooth)*36 : h));
+    // caldera rims round both eyes, the eastern one taller and still smoking
+    for (const [e, H] of [[S.eyeL, 170], [S.eyeR, 250]]) { const o = -e; if (o > -80) h += H*Math.exp(-(((o - 140)/240)**2))*(d > -60 ? 1 : 0.4); }
+    // volcanoes: Mount Cranium on the crown (with a summit crater) and two smaller cones on the cheekbones
+    const cone = (cx, cz, H, R, cr, dip) => { const r = Math.hypot(x - cx, z - cz); if (r > R) return 0; let c = H*Math.pow(1 - r/R, 1.5); if (r < cr) c -= dip*(1 - r/cr)**2; return c; };
+    if (d > -200) h += cone(0, 3000, 640, 2300, 230, 120) + cone(-3050, -1150, 330, 1150, 110, 60) + cone(3050, -1150, 360, 1150, 110, 60);
+    h += n(x*0.007, z*0.007, 2)*4 + n(x*0.03, z*0.03, 2)*0.8;   // rough basalt
+    const far = Math.hypot(x, z); if (far > 7600) h -= (far - 7600)*0.2;
+    return Math.max(h, -50);
   }
   flatW(x, z){
     let w = 0;

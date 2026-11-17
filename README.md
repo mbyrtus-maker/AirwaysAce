@@ -36,7 +36,9 @@ the in-game help (H) and at the top of `pad.js`. Every button, and every keyboar
 | `combat.js` | Airships, bullets, rockets, damage |
 | `ai.js` | Pilots, wingmen |
 | `game.js` | The game loop, missions' shared code |
-| `story.js`, `open.js` | Story campaign, open skies |
+| `story.js` | Volume I: the Lucky Thirteen vs the Black Lantern |
+| `story2.js` | Volume II: undercover with the Brethren of the Black Flag |
+| `open.js` | Open skies: five regions, jobs, treasures, contacts |
 | `net.js` | Co-op |
 | `pad.js` | Controller support and the Controls screen |
 | `keys.js` | Keyboard remapping |
@@ -48,5 +50,6 @@ the in-game help (H) and at the top of `pad.js`. Every button, and every keyboar
 node tools/run.js .                                   # smoke test: every mission, every plane; ends "all clear"
 node tools/coop.js . host 47011 nightjar 45 &         # co-op: a host and a guest over a local socket
 node tools/coop.js . guest 47011 nightjar 45
+node tools/v2test.js .                                 # every Volume II episode through its main branches
 node tools/padtest.js .                                # controller: every button against a fake DualSense
 ```
