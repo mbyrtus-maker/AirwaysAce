@@ -1,0 +1,31 @@
+'use strict';
+const fs = require('fs'), vm = require('vm'), path = require('path');
+require(path.join(__dirname, 'three-mock.js'));
+global.window = global; global.innerWidth = 1600; global.innerHeight = 900; global.devicePixelRatio = 1;
+const els = {}; global.document = {getElementById:id => els[id] || (els[id] = Fake()), createElement:() => Fake(), addEventListener(){}, exitPointerLock(){}, pointerLockElement:null, querySelector:() => null, body:Fake()};
+global.addEventListener = () => {}; global.requestAnimationFrame = () => 0;
+const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v) => { LS[k] = String(v); }, removeItem:k => { delete LS[k]; }};
+global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
+global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
+const dir = process.argv[2];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'net', 'pad', 'keys', 'ui'];
+for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
+const G = global.G, V3 = THREE.Vector3;
+let errs = 0; const fail = (where, e) => { errs++; console.log('ERROR in', where, '\n ', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n  ') : e); };
+const R = new Proxy({}, {get:() => () => {}});
+G.save.callsign = 'Tester';
+function step(g, n, dt = 1/30, hook){ for (let i = 0; i < n; i++) { if (hook) hook(i); g.update(dt); } }
+const KM = G.keymap, t = c => KM.tr(c);
+console.log('defaults pass through:', t('KeyW'), t('ShiftRight'), t('Escape'), t('KeyP'));
+KM.set('KeyW', 'KeyI');
+console.log('throttle up -> I:', 'I gives', t('KeyI'), '| W now gives', t('KeyW'), '| saved', JSON.stringify(G.save.keyMap));
+KM.set('KeyF', 'KeyG');
+console.log('flaps -> G swaps with gear:', 'G gives', t('KeyG'), '| F gives', t('KeyF'));
+KM.set('ShiftLeft', 'KeyN'); console.log('nitro -> N: N gives', t('KeyN'), '| Right Shift gives', t('ShiftRight'), '| Left Shift gives', t('ShiftLeft'));
+KM.set('Digit1', 'Escape'); console.log('Esc refused:', KM.key('Digit1'));
+// in game: the remapped throttle key really drives the throttle
+const g = new G.Game(R, G.MISSIONS.ambush); g.player.destroy = () => {}; g.mission.drop(); step(g, 10);
+const P = g.player; P.throttle = 0.4; g.key(t('KeyI'), true); step(g, 15); g.key(t('KeyI'), false); console.log('I raises the throttle: 0.4 ->', P.throttle.toFixed(2));
+P.throttle = 0.4; const tw = t('KeyW'); if (tw) g.key(tw, true); step(g, 15); if (tw) g.key(tw, false); console.log('W does nothing now: throttle', P.throttle.toFixed(2));
+g.key(t('KeyG'), true); g.key(t('KeyG'), false); console.log('G (now flaps) lowers flaps:', P.flaps);
+KM.reset(); console.log('reset:', JSON.stringify(G.save.keyMap), t('KeyW'), t('KeyI'));

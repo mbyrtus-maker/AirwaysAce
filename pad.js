@@ -118,12 +118,12 @@ const Pad = G.pad = {
   open(from){
     this.from = from || (G.game && G.game.paused ? 'pause' : 'menu');
     G.UI.screen('controls'); this.renderScreen();
-    if (!this.screenLoop) { const loop = () => { const el = document.getElementById('controls'); if (!el || el.hidden) { this.screenLoop = null; this.capturing = null; return; } this.screenTick(); this.screenLoop = requestAnimationFrame(loop); }; this.screenLoop = requestAnimationFrame(loop); }
+    if (!this.screenLoop) { const loop = () => { const el = document.getElementById('controls'); if (!el || el.hidden) { this.screenLoop = null; this.capturing = null; this.capturingKey = null; return; } this.screenTick(); this.screenLoop = requestAnimationFrame(loop); }; this.screenLoop = requestAnimationFrame(loop); }
   },
-  close(){ this.capturing = null; if (this.from === 'pause' && G.game && G.game.paused) G.UI.screen('pause'); else G.UI.menu(); },
+  close(){ this.capturing = null; this.capturingKey = null; if (G.keymap) G.keymap.renderHelp(); if (this.from === 'pause' && G.game && G.game.paused) G.UI.screen('pause'); else G.UI.menu(); },
   listen(id){ this.capturing = id; this.capPrev = null; this.renderScreen(); },
   clear(id){ this.setMap(id, -1); },
-  reset(){ G.save.padMap = {}; G.save.padSwap = false; G.save.padSens = 1; G.save.padInvertAim = false; G.save.padRumble = true; G.persist(); this.capturing = null; this.renderScreen(); },
+  reset(){ this.capturingKey = null; G.save.padMap = {}; G.save.padSwap = false; G.save.padSens = 1; G.save.padInvertAim = false; G.save.padRumble = true; G.persist(); this.capturing = null; this.renderScreen(); },
   setMap(id, b){
     const M = this.map();
     // a button does one job: whatever had it before takes this action's old button
@@ -143,10 +143,24 @@ const Pad = G.pad = {
     this.capPrev = now;
     if (i >= 0) { if (i === 16) return; this.setMap(this.capturing, i); }   // the PS / Guide button belongs to the system
   },
+  tabTo(t){ this.tab = t; this.capturing = null; this.capturingKey = null; this.renderScreen(); },
+  listenKey(id){ this.capturing = null; this.capturingKey = id; this.renderScreen(); },
   renderScreen(){
     const el = document.getElementById('padBody'); if (!el) return;
     const M = this.map(), S = G.save, esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]));
-    el.innerHTML = `<div class="kicker">Settings</div><h2 class="deco" style="font-size:44px;margin:6px 0 4px">Controller</h2>
+    if (!this.tab) this.tab = this.pick() ? 'pad' : 'keys';
+    const tabs = `<div class="kicker">Settings</div><h2 class="deco" style="font-size:44px;margin:6px 0 8px">Controls</h2>
+      <div class="pad-tabs"><button class="${this.tab === 'keys' ? 'on' : ''}" onclick="G.pad.tabTo('keys')">Keyboard</button><button class="${this.tab === 'pad' ? 'on' : ''}" onclick="G.pad.tabTo('pad')">Controller</button></div>`;
+    if (this.tab === 'keys') {
+      const KM = G.keymap;
+      el.innerHTML = tabs + `<p class="pad-state">Mouse aims, left click fires the guns, right click fires rockets, and Esc pauses. Those stay put.</p>
+        <div class="pad-grid">${KM.ACTIONS.map(a => { const cap = this.capturingKey === a.id;
+          return `<div class="pad-row${cap ? ' cap' : ''}"><span>${esc(a.label)}</span><b>${cap ? 'Press a key…' : esc(KM.label(KM.key(a.id)))}</b><button class="btn ghost sm" onclick="G.pad.${cap ? 'listenKey(null)' : `listenKey('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button></div>`; }).join('')}</div>
+        <p class="co-note">Giving a key to a new job swaps it with whatever had it. Esc cancels while a key is being chosen. Double-taps (barrel roll, snap turn) follow the roll and rudder keys.</p>
+        <div class="row"><button class="btn ghost sm" onclick="G.keymap.reset(); G.pad.renderScreen()">Defaults</button><button class="btn" onclick="G.pad.close()">Done</button></div>`;
+      return;
+    }
+    el.innerHTML = tabs + `
       <p class="pad-state" id="padState"></p>
       <div class="pad-grid">${ACTIONS.map(a => {
         const cap = this.capturing === a.id;

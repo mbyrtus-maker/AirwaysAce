@@ -127,7 +127,7 @@ const UI = G.UI = {
       const M = this.current(); if (!M) { this.menu(); return; } $('hTitle').textContent = M.title;
       const g = new G.Game(renderer, M); g.camera.aspect = innerWidth/innerHeight; g.camera.updateProjectionMatrix();
       G.save.sorties++; G.persist();
-      this.screen(null); G.HUD.show(true); $('hHelp').hidden = false; setTimeout(() => { $('hHelp').hidden = true; }, 14000);
+      this.screen(null); G.HUD.show(true); if (G.keymap) G.keymap.renderHelp(); $('hHelp').hidden = false; setTimeout(() => { $('hHelp').hidden = true; }, 14000);
       $('hSides').innerHTML = ''; G.HUD.sk = null; $('hStunt').hidden = true; $('hTitle').textContent = M.open ? G.REGIONS[G.save.open.region].name : M.title; G.HUD.wing(g); G.HUD.objective('Drop from the trapeze');
     }, 40);
   },
@@ -235,13 +235,16 @@ addEventListener('keydown', e => {
   if (UI.inDev) { if (e.code === 'Escape') UI.closeDev(); return; }
   if (e.code === 'Escape') { if (UI.inContact) { UI.closeContact(); return; } if (g && !g.done) { if (g.paused) UI.resume(); else if (!locked()) UI.pause(true); } return; }
   if (!g || g.paused) return;
-  if (['Space', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyV') g.lookBack = true;
-  if (e.code === 'KeyH') $('hHelp').hidden = !$('hHelp').hidden;
-  if (e.code === 'Space' && g.mission.awaitDrop) { g.mission.drop(); lock(); return; }
-  g.key(e.code, true);
+  if (e.target && e.target.tagName === 'INPUT') return;
+  const code = G.keymap ? G.keymap.tr(e.code) : e.code;   // remapped keys arrive as the action's default key
+  if (['Space', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.code) || ['Space', 'ArrowUp', 'ArrowDown'].includes(code)) e.preventDefault();
+  if (!code) return;
+  if (code === 'KeyV') g.lookBack = true;
+  if (code === 'KeyH') $('hHelp').hidden = !$('hHelp').hidden;
+  if (code === 'Space' && g.mission.awaitDrop) { g.mission.drop(); lock(); return; }
+  g.key(code, true);
 });
-addEventListener('keyup', e => { const g = G.game; if (!g) return; if (e.code === 'KeyV') g.lookBack = false; g.key(e.code, false); });
+addEventListener('keyup', e => { const g = G.game; if (!g) return; const code = G.keymap ? G.keymap.tr(e.code) : e.code; if (!code) return; if (code === 'KeyV') g.lookBack = false; g.key(code, false); });
 addEventListener('blur', () => { const g = G.game; if (g) for (const k in g.keys) g.keys[k] = false; });
 
 /* settings */
