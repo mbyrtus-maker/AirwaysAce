@@ -1,0 +1,455 @@
+/* =====================================================================
+   Co-op multiplayer: up to four pilots, peer to peer.
+
+   The host's game is the real one. It runs the mission, the AI, every ship and every bullet that does damage.
+   Each guest flies their own plane on their own machine (so it answers the stick instantly) and sends its state
+   twenty times a second. The host flies a stand-in for each guest that fires real bullets, and passes any damage
+   that stand-in takes back to its guest. The host sends everyone else a snapshot of the sky fifteen times a second;
+   guests draw it, firing harmless tracers, and never decide a hit themselves.
+
+   Transport: PeerJS (WebRTC data channels, with PeerJS's free matchmaking server). Swappable: tests plug in their own.
+   ===================================================================== */
+(() => {
+const V3 = THREE.Vector3, Q = THREE.Quaternion;
+const PREFIX = 'ace-airways-v1-';
+const SNAP_HZ = 15, STATE_HZ = 20;
+const r2 = v => Math.round(v*100)/100, r4 = v => Math.round(v*10000)/10000;
+const tA = new V3(), qA = new Q();
+
+/* ---------- transports ---------- */
+const wrapConn = c => ({
+  send(o){ if (c.open) try { c.send(o); } catch (e) {} },
+  onMessage(fn){ c.on('data', fn); },
+  onClose(fn){ c.on('close', fn); c.on('error', fn); },
+  close(){ try { c.close(); } catch (e) {} }
+});
+const PeerTransport = {
+  ok(){ return typeof window.Peer === 'function'; },
+  host(code, h){
+    const peer = new window.Peer(PREFIX + code, {debug:0});
+    peer.on('open', () => h.onReady && h.onReady());
+    peer.on('connection', c => c.on('open', () => h.onConn(wrapConn(c))));
+    peer.on('error', e => h.onError(e.type === 'unavailable-id' ? 'taken' : (e.message || e.type)));
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });   // lost the matchmaker; the games already linked carry on
+    return {close(){ try { peer.destroy(); } catch (e) {} }};
+  },
+  join(code, h){
+    const peer = new window.Peer(undefined, {debug:0});
+    peer.on('open', () => { const c = peer.connect(PREFIX + code, {reliable:true, serialization:'json'}); c.on('open', () => h.onOpen(wrapConn(c))); });
+    peer.on('error', e => h.onError(e.type === 'peer-unavailable' ? 'No game with that code. Check it with the host.' : (e.message || e.type)));
+    return {close(){ try { peer.destroy(); } catch (e) {} }};
+  }
+};
+
+/* ---------- small helpers ---------- */
+const vec = v => v && v.isVector3 ? {_v:[r2(v.x), r2(v.y), r2(v.z)]} : v;
+function specOf(o){   // a ship's constructor options, made fit for the wire
+  const out = {};
+  for (const [k, v] of Object.entries(o || {})) {
+    if (typeof v === 'function') continue;
+    if (v && v.isVector3) out[k] = vec(v);
+    else if (Array.isArray(v)) out[k] = v.map(vec);
+    else if (v && typeof v === 'object' && !v.isObject3D) out[k] = JSON.parse(JSON.stringify(v));
+    else out[k] = v;
+  }
+  return out;
+}
+function unspec(o){
+  const un = v => v && v._v ? new V3(...v._v) : v, out = {};
+  for (const [k, v] of Object.entries(o)) out[k] = Array.isArray(v) ? v.map(un) : un(v);
+  return out;
+}
+const code4 = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let s = ''; for (let i = 0; i < 4; i++) s += A[Math.floor(Math.random()*A.length)]; return s; };
+const myLoad = () => Object.assign({}, G.save.load, {mods:(G.save.mods || []).slice()});
+
+const Net = G.Net = {
+  transport:PeerTransport,
+  role:null,          // null | 'host' | 'guest'
+  code:'', status:'', links:[], host:null, me:null, roster:[],
+  g:null,             // the game being shared
+  seq:0,
+
+  available(){ return this.transport.ok(); },
+  guestCount(){ return this.role === 'host' ? this.links.length : 0; },
+  humans(){ return 1 + (this.role === 'host' ? this.links.length : Math.max(0, this.roster.length - 1)); },
+
+  /* ======================= lobby ======================= */
+  hostGame(code){
+    this.leave(); this.role = 'host'; this.code = code || code4(); this.status = 'Opening the line…'; this.links = []; this.render();
+    this.server = this.transport.host(this.code, {
+      onReady:() => { this.status = 'Waiting for pilots. Give them the code.'; this.render(); },
+      onConn:L => this.hostConn(L),
+      onError:e => { if (e === 'taken' && !code) { this.hostGame(); return; } this.status = 'Line trouble: ' + e; this.render(); }
+    });
+  },
+  joinGame(code){
+    code = String(code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+    if (code.length !== 4) { this.status = 'A game code is four letters.'; this.render(); return; }
+    this.leave(); this.role = 'guest'; this.code = code; this.status = 'Calling ' + code + '…'; this.render();
+    this.server = this.transport.join(code, {
+      onOpen:L => {
+        this.host = L; this.status = 'Connected. Waiting for the host to launch.';
+        L.onMessage(m => this.guestMsg(m));
+        L.onClose(() => this.lostHost());
+        L.send({t:'hello', name:G.save.callsign || 'Ace', load:myLoad()});
+        this.render();
+      },
+      onError:e => { this.status = e; this.role = null; this.render(); }
+    });
+  },
+  leave(){
+    if (this.role === 'host') { for (const L of this.links) { L.send({t:'bye'}); L.close(); } }
+    if (this.role === 'guest' && this.host) { this.host.send({t:'bye'}); this.host.close(); }
+    if (this.server) this.server.close();
+    this.server = null; this.host = null; this.links = []; this.roster = []; this.role = null; this.code = ''; this.status = ''; this.render();
+  },
+  lostHost(){
+    if (this.role !== 'guest') return;
+    const g = this.g; this.role = null; this.host = null; this.roster = []; this.status = 'Lost the host.'; this.render();
+    if (g && G.game === g && !g.done) { g.done = true; G.HUD.toast('Lost the host'); setTimeout(() => { if (G.UI && G.game === g) { G.UI.quit(); G.UI.menu(); } }, 1800); }
+  },
+
+  /* host: a guest has dialled in */
+  hostConn(L){
+    if (this.links.length >= 3) { L.send({t:'full'}); setTimeout(() => L.close(), 300); return; }
+    L.id = 'g' + (++this.seq); L.name = 'Pilot'; L.load = null;
+    L.onMessage(m => this.hostMsg(L, m));
+    L.onClose(() => this.dropLink(L));
+    this.links.push(L);
+  },
+  dropLink(L){
+    if (!this.links.includes(L)) return;
+    this.links = this.links.filter(x => x !== L);
+    const g = this.g, p = L.proxy;
+    if (g && p) { if (p.alive) { p.alive = false; p.obj.visible = false; } G.HUD.feed(`${L.name} left the flight`); this.removeNetPlane(g, p); }
+    L.proxy = null; this.status = this.links.length ? `${this.links.length + 1} pilots on the line.` : 'Waiting for pilots. Give them the code.';
+    this.sendRoster(); this.render();
+  },
+  sendRoster(){
+    this.roster = [{id:'host', name:G.save.callsign || 'Ace', host:true}, ...this.links.map(L => ({id:L.id, name:L.name}))];
+    for (const L of this.links) L.send({t:'roster', you:L.id, roster:this.roster});
+    this.render();
+  },
+  broadcast(m, except){ for (const L of this.links) if (L !== except) L.send(m); },
+
+  hostMsg(L, m){
+    if (!m || typeof m !== 'object') return;
+    const g = this.g;
+    switch (m.t) {
+      case 'hello':
+        L.name = String(m.name || 'Pilot').slice(0, 18); L.load = this.cleanLoad(m.load);
+        this.status = `${this.links.length + 1} pilots on the line.`; this.sendRoster();
+        if (g && G.game === g && !g.done) this.sendStart(g, L);
+        break;
+      case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
+      case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
+      case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
+      case 'leftgame': if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } break;
+      case 'bye': L.close(); this.dropLink(L); break;
+    }
+  },
+  cleanLoad(L){
+    // a guest's plane as they built it, checked against what the game knows
+    const C = L && G.CHASSIS[L.chassis] ? L.chassis : 'gallant', S = G.stockLoadout(C);
+    try {
+      if (Array.isArray(L.paint) && L.paint.length === 3) S.paint = L.paint.map(x => (x | 0) & 0xffffff);
+      if (Array.isArray(L.guns) && L.guns.length === S.guns.length) S.guns = L.guns.map((x, i) => ({cal:x && G.GUNS[x.cal] ? x.cal : null, ammo:x && G.AMMO[x.ammo] ? x.ammo : 'slug'}));
+      if (Array.isArray(L.arm) && L.arm.length === 4) S.arm = L.arm.map(a => Math.max(0, Math.min(G.ARMOR_MAX, +a || 0)));
+      if (L.hp != null) S.hp = Math.max(0, Math.min(G.CHASSIS[C].hpMax, L.hp | 0));
+      if (G.ROCKETS[L.rocket]) S.rocket = L.rocket;
+      if (L.engine === 2 || L.engine === 1) S.engine = L.engine;
+      S.nitro = !!L.nitro; S.mods = Array.isArray(L.mods) ? L.mods.filter(x => G.MODS && G.MODS[x]) : [];
+    } catch (e) {}
+    return S;
+  },
+
+  /* ======================= host: a shared game ======================= */
+  onGame(g){
+    if (this.building) { this.building = false; this.becomeGuest(g); return; }
+    if (this.role !== 'host') return;
+    this.g = g; g.netHost = true; g.snapT = 0;
+    for (const p of g.planes) this.tagPlane(g, p);
+    for (const L of this.links) { L.proxy = null; this.sendStart(g, L); }
+  },
+  sendStart(g, L){
+    const M = g.mission, S = G.save.open || {};
+    L.send({t:'start', m:M.id, open:M.open ? {region:S.region, hour:S.hour, day:S.day} : null, host:G.save.callsign || 'Ace',
+      ships:g.ships.map(s => ({kind:s.kind, spec:s.spec || null})), targets:(g.targets || []).length});
+    for (const p of g.planes) if (p.nid) L.send(this.planeMsg(p));
+  },
+  tagPlane(g, p){
+    if (p.nid) return;
+    p.nid = ++this.seq;
+    if (this.role === 'host' && this.links.length) this.broadcast(this.planeMsg(p));
+  },
+  planeMsg(p){
+    const L = p.L;
+    return {t:'pl', nid:p.nid, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace,
+      L:{chassis:L.chassis, paint:L.paint, guns:L.guns, turrets:L.turrets, rocket:L.rocket, hp:L.hp, arm:L.arm}};
+  },
+  removeNetPlane(g, p){ p.alive = false; g.scene.remove(p.obj); g.planes = g.planes.filter(x => x !== p); g.pilots = g.pilots.filter(pl => pl.p !== p); },
+  byNid(g, n){ return n ? g.planes.find(p => p.nid === n) || null : null; },
+
+  /* a guest's plane state arrives: move (or make) their stand-in */
+  guestState(g, L, m){
+    if (!Array.isArray(m.p) || m.p.length < 10 || m.p.some(x => typeof x !== 'number' || !isFinite(x))) return;
+    let p = L.proxy;
+    if (!p && m.a) {
+      p = g.addPlane({loadout:L.load || G.stockLoadout('gallant'), team:0, name:L.name, callsign:L.name, pos:new V3(m.p[0], m.p[1], m.p[2]), speed:m.s || 60});
+      p.remote = L; p.human = true; L.proxy = p; p.net = {p:new V3(), q:new Q(), v:new V3(), at:g.t};
+      G.HUD.feed(`${L.name} is in the air`);
+    }
+    if (!p || !p.alive) return;
+    const n = p.net; n.p.set(m.p[0], m.p[1], m.p[2]); n.q.set(m.p[3], m.p[4], m.p[5], m.p[6]).normalize(); n.v.set(m.p[7], m.p[8], m.p[9]); n.at = g.t;
+    p.speed = +m.s || 0; p.fire = !!(m.f & 2); p.fireRk = !!(m.f & 4); p.gearUp = (m.g ?? 1) > 0.5; p.flaps = !!(m.f & 8);
+  },
+
+  /* host: damage meant for a guest's stand-in goes to the guest, whose plane takes it */
+  forwardDamage(p, dmg, facing, ammo, src, o){
+    if (!p.alive || !p.remote) return;
+    p.hitFlash = 0.15; p.lastHitBy = src;
+    p.remote.send({t:'dmg', d:r2(dmg), f:facing, a:ammo && ammo.id || 'slug', s:src && src.nid || 0, o:{armorMul:o.armorMul, wingMul:o.wingMul}});
+    if (p.g.onHit) p.g.onHit(p, src, dmg, facing);
+  },
+
+  hostFrame(g, dt){
+    if (!this.links.length || g.paused) return;
+    g.snapT -= dt; if (g.snapT > 0) return; g.snapT = 1/SNAP_HZ;
+    const P = [], S = [];
+    for (const p of g.planes) {
+      if (!p.nid) this.tagPlane(g, p);
+      const f = (p.alive ? 1 : 0) | (p.fire ? 2 : 0) | (p.fireRk ? 4 : 0) | (p.obj.visible === false || p.docked ? 8 : 0) | (p.onGround ? 16 : 0);
+      P.push([p.nid, r2(p.pos.x), r2(p.pos.y), r2(p.pos.z), r4(p.q.x), r4(p.q.y), r4(p.q.z), r4(p.q.w), r2(p.vel.x), r2(p.vel.y), r2(p.vel.z), f, r2(p.gearT || 0), r2(p.speed)]);
+    }
+    g.ships.forEach((s, i) => {
+      const dead = s.comps ? s.comps.map((c, j) => c.alive ? -1 : j).filter(j => j >= 0) : [];
+      S.push([i, r2(s.pos.x), r2(s.pos.y), r2(s.pos.z), r4(s.q.x), r4(s.q.y), r4(s.q.z), r4(s.q.w), r2(s.hp/s.hpMax), s.alive ? 1 : 0, dead]);
+    });
+    const X = (g.targets || []).map((t, i) => t.alive ? -1 : i).filter(i => i >= 0);
+    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X});
+  },
+  hostEnd(g, r){
+    if (!this.links.length) return;
+    const kp = g.mission.pay && g.mission.pay.kill || (g.mission.open ? 150 : 0);
+    this.broadcast({t:'end', r:r ? JSON.parse(JSON.stringify(r)) : null, hk:g.kills || 0, kp});
+  },
+  onQuit(g){
+    if (!g) return;
+    if (g.netHost && this.role === 'host' && !g.done) this.broadcast({t:'end', r:null, note:`${G.save.callsign || 'The host'} went back aboard.`});
+    if (g.netGuest && this.role === 'guest' && this.host) this.host.send({t:'leftgame'});
+    if (this.g === g) this.g = null;
+  },
+
+  /* host-side event hooks (see the wrappers below) */
+  hostHit(src){ if (src && src.remote) src.remote.send({t:'hit'}); },
+  hostKill(plane, src){
+    if (src && src.remote && plane.team !== 0) src.remote.send({t:'kill', name:plane.callsign || 'a bandit'});
+    if (plane.remote) G.HUD.feed(`${plane.callsign} ${src ? 'was shot down' + (src.callsign ? ' by ' + src.callsign : '') : 'went down'}`);
+  },
+
+  /* ======================= guest ======================= */
+  guestMsg(m){
+    if (!m || typeof m !== 'object') return;
+    const g = this.g;
+    switch (m.t) {
+      case 'roster': this.me = m.you; this.roster = Array.isArray(m.roster) ? m.roster.slice(0, 4) : []; this.render(); break;
+      case 'full': this.status = 'That flight is full (four pilots).'; this.render(); break;
+      case 'start': this.guestStart(m); break;
+      case 'pl': if (this.g) this.guestPlane(this.g, m); else (this.pending || (this.pending = [])).push(m); break;
+      case 'snap': if (g && G.game === g) this.guestSnap(g, m); break;
+      case 'dmg': if (g && G.game === g) this.guestDamage(g, m); break;
+      case 'hit': if (g && G.game === g) { G.HUD.hitMark(); if (g.audio) g.audio.hitThem(); } break;
+      case 'kill': if (g && G.game === g) g.kills++; break;   // the host's feed line already names us
+      case 'hud': if (g && G.game === g) this.guestHud(m); break;
+      case 'end': if (g && G.game === g) this.guestEnd(g, m); break;
+      case 'bye': this.lostHost(); break;
+    }
+  },
+  guestStart(m){
+    const M = G.MISSIONS[m.m]; if (!M) { this.status = 'The host is flying something this copy of the game doesn\'t have. Update the game.'; this.render(); return; }
+    if (m.open && G.save.open) { const S = G.save.open; if (G.REGIONS[m.open.region]) S.region = m.open.region; if (m.open.hour != null) S.hour = m.open.hour | 0; }
+    this.startMsg = m; this.pending = [];
+    const UI = G.UI;
+    if (UI) UI.netFly(M);
+  },
+  /* guest: the shared game has just been built on this machine; make it a puppet of the host's */
+  becomeGuest(g){
+    const m = this.startMsg || {ships:[]};
+    this.g = g; g.netGuest = true; g.hostName = m.host || 'Host'; g.lastSnap = 0; g.stateT = 0; g.netPlanes = new Map();
+    // the mission's script runs on the host; here it only hangs us on the trapeze and lets us drop
+    const real = g.mission, keep = {drop:1, hang:1, launch:1};
+    g.mission = new Proxy(real, {get(t, k){
+      if (k === 'update') return () => {};
+      if (k === 'playerDown') return () => Net.guestDown(g);
+      if (k === 'canRedock') return () => false;
+      const v = t[k];
+      if (typeof v === 'function') return keep[k] ? v.bind(t) : () => {};
+      return v;
+    }});
+    g.realMission = real;
+    // no AI here: the host's planes arrive as puppets
+    for (const p of g.planes.slice()) if (!p.isPlayer) this.removeNetPlane(g, p);
+    g.pilots = [];
+    // ships: keep the ones this machine built in the same order, build any it's missing, drop extras
+    const want = m.ships || [];
+    want.forEach((w, i) => {
+      const s = g.ships[i];
+      if (s && s.kind === w.kind) return;
+      if (w.spec) { const ns = new G.Airship(g, unspec(w.spec)); if (s) { g.scene.remove(s.obj); g.ships[i] = ns; } else g.ships[i] = ns; }
+    });
+    for (const s of g.ships.slice(want.length)) g.scene.remove(s.obj);
+    g.ships.length = Math.min(g.ships.length, want.length);
+    g.onKill = function(plane){ if (this.audio) this.audio.boom(plane.pos, true); this.spawnChute(tA.copy(plane.pos).add(new V3(0, 6, 0)), plane.vel); if (plane.isPlayer) Net.guestDown(this, plane.lastHitBy); };
+    for (const pm of this.pending || []) this.guestPlane(g, pm); this.pending = [];
+  },
+  guestPlane(g, m){
+    if (m.owner && m.owner === this.me) return;   // that's my own stand-in on the host
+    if (g.netPlanes.has(m.nid)) return;
+    const L = G.stockLoadout(G.CHASSIS[m.L && m.L.chassis] ? m.L.chassis : 'vandal');
+    try { if (m.L.paint) L.paint = m.L.paint.slice(0, 3).map(x => x | 0); if (Array.isArray(m.L.guns) && m.L.guns.length === L.guns.length) L.guns = m.L.guns.map(x => ({cal:x && G.GUNS[x.cal] ? x.cal : null, ammo:'slug'})); if (Array.isArray(m.L.turrets)) L.turrets = m.L.turrets.filter(t => t && G.GUNS[t.cal]).map(t => ({cal:t.cal, ammo:'slug'})); if (G.ROCKETS[m.L.rocket]) L.rocket = m.L.rocket; } catch (e) {}
+    const p = g.addPlane({loadout:L, team:m.team === 0 ? 0 : 1, name:String(m.name || '').slice(0, 30), callsign:String(m.cs || m.name || '').slice(0, 30), pos:new V3(0, -9999, 0)});
+    p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};
+    p.obj.visible = false;
+    g.netPlanes.set(m.nid, p);
+  },
+  guestSnap(g, m){
+    g.lastSnap = g.t; if (g.waitBanner) { g.waitBanner = false; G.HUD.banner(null); }
+    const seen = new Set();
+    for (const e of m.P || []) {
+      const p = g.netPlanes.get(e[0]); if (!p) continue; seen.add(e[0]);
+      const n = p.net, first = n.at < 0;
+      n.p.set(e[1], e[2], e[3]); n.q.set(e[4], e[5], e[6], e[7]).normalize(); n.v.set(e[8], e[9], e[10]); n.at = g.t;
+      const f = e[11];
+      if (first) { p.pos.copy(n.p); p.q.copy(n.q); p.obj.visible = !!(f & 1) && !(f & 8); }
+      p.fire = !!(f & 2); p.fireRk = !!(f & 4); p.gearUp = e[12] > 0.5; p.speed = e[13]; p.onGround = !!(f & 16);
+      if (p.alive && !(f & 1)) { p.lastHitBy = null; p.destroy(null, 'shot'); }
+      else if (p.alive) p.obj.visible = !(f & 8);
+    }
+    for (const [nid, p] of g.netPlanes) if (!seen.has(nid)) { this.removeNetPlane(g, p); g.netPlanes.delete(nid); }
+    for (const e of m.S || []) {
+      const s = g.ships[e[0]]; if (!s) continue;
+      s.net = s.net || {p:new V3(), q:new Q()}; s.net.p.set(e[1], e[2], e[3]); s.net.q.set(e[4], e[5], e[6], e[7]).normalize();
+      if (!s.netInit) { s.netInit = true; s.pos.copy(s.net.p); s.q.copy(s.net.q); }
+      s.hp = e[8]*s.hpMax;
+      if (s.comps) for (const j of e[10] || []) { const c = s.comps[j]; if (c && c.alive) this.partGone(g, s, c); }
+      if (s.alive && !e[9]) { s.alive = false; s.state = 'destroyed'; if (g.audio) g.audio.boom(s.pos, true); }
+    }
+    for (const i of m.X || []) { const t = g.targets && g.targets[i]; if (t && t.alive) { t.alive = false; if (t.group) t.group.visible = false; g.fx.explosion(t.pos, 1.6); if (g.audio) g.audio.boom(t.pos, true); } }
+  },
+  partGone(g, s, c){
+    c.alive = false; c.hp = 0;
+    const w = s.worldPoint(c.pos, new V3());
+    if (c.group) c.group.visible = false;
+    g.fx.explosion(w, c.kind === 'cell' ? 1.6 : 1.1); if (g.audio) g.audio.boom(w, c.kind !== 'cell');
+    (s.wrecks || (s.wrecks = [])).push({c, t:0});
+  },
+  guestDamage(g, m){
+    const P = g.player; if (!P || !P.alive || P.frozen) return;
+    const d = Math.max(0, Math.min(400, +m.d || 0)), f = Math.max(0, Math.min(3, m.f | 0));
+    P.damage(d, f, G.AMMO[m.a] || G.AMMO.slug, g.netPlanes.get(m.s) || null, {armorMul:+m.o?.armorMul || undefined, wingMul:+m.o?.wingMul || undefined, net:true});
+  },
+  guestHud(m){
+    const txt = s => String(s ?? '').slice(0, 300);
+    if (m.k === 'radio') G.HUD.radio(txt(m.who), txt(m.text));
+    else if (m.k === 'feed') G.HUD.feed(txt(m.text), false);
+    else if (m.k === 'obj') G.HUD.objective(txt(m.text));
+  },
+  guestDown(g, src){
+    if (g.downSent) return; g.downSent = true;
+    if (this.host) this.host.send({t:'dead', by:src && src.nid || 0, how:'shot'});
+    G.HUD.banner('Shot down', `Watching ${g.hostName}. You'll be back for the next sortie.`);
+    // ride along behind the host until the sortie ends
+    g.cine = (dt, cam) => {
+      const H = [...g.netPlanes.values()].find(p => p.remote && p.remote.id === 'host');
+      if (!H) return;
+      tA.copy(H.pos).addScaledVector(H.fwd, -26).add(new V3(0, 7, 0)); cam.position.lerp(tA, 1 - Math.exp(-dt*3)); cam.lookAt(H.pos);
+    };
+  },
+  guestEnd(g, m){
+    if (g.done) return; g.done = true; g.running = false;
+    if (!m.r) { G.HUD.banner('Back to the Margaret', String(m.note || 'The host ended the flight.').slice(0, 80)); setTimeout(() => { if (G.game === g && G.UI) { G.UI.quit(); G.UI.menu(); } }, 3000); return; }
+    const r = m.r, kp = +m.kp || 0, hk = +m.hk || 0;
+    // the job pays everyone; each pilot keeps their own bounties
+    const base = Math.max(0, (+r.cash || 0) - hk*kp*(r.kind === 'fail' ? 0.5 : 1));
+    r.cash = Math.round(base + g.kills*kp*(r.kind === 'fail' ? 0.5 : 1)); r.kills = g.kills; r.shown = r.cash;
+    if (!Array.isArray(r.sides)) r.sides = [];
+    setTimeout(() => { if (G.audio) G.audio.stopAll(); if (G.UI) G.UI.debrief(g, r); }, 3500);
+  },
+
+  guestFrame(g, dt){
+    if (!this.host) return;
+    if (g.t - g.lastSnap > 2 && !g.done && !g.waitBanner && g.lastSnap > 0) { g.waitBanner = true; G.HUD.banner(`Waiting for ${g.hostName}`, 'The host has paused or lost the line'); }
+    g.stateT -= dt; if (g.stateT > 0) return; g.stateT = 1/STATE_HZ;
+    const P = g.player; if (!P) return;
+    const hasAmmo = P.guns.some(gn => gn.rounds > 0);
+    const f = (P.alive ? 1 : 0) | (P.fire && hasAmmo ? 2 : 0) | (P.fireRk && P.rockets > 0 ? 4 : 0) | (P.flaps ? 8 : 0);
+    if (P.frozen) return;   // still on the trapeze: the host doesn't see us yet
+    this.host.send({t:'st', p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0});
+  },
+  sendOrder(o){ if (this.host) { this.host.send({t:'order', o}); G.HUD.toast('Wingmen: ' + G.ORDER_NAMES[o]); } },
+
+  /* ======================= lobby card ======================= */
+  render(){
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('coop'); if (!el || !el.querySelector) return;
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]));
+    if (!this.available()) { el.innerHTML = `<label class="lbl">Co-op</label><p class="co-note">Co-op flies peer to peer and needs the web version of the game (on GitHub Pages). This copy can't open a line.</p>`; return; }
+    let body;
+    if (!this.role) body = `<div class="row"><button class="btn sm" onclick="G.Net.hostGame()">Host a flight</button><input id="coCode" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn ghost sm" onclick="G.Net.joinGame(document.getElementById('coCode').value)">Join</button></div>`;
+    else {
+      const names = this.role === 'host' ? [`${G.save.callsign || 'Ace'} (you, host)`, ...this.links.map(L => L.name)] : this.roster.map(r => r.name + (r.host ? ' (host)' : '') + (r.id === this.me ? ' (you)' : ''));
+      body = `<div class="co-code">${this.role === 'host' ? 'Game code' : 'Joined'} <b>${esc(this.code)}</b></div>
+        <ul class="co-list">${names.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+        <div class="row"><button class="btn ghost sm" onclick="G.Net.leave()">Leave</button></div>`;
+    }
+    el.innerHTML = `<label class="lbl">Co-op · up to four pilots</label>${body}${this.status ? `<p class="co-note">${esc(this.status)}</p>` : ''}${this.role === 'host' ? '<p class="co-note">Pick a mission and press Fly. Everyone launches with you, in their own planes.</p>' : ''}`;
+  }
+};
+
+/* ---------- hooks into the game ---------- */
+const GP = G.Game.prototype;
+const addPlane0 = GP.addPlane;
+GP.addPlane = function(o){ const p = addPlane0.call(this, o); if (this.netHost) Net.tagPlane(this, p); return p; };
+const addShip0 = GP.addShip;
+GP.addShip = function(o){ const s = addShip0.call(this, o); s.spec = specOf(o); return s; };
+const onHit0 = GP.onHit; GP.onHit = function(t, src, d, f){ if (this.netHost) Net.hostHit(src); return onHit0.call(this, t, src, d, f); };
+const onPartHit0 = GP.onPartHit; GP.onPartHit = function(s, c, src){ if (this.netHost) Net.hostHit(src); return onPartHit0.call(this, s, c, src); };
+const onKill0 = GP.onKill; GP.onKill = function(plane, src, how){ if (this.netHost) Net.hostKill(plane, src || plane.lastHitBy); return onKill0.call(this, plane, src, how); };
+const end0 = GP.end; GP.end = function(r){ if (this.netHost && !this.done) Net.hostEnd(this, r); return end0.call(this, r); };
+const spawnW0 = GP.spawnWingmen; GP.spawnWingmen = function(n){ return spawnW0.call(this, this.netHost ? Math.max(0, n - Net.links.length) : n); };
+const key0 = GP.key;
+GP.key = function(code, down){
+  if (this.netGuest && down && G.ORDERS[code]) { this.keys[code] = down; Net.sendOrder(G.ORDERS[code]); return; }
+  return key0.call(this, code, down);
+};
+
+/* the host repeats radio, kill feed and objectives to everyone */
+for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['feed', text => ({k:'feed', text})], ['objective', text => ({k:'obj', text})]]) {
+  const orig = G.HUD[k];
+  G.HUD[k] = function(...a){
+    const g = G.game;
+    if (g && g.netHost && Net.links.length && !Net.quiet) {
+      const m = fn(...a);
+      if (m.text && k === 'feed') m.text = String(m.text).replace(/^You\b/, G.save.callsign || 'The host');
+      Net.broadcast(Object.assign({t:'hud'}, m));
+    }
+    return orig.apply(this, a);
+  };
+}
+
+/* puppets: planes whose state comes over the wire (guests' stand-ins on the host, everyone else's planes on a guest) */
+G.Plane.prototype.remoteUpdate = function(dt){
+  const n = this.net, g = this.g;
+  if (n && n.at >= 0) {
+    const age = Math.min(0.4, g.t - n.at), k = 1 - Math.exp(-dt*12);
+    tA.copy(n.p).addScaledVector(n.v, age);
+    if (this.pos.distanceToSquared(tA) > 250*250) this.pos.copy(tA); else this.pos.lerp(tA, k);
+    this.q.slerp(n.q, k); this.vel.copy(n.v);
+  }
+  this.axes();
+  for (const gn of this.guns) gn.rounds = gn.def.ammo;   // the guest counts their own ammo; a stand-in never runs dry first
+  if (!this.onGround) { this.updateGuns(dt); this.updateRockets(dt); if (this.turrets.length) this.updateTurrets(dt); }
+  if (this.rockets < 2) this.rockets = 6;
+  this.sync(dt);
+};
+})();
