@@ -198,7 +198,7 @@ G.MISSIONS.c4m1 = EP({
    Secret: slip a beacon into her strongroom so the navy can follow the payroll to the Brethren treasury.
    ===================================================================== */
 G.MISSIONS.c4m2 = EP({
-  id:'c4m2', title:'Prize of the Sulphur Line', place:'Off Ashfall, Calavera Isles', wing:3, planeChassis:'vandal',
+  id:'c4m2', weather:'smog', region:'calavera', title:'Prize of the Sulphur Line', place:'Off Ashfall, Calavera Isles', wing:3, planeChassis:'vandal',
   brief:'The Ashfall Sulphur Company flies its payroll out once a month in the blimp Ashfall Queen, under a navy escort. Molly wants it. Shoot the escort off her, put enough holes in her that she strikes her colours, and the Brethren will do the rest. Hale wants a beacon in the strongroom so the navy can follow the money home.',
   sides:[{text:'Shoot down the navy escort'}, {text:'Make the Ashfall Queen strike her colours'}, {text:'Plant a beacon on the Queen\'s gondola', secret:true}],
   pay:{success:4500, perfect:2000, kill:250},
@@ -267,7 +267,7 @@ G.MISSIONS.c4m2 = EP({
    Catch him before he reaches the Keep, without the night patrols seeing you do it. Secret: recover his letter.
    ===================================================================== */
 G.MISSIONS.c4m3 = EP({
-  id:'c4m3', title:'A Knife in the Dark', place:'Gallows Point to Brimstone Keep, Calavera Isles, night', wing:0, planeChassis:'vandal',
+  id:'c4m3', weather:'rain', region:'calavera', title:'A Knife in the Dark', place:'Gallows Point to Brimstone Keep, Calavera Isles, night', wing:0, planeChassis:'vandal',
   brief:'Silas Dunmore, the Black Lantern pilot who led us to Skull Rock, washed up in the Calavera and he\'s seen your face at the Gallows. He\'s taken off for Brimstone Keep to sell you out. Catch him before he gets there. The Brethren fly night patrols along the crown: if one of them sees you shooting at a Brethren pilot, you\'re finished. Alone, in the dark, and quickly.',
   sides:[{text:'Stop Dunmore before he reaches the Keep'}, {text:'Don\'t shoot him where a patrol can see'}, {text:'Recover his letter from the wreck', secret:true}],
   pay:{success:5000, perfect:2500, kill:0},
@@ -340,7 +340,7 @@ G.MISSIONS.c4m3.onHitBy = function(g, target, src){
    The choice: defend the Gull, or fly through Hale's signal smoke and let the navy take her.
    ===================================================================== */
 G.MISSIONS.c5m1 = EP({
-  id:'c5m1', title:'Running the Blockade', place:'West of Smoke Harbour, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
+  id:'c5m1', weather:'overcast', region:'calavera', title:'Running the Blockade', place:'West of Smoke Harbour, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
   brief:'Promotion: the Black Thirteen get Brethren Bulldogs and a real job. The arms zeppelin Gilded Gull is running guns out past the navy cruiser Resolute, and Brimstone wants you on her escort. Those guns will crew the thing in the volcano. Hale has left a smoke marker behind the navy line. Fly through it and the Resolute will know the Black Thirteen are standing aside. Or fight for the Gull, and keep your cover.',
   sides:[{text:'Get the Gilded Gull past the blockade, or signal Hale'}, {text:'Keep the Black Margaret above 50%'}, {text:'Fly through Hale\'s signal smoke', secret:true}],
   pay:{success:5500, perfect:2500, kill:200},
@@ -411,7 +411,7 @@ G.MISSIONS.c5m1 = EP({
    Choice: when she yields, finish her or let her go. Secret: photograph the Leviathan in the Burning Eye.
    ===================================================================== */
 G.MISSIONS.c5m2 = EP({
-  id:'c5m2', title:'The Devil\'s Gullet', place:'Mount Cranium, Calavera Isles', wing:0, planeChassis:'bulldog',
+  id:'c5m2', weather:'ash', region:'calavera', title:'The Devil\'s Gullet', place:'Mount Cranium, Calavera Isles', wing:0, planeChassis:'bulldog',
   brief:'Red Bess Malone stole Old Brimstone\'s map and she\'s going for his chest, on a ledge inside the Devil\'s Gullet, a lava tube under the crown. Brimstone wants it first. Fly the Gullet, grab the chest, bring it to Port Jawbone. Bess will be on your tail the whole way. And Hale says the thing in the volcano can be seen from the rim of the Burning Eye: get him a photograph.',
   sides:[{text:'Grab the chest in the Devil\'s Gullet'}, {text:'Bring it to Port Jawbone'}, {text:'Photograph what\'s in the Burning Eye', secret:true}],
   pay:{success:6000, perfect:2500, kill:0},
@@ -488,7 +488,7 @@ G.MISSIONS.c5m2 = EP({
    Brimstone orders the Black Thirteen to shoot her down. Choice: do it, or let her go. Secret: hand her the signal book.
    ===================================================================== */
 G.MISSIONS.c5m3 = EP({
-  id:'c5m3', title:'Sister of Mine', place:'Smoke Harbour to the western picket, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
+  id:'c5m3', weather:'squall', region:'calavera', title:'Sister of Mine', place:'Smoke Harbour to the western picket, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
   brief:'Brimstone has found a navy spy among the Brethren, and it\'s Kit Calloway, Sparks\'s little sister. She\'s stolen a Comet and is running for the navy picket ten miles west, and Brimstone has ordered the Black Thirteen to bring her down. His hunters are behind you. Hale says: if you can, get close enough to pass her the Brethren signal book. Whatever you do, do it where everybody can see you trying.',
   sides:[{text:'Chase Kit Calloway (stay within 700 yd)'}, {text:'Keep your cover above 40%'}, {text:'Pass Kit the signal book (fly close beside her)', secret:true}],
   pay:{success:5000, perfect:2000, kill:0},
@@ -560,7 +560,7 @@ G.MISSIONS.c5m3 = EP({
    ===================================================================== */
 const FLYPAST = [[-1800, 1400], [-900, 1800], [0, 2200], [900, 1800], [1800, 1400]];
 G.MISSIONS.c6m1 = EP({
-  id:'c6m1', title:'Coronation', place:'Brimstone Keep, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
+  id:'c6m1', weather:'clear', region:'calavera', title:'Coronation', place:'Brimstone Keep, Calavera Isles, evening', wing:3, planeChassis:'bulldog', crewChassis:'bulldog',
   brief:'Every pirate captain on the coast has come to Brimstone Keep to watch Ezekiel Brimstone crown himself Pirate King. The Black Thirteen fly in the honour guard: five gates over the Keep, in order, steady and slow. Then the Leviathan rises out of the Burning Eye. Hale wants a beacon on each of her four engines. The honour guard flies right beside you.',
   sides:[{text:'Fly the flypast: 5 gates, under 200 mph'}, {text:'Keep your cover above 50%'}, {text:'Plant beacons on the Leviathan\'s 4 engines', secret:true}],
   pay:{success:6000, perfect:3000, kill:0},
@@ -580,7 +580,7 @@ G.MISSIONS.c6m1 = EP({
     // the honour guard keeps station off your wing
     (this.guard || []).forEach((p, i) => { if (!p.alive) return; const off = new V3((i % 2 ? 1 : -1)*(60 + i*25), 6, -40 - i*20); tA.copy(off).applyQuaternion(P.q).add(P.pos); flyTo(g, p, tA.addScaledVector(P.fwd, 200), {throttle:clamp(0.4 + (p.pos.distanceTo(tA) - 200)/400, 0.3, 1), agl:80}); });
     // the Leviathan rises
-    if (this.gate >= 2 || this.pt > 70) { if (!this.risen) { this.risen = true; G.HUD.radio(BRIM, 'Brethren! Behold the Leviathan! With her, the Calavera rules the sea lanes from here to Halcyon!'); } this.levRise = Math.min(1, this.levRise + dt/60); L.pos.y = 90 + this.levRise*480; }
+    if (this.gate >= 2 || this.pt > 70) { if (!this.risen) { this.risen = true; if (g.weather) g.weather.change('ash', 'The Burning Eye\'s erupting under her! Ash everywhere!'); G.HUD.radio(BRIM, 'Brethren! Behold the Leviathan! With her, the Calavera rules the sea lanes from here to Halcyon!'); } this.levRise = Math.min(1, this.levRise + dt/60); L.pos.y = 90 + this.levRise*480; }
     if (this.stage === 'flypast') {
       const fp = FLYPAST[this.gate], at = new V3(fp[0], ground(g, fp[0], fp[1]) + 180, fp[1]);
       g.markers.push({pos:at, label:`GATE ${this.gate + 1}/5`, col:'#f2c14e'});
@@ -619,7 +619,7 @@ G.MISSIONS.c6m1 = EP({
    Your own plane is back. Secret: depends on Kit (free her from the Keep, or knock out the Keep's radio).
    ===================================================================== */
 G.MISSIONS.c6m2 = EP({
-  id:'c6m2', title:'Cover Blown', place:'Smoke Harbour and the crown, Calavera Isles, night', wing:3, undercover:false,
+  id:'c6m2', weather:'storm', region:'calavera', title:'Cover Blown', place:'Smoke Harbour and the crown, Calavera Isles, night', wing:3, undercover:false,
   brief:'It had to happen. Brimstone knows who the Black Thirteen are, and every pirate in the Calavera is coming for the Margaret, moored in Smoke Harbour\'s lagoon. Get her out of the caldera and west to the navy rendezvous. The paint\'s still black, but the gloves are off: you\'re flying your own plane again.',
   sides:[{text:'Get the Margaret to the navy rendezvous'}, {text:'Keep her above 40%'}, {text:'(see below)', secret:true}],
   pay:{success:7000, perfect:3000, kill:300},
@@ -687,7 +687,7 @@ G.MISSIONS.c6m2 = EP({
    The finale over the Teeth. Every choice comes home: beacons, the treasury, the Gull, Kit, Bess.
    ===================================================================== */
 G.MISSIONS.c6m3 = EP({
-  id:'c6m3', title:'The Leviathan', place:'Over the Teeth, Calavera Isles, dawn', wing:3, undercover:false, crewLoadout:null,
+  id:'c6m3', weather:'overcast', region:'calavera', title:'The Leviathan', place:'Over the Teeth, Calavera Isles, dawn', wing:3, undercover:false, crewLoadout:null,
   brief:'The Leviathan: twice the Wraith, guns on every deck, a hangar full of fighters, and Ezekiel Brimstone himself at the helm. She sails at dawn for Port Halcyon, over the Teeth, and the navy cruiser Resolute and the Margaret are waiting for her. Bring her down, and when Brimstone launches in his own fighter, bring him down too.',
   sides:[{text:'Keep the Resolute flying'}, {text:'Keep the Margaret above 40%'}],
   pay:{success:15000, perfect:6000, kill:300},
@@ -740,7 +740,7 @@ G.MISSIONS.c6m3 = EP({
   },
   onPartDown(g, ship, c){ if (ship === this.lev && c.kind === 'engine') G.HUD.radio(G.RADIO.short, ship.alivePart('engine').length ? `Leviathan engine down! ${ship.alivePart('engine').length} to go!` : 'Every engine on the Leviathan is out! Hole her cells!'); },
   onShipDown(g, ship){
-    if (ship === this.lev) { G.HUD.radio(G.RADIO.short, this.boss && this.boss.alive ? 'The Leviathan is going down! Brimstone\'s still up there!' : 'The Leviathan is going down!'); if (!this.bossOut) { this.bossOut = true; this.boss = null; } }
+    if (ship === this.lev) { if (g.weather) g.weather.change('clear', false); G.HUD.radio(G.RADIO.short, this.boss && this.boss.alive ? 'The Leviathan is going down! Brimstone\'s still up there!' : 'The Leviathan is going down!'); if (!this.bossOut) { this.bossOut = true; this.boss = null; } }
     if ((ship === this.ship || ship === this.resolute) && !this.ended && ship === this.ship) { this.ended = true; G.HUD.radio(G.CAPTAIN.short, 'We\'re going down! Abandon ship!'); g.end(this.result(g, 'fail', 'margaret')); }
     if (ship === this.resolute && ship !== this.ship) G.HUD.radio(HALE, 'Resolute is going down! All hands, abandon ship!');
   },

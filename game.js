@@ -48,6 +48,7 @@ G.Game = class {
     G.game = this;
     mission.setup(this);
     if (G.setNightWindows) G.setNightWindows(this.world.time);
+    if (G.weatherFor) G.weatherFor(this);
     if (G.Net) G.Net.onGame(this);
   }
 

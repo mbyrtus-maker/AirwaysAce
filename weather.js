@@ -61,11 +61,11 @@ const W = G.weather = {
 
 /* ---------- the effect in a game ---------- */
 class Sky {
-  constructor(g, region){
-    this.g = g; this.region = region; const w = g.world, sc = g.scene, night = w.time === 'night', eve = w.time === 'evening';
+  constructor(g, region, o = {}){
+    this.g = g; this.region = region; this.fixed = !!o.id; this.script = o.script || []; const w = g.world, sc = g.scene, night = w.time === 'night', eve = w.time === 'evening';
     this.night = night; this.eve = eve;
     const f = sc.fog; this.base = {near:f.near, far:f.far, col:f.color.clone(), sun:w.sun.intensity, hemi:w.hemi.intensity};
-    const st = W.current(region); this.id = st.id; this.from = st.id; this.blend = 1; this.left = st.left;
+    const st = o.id ? {id:o.id, left:Infinity} : W.current(region); this.id = st.id; this.from = st.id; this.blend = 1; this.left = st.left;
     this.wind = new V3(); this.windDir = Math.random()*Math.PI*2; this.gust = 0; this.bump = new V3(); this.flash = 0; this.boltT = 8;
     // the sky's cover: a tinted dome inside the painted sky
     this.dome = new THREE.Mesh(new THREE.SphereGeometry(12000, 24, 12), new THREE.MeshBasicMaterial({color:0x888888, side:THREE.BackSide, transparent:true, opacity:0, fog:false, depthWrite:false}));
@@ -82,7 +82,7 @@ class Sky {
     this.flakes = new THREE.Points(pg, new THREE.PointsMaterial({color:0xffffff, size:1.6, transparent:true, opacity:0, depthWrite:false}));
     this.flakes.frustumCulled = false; sc.add(this.flakes);
     this.bolt = null; this.apply(0);
-    if (!G.Net || G.Net.role !== 'guest') this.anounce(true);
+    if (!this.fixed && (!G.Net || G.Net.role !== 'guest')) this.anounce(true);
   }
   get k(){ return KINDS[this.id]; }
   anounce(first){
@@ -93,12 +93,14 @@ class Sky {
   /* what the weather looks like right now: the outgoing spell blended into the incoming one */
   mix(key){ const a = KINDS[this.from][key] ?? 0, b = KINDS[this.id][key] ?? 0; return lerp(a, b, this.blend); }
   col(key, fallback){ const c = new THREE.Color(KINDS[this.from][key] ?? fallback), d = new THREE.Color(KINDS[this.id][key] ?? fallback); return c.lerp(d, this.blend); }
-  change(id){ if (id === this.id) return; this.from = this.id; this.id = id; this.blend = 0; this.anounce(); }
+  change(id, say){ if (id === this.id || !KINDS[id]) return; this.from = this.id; this.id = id; this.blend = 0; if (say !== false) { if (say) G.HUD.radio(G.RADIO.short, say); else this.anounce(); } }
   tick(dt){
     const g = this.g, w = g.world, guest = g.netGuest;
     if (g.paused) return;
     // the clock: the host (or a lone pilot) decides when the spell changes; a co-op guest follows the host's
-    if (!guest) {
+    if (this.fixed) {   // a story episode's weather: set by the episode, changed only by its script
+      if (!guest) { const t = g.mission.pt || 0; while (this.script.length && t >= this.script[0][0]) { const [, id, say] = this.script.shift(); this.change(id, say); } }
+    } else if (!guest) {
       this.left -= dt; const O = G.save.open; if (O && O.weather) O.weather.left = this.left;
       if (this.left <= 0) { const n = pick(this.region, this.id); if (O) O.weather = {region:this.region, id:n, left:span(n)}; this.left = O ? O.weather.left : span(n); this.change(n); G.persist(); }
     }
@@ -190,6 +192,8 @@ class Sky {
 }
 G.WeatherSky = Sky;
 
+/* story episodes: a mission can set weather:'rain' (and weatherScript:[[seconds, id, radio line]]) for a fixed sky */
+G.weatherFor = g => { const M = g.mission; if (g.weather || !M || !M.weather) return; g.weather = new Sky(g, M.region || 'halcyon', {id:M.weather, script:(M.weatherScript || []).map(x => x.slice())}); };
 /* ---------- hooks: open skies gets weather; the chart shows it; waiting or sailing brings new weather ---------- */
 const O = G.MISSIONS.open, setup0 = O.setup;
 O.setup = function(g){ setup0.call(this, g); g.weather = new Sky(g, this.R.id); };

@@ -189,7 +189,7 @@ G.MISSIONS.c1m2a = Object.assign(Object.create(base), {
 
 /* ---------- Episode 2B: Kidnapped! ---------- */
 G.MISSIONS.c1m2b = Object.assign(Object.create(base), {
-  id:'c1m2b', story:true, title:'Kidnapped!', place:'Over the Halcyon coast, heading for the Gulf', wing:3,
+  id:'c1m2b', story:true, weather:'rain', title:'Kidnapped!', place:'Over the Halcyon coast, heading for the Gulf', wing:3,
   brief:`The Paper Tigers have ${VIVIAN} aboard their raider, the Gilded Lily, and she's running for the Gulf. Shoot out all four engines to stop her so our boarding party can get Vivian out. Go easy on the gas cells: if the Lily goes down, Vivian goes down with her.`,
   sides:[{text:'Hole no more than 2 gas cells'}, {text:'Down 4 Paper Tigers yourself'}],
   pay:{success:4000, perfect:1500, kill:300},
@@ -337,7 +337,7 @@ G.MISSIONS.c1m3 = Object.assign(Object.create(base), {
    ===================================================================== */
 const STRIP = {x:-2500, z:-2100, r:400, yaw:0.6};
 G.MISSIONS.c2m1 = Object.assign(Object.create(base), {
-  id:'c2m1', story:true, winMusic:'jetaime', title:'Special Delivery', place:'Café Lafayette airstrip, then Port Halcyon', wing:3,
+  id:'c2m1', story:true, weather:'rain', winMusic:'jetaime', title:'Special Delivery', place:'Café Lafayette airstrip, then Port Halcyon', wing:3,
   brief:'Vivian\'s blueprints are too hot to keep aboard. Odile Marchand, who runs the Café Lafayette out at the old Saint-Remy strip, has the copies sealed in a film can. Land at her strip, taxi up to the café, collect the can, and deliver it to Halcyon Aero Works by skyhook: there\'s a catch-ring hanging inside the open gallery cut through the top of their tower. Fly in, through the ring, and out the other side. Slow, steady, and through the ring. The Lantern will be watching the roads and the sky.',
   sides:[{text:'Deliver within 8 minutes'}, {text:'Down 3 Lantern fighters yourself'}],
   pay:{success:5000, perfect:2000, kill:300},
@@ -461,7 +461,7 @@ G.MISSIONS.c2m1 = Object.assign(Object.create(base), {
 const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
 const bearingWord = (from, to) => COMPASS[(Math.round(Math.atan2(to.x - from.x, to.z - from.z)/(Math.PI/4)) + 8) % 8];
 G.MISSIONS.c2m2 = Object.assign(Object.create(base), {
-  id:'c2m2', story:true, title:'The Meridian Hunt', place:'All over Halcyon Island', wing:3,
+  id:'c2m2', story:true, weather:'overcast', title:'The Meridian Hunt', place:'All over Halcyon Island', wing:3,
   brief:'In 1929 Hollis\'s partner Cyrus Vane flew the first prototype engine in his racer, the Meridian, and never came back. He left riddles in his logbook, and Hollis just found it. So did Ignatius "Duke" Galloway, the most shameless treasure hunter on the coast, and he\'s got friends in the Aero Club, so shooting him is off the table. Out-fly him: follow the clues, beat Duke to the wreck, and circle it low until the Margaret\'s salvage crew can winch up the engine.',
   sides:[{text:'Beat Duke to every clue'}, {text:'Down 3 scavengers yourself'}],
   pay:{success:6000, perfect:2500, kill:300},
@@ -709,7 +709,7 @@ G.MISSIONS.c2m3 = Object.assign(Object.create(base), {
    Tail Hollis's assistant from Aero Works through town, then his getaway plane out to sea, without being spotted.
    ===================================================================== */
 G.MISSIONS.c2m4 = Object.assign(Object.create(base), {
-  id:'c2m4', story:true, title:'The Mole', place:'Port Halcyon, then out over the northern sea', wing:0,
+  id:'c2m4', story:true, weather:'overcast', title:'The Mole', place:'Port Halcyon, then out over the northern sea', wing:0,
   brief:'Hollis\'s assistant, Percival Dunmore, signed for the Comet\'s fuel. Tonight he left the Aero Works yard in a delivery truck in a tearing hurry. Follow him from the air: close enough not to lose him, high and far enough that he never looks up. Wherever he\'s going, the Lantern is waiting.',
   sides:[{text:'Never get spotted'}, {text:'Follow him all the way'}],
   pay:{success:4500, perfect:2000, kill:0},
@@ -782,7 +782,7 @@ G.MISSIONS.c2m4 = Object.assign(Object.create(base), {
    Chapter 3, Episode 1: Raid on Skull Rock
    ===================================================================== */
 G.MISSIONS.c3m1 = Object.assign(Object.create(base), {
-  id:'c3m1', story:true, title:'Raid on Skull Rock', place:'Skull Rock, north of Halcyon Island', wing:3,
+  id:'c3m1', story:true, weather:'mist', weatherScript:[[80, 'clear', 'Sun\'s burning the mist off the rock. They can see us now, and we can see them!']], title:'Raid on Skull Rock', place:'Skull Rock, north of Halcyon Island', wing:3,
   brief:'Dawn raid. Skull Rock is the Black Lantern\'s only fuel depot on this coast: four big tanks on the jetty. Burn them and the Lantern fleet can\'t fly far. Knock out the radio tower on the summit before they can warn the Wraith, and watch the two flak towers on the shoulders of the rock. Their fighters launch from the cave hangar in the skull\'s teeth.',
   sides:[{text:'Wreck the cave hangar doors'}, {text:'Down 5 fighters yourself'}],
   pay:{success:5500, perfect:2500, kill:300},
@@ -908,7 +908,7 @@ G.MISSIONS.c3m2 = Object.assign(Object.create(base), {
    Knock out the Wraith (every engine, four gas cells), and when the Lamplighter launches himself, shoot him down.
    ===================================================================== */
 G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
-  id:'c3m3', story:true, title:'The Wraith', place:'The sky over Port Halcyon, sunset', wing:3,
+  id:'c3m3', story:true, weather:'overcast', title:'The Wraith', place:'The sky over Port Halcyon, sunset', wing:3,
   brief:'The Wraith is the biggest zeppelin on the coast: half again the Nightjar\'s size, twice her armour, guns everywhere. The escort raider Black Widow flies with her. Aero Works is putting up two militia fighters to fly with Dutch, Hellcat and Doc. The Margaret will slug it out with the Wraith while you take her apart: every engine, then her gas cells. And the Lamplighter flies his own fighter. When he comes out, he\'s yours.',
   sides:[{text:'Sink the escort raider Black Widow'}, {text:'Keep the Margaret above 40%'}],
   pay:{success:12000, perfect:5000, kill:300},
@@ -943,6 +943,7 @@ G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
     // the Lamplighter comes out once his ship is hurting
     const engLost = W.count('engine') - W.alivePart('engine').length, cellsLost = W.count('cell') - W.alivePart('cell').length;
     if (!this.bossOut && (engLost >= 2 || cellsLost >= 2)) {
+      if (g.weather) g.weather.change('storm', 'And here comes the storm that\'s been sitting over the bay all afternoon. Lovely timing.');
       this.bossOut = true; const L = G.stockLoadout('vandal'); L.paint = [0x111111, 0xd9b44a, 0x7a1414]; L.guns = [{cal:'60', ammo:'ex'}, {cal:'50', ammo:'ap'}]; L.arm = [40, 40, 35, 35]; L.rocket = 'flak';
       this.boss = g.addPlane({loadout:L, team:1, name:'Commodore Ezra Kessler', callsign:'The Lamplighter', pos:W.worldPoint(new V3(0, -60, 30), new V3()), q:W.q, speed:80, ai:{role:'fighter', skill:0.95}, internalMul:2.6});
       this.boss.ace = true; const pl = g.pilots[g.pilots.length - 1]; pl.target = P; pl.retT = 8;
