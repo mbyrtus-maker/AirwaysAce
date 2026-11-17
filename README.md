@@ -39,6 +39,7 @@ the in-game help (H) and at the top of `pad.js`. Every button, and every keyboar
 | `story.js` | Volume I: the Lucky Thirteen vs the Black Lantern |
 | `story2.js` | Volume II: undercover with the Brethren of the Black Flag |
 | `open.js` | Open skies: five regions, jobs, treasures, contacts |
+| `weather.js` | Open-skies weather: per-region spells, rain/snow/ash/dust, wind, lightning |
 | `net.js` | Co-op |
 | `pad.js` | Controller support and the Controls screen |
 | `keys.js` | Keyboard remapping |
