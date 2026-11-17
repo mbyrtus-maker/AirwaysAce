@@ -381,7 +381,7 @@ G.Combat = {
       for (let k = 0; k < 8; k++) F.emit(p.x, p.y, p.z, (Math.random() - 0.5)*60, (Math.random() - 0.5)*60, (Math.random() - 0.5)*60, 5, 0.18, 1, 0.7, 0.3, 1, 4, 2);
       if (this.audio) this.audio.flak(p);
       for (const pl of this.planes) {
-        if (!pl.alive || pl.team === s.team) continue;
+        if (!pl.alive || pl.team === s.team || pl.invuln || pl.noTarget || pl.duel) continue;   // flak never touches rivals, duellists or anyone off-limits
         const d = pl.pos.distanceTo(p); if (d > 26) continue;
         pl.damage(15*(1 - d/26) + 3, pl.facingOf(p), {a:1, i:1}, s.ship, {wingMul:0.8});
       }

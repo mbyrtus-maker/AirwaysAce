@@ -656,7 +656,7 @@ G.MISSIONS.c6m2 = EP({
       for (let i = 0; i < 3; i++) { const L = G.stockLoadout(i ? 'vandal' : 'mantis'); L.paint = [0x9e1b1b, 0x161616, 0xe8e0cc]; g.addPlane({loadout:L, team:0, name:i ? 'Bess\'s crew' : 'Bess Malone', callsign:i ? 'Red ' + (i + 1) : 'Red Bess', pos:P.pos.clone().add(new V3(300 + i*40, 200, -600)), q:P.q, speed:90, ai:{role:'fighter', skill:0.75}}); }
       G.HUD.radio('Red Bess', 'Thirteen! Bess Malone pays her debts. Where do you want them?'); }
     for (const t of this.T) if (t.alive) {
-      if (t.kind === 'flak') { t.cd -= dt; if (t.cd <= 0) { t.cd = 2.2; if (P.pos.distanceTo(t.pos) < 1500 && P.pos.distanceTo(t.pos) > 150) { const tt = P.pos.distanceTo(t.pos)/620; g.flakShell({team:1}, t.pos.clone(), P.pos.clone().addScaledVector(P.vel, tt).add(new V3((Math.random() - 0.5)*60, (Math.random() - 0.5)*60, 0)), tt); } } }
+      if (t.kind === 'flak') { t.cd -= dt; if (t.cd <= 0) { t.cd = 2.2; if (P.alive && !P.invuln && P.pos.distanceTo(t.pos) < 1500 && P.pos.distanceTo(t.pos) > 150) { const tt = P.pos.distanceTo(t.pos)/620; g.flakShell({team:1}, t.pos.clone(), P.pos.clone().addScaledVector(P.vel, tt).add(new V3((Math.random() - 0.5)*60, (Math.random() - 0.5)*60, 0)), tt); } } }
       if (P.pos.distanceTo(t.pos) < 3000) g.markers.push({pos:t.pos, label:t.label, col:'#c9a6f0', box:true});
     }
     if (!this.secret && this.T.every(t => !t.alive)) { this.secret = 1; G.HUD.radio(G.RADIO.short, F.kit === 'captured' ? 'The flak\'s down... and there\'s a Comet climbing out of the Keep! It\'s Kit! She\'s out!' : 'Keep radio\'s down! The Leviathan won\'t hear a thing till morning.'); }

@@ -802,7 +802,7 @@ G.MISSIONS.c3m1 = Object.assign(Object.create(base), {
     // flak towers fire time-fused shells; the cave hangar keeps launching
     for (const t of this.T) if (t.alive && t.kind === 'flak') {
       t.cd -= dt; if (t.cd > 0) continue; t.cd = 1.7 + Math.random()*0.8;
-      let best = null, bd = 1600; for (const p of g.planes) if (p.alive && p.team === 0) { const d = p.pos.distanceTo(t.pos); if (d > 200 && d < bd) { bd = d; best = p; } }
+      let best = null, bd = 1600; for (const p of g.planes) if (p.alive && p.team === 0 && !p.invuln && !p.noTarget && !p.docked) { const d = p.pos.distanceTo(t.pos); if (d > 200 && d < bd) { bd = d; best = p; } }
       if (best) { const tt = bd/620, err = bd*0.06; g.flakShell({team:1}, t.pos.clone().add(new V3(0, 6, 0)), best.pos.clone().addScaledVector(best.vel, tt).add(new V3((Math.random() - 0.5)*err, (Math.random() - 0.5)*err, (Math.random() - 0.5)*err)), tt); }
     }
     const hangar = this.T.find(t => t.kind === 'hangar');
