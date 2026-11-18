@@ -154,8 +154,8 @@ const REG = G.REGIONS = {
       {id:'cinder', kind:'strip', name:'Cinder Cove', contact:'pike', at:{want:'flat', x:-3700, z:2600, r:1100}, r:360, yaw:2.6, town:9, strip:{sign:'CINDER COVE', walls:0x8a7a6a, trim:0x1f3b4a, accent:0xd94f4f, grass:0x3a4a30, signCol:'#e8e0cc', signGlow:'#9ef0e0'}}
     ],
     marks:[
-      {id:'keep', kind:'keep', name:'Brimstone Keep', at:{want:'land', x:0, z:2200, r:500}},
-      {id:'cranium', kind:'volcano', name:'Mount Cranium', at:{want:'high', x:0, z:3000, r:600}, plume:2.2},
+      {id:'keep', kind:'keep', name:'Brimstone Keep', at:{want:'land', x:0, z:2200, r:500}, flat:58},
+      {id:'cranium', kind:'volcano', name:'Mount Cranium', at:{x:0, z:3000}, plume:2.2, caldera:290},
       {id:'burning', kind:'lava', name:'the Burning Eye', at:{x:1750, z:-600}, r:900},
       {id:'cheekw', kind:'volcano', name:'the west cheekbone', at:{want:'high', x:-3050, z:-1150, r:400}, plume:0.9},
       {id:'cheeke', kind:'volcano', name:'the east cheekbone', at:{want:'high', x:3050, z:-1150, r:400}, plume:1.1},
@@ -169,7 +169,7 @@ const REG = G.REGIONS = {
     ],
     treasures:[
       {id:'v1', name:'The Santa Muerte\'s silver', at:'galleon', off:[30, -20], hint:'A Spanish galleon ran onto the east coast of the Calavera with a hold full of silver. Fly low over the wreck.', reward:{cash:4000}},
-      {id:'v2', name:'Crater gold', at:'cranium', hint:'Old Brimstone\'s first crew hid their gold on the rim of Mount Cranium. Nobody goes up there. It\'s on fire.', reward:{livery:'brimstone', cash:2500}},
+      {id:'v2', name:'Crater gold', at:'cranium', off:[60, -548], hint:'Old Brimstone\'s first crew hid their gold on the rim of Mount Cranium. Nobody goes up there. It\'s on fire.', reward:{livery:'brimstone', cash:2500}},
       {id:'v3', name:'The Teeth Run', at:[0, -4000], race:{circuit:{at:[0, -4000], r:1600, n:10, agl:26}, low:true}, hint:'Pirates race through the channels between the Teeth. Wave-top height, and mind the fangs.', reward:{cash:4500}},
       {id:'v4', name:'Pike\'s rum cache', at:'cinder', off:[260, 180], hint:'"Bilge" Pike buried a cache of navy rum somewhere east of Cinder Cove and drank the map.', reward:{cash:3000}},
       {id:'v5', name:'The Gullet chest', at:'gullet', ledge:7, hint:'There\'s a chest on a ledge inside the Devil\'s Gullet, a lava tube under the crown. Fly in slow and look right.', reward:{mod:'drums', cash:2000}}
@@ -485,6 +485,7 @@ G.regionCuts = R => {
 G.regionFlats = R => {
   const L = layout(R), fl = R.sites.filter(s => s.r && !s.cavern).map(s => ({x:L.sites[s.id].x, z:L.sites[s.id].z, r:s.r}));
   if (R.city) fl.push({x:CITY.x, z:CITY.z, r:CITY.r});
+  for (const m of R.marks || []) if (m.flat && L.marks[m.id]) fl.push({x:L.marks[m.id].x, z:L.marks[m.id].z, r:m.flat});   // a terrace cut into the hillside
   return fl;
 };
 
@@ -523,6 +524,11 @@ function buildHideout(){
 /* Brimstone Keep: a black-stone fortress on the flank of Mount Cranium, with a skull banner on the tallest tower. */
 function buildKeep(){
   const g = new THREE.Group(), st = 0x2a2626, st2 = 0x3a3432;
+  // it sits on a terrace hewn out of the mountain: a battered stone plinth runs down into the rock, with buttresses and a stair up from below
+  g.add(mesh(CYL(36, 44, 26, 8), 0x2e2826, 0, -12, 0, {ry:Math.PI/8}));
+  for (let i = 0; i < 8; i++) { const a = i*Math.PI/4 + Math.PI/8, x = Math.sin(a)*41, z = Math.cos(a)*41; g.add(mesh(BOX(7, 22, 9), 0x262120, x, -9, z, {ry:a, rx:0.18*Math.cos(a), rz:-0.18*Math.sin(a)})); }
+  for (let i = 0; i < 10; i++) g.add(mesh(BOX(10, 1.6, 4), 0x3a3432, 0, -i*2.2 + 0.4, -40 - i*3.4));
+  for (let i = 0; i < 9; i++) { const a = i*0.7 + 0.3, d = 52 + (i % 3)*9; g.add(mesh(new THREE.DodecahedronGeometry(6 + (i % 4)*2.5, 0), 0x2a2422, Math.sin(a)*d, -6 - (i % 3)*3, Math.cos(a)*d, {rx:i, ry:i*1.7})); }
   for (let i = 0; i < 8; i++) { const a = i*Math.PI/4, x = Math.sin(a)*26, z = Math.cos(a)*26; g.add(mesh(BOX(22, 12, 4), st, x, 6, z, {ry:a})); }
   for (let i = 0; i < 4; i++) { const a = i*Math.PI/2 + Math.PI/4, x = Math.sin(a)*28, z = Math.cos(a)*28; g.add(mesh(CYL(5, 6, 20, 8), st2, x, 10, z)); g.add(mesh(CONE(6.5, 7, 8), 0x5a1a1a, x, 23.5, z)); }
   g.add(mesh(BOX(18, 22, 18), st2, 0, 11, 0)); g.add(mesh(CYL(5, 6, 14, 8), st, 0, 29, 0)); g.add(mesh(CONE(6.5, 8, 8), 0x5a1a1a, 0, 40, 0));
@@ -550,8 +556,15 @@ function buildPlume(s, night){
   return g;
 }
 /* The Burning Eye: a glowing skin over the lava crust, breathing slowly, with steam rising off it. */
-function buildLava(r, night){
+function buildLava(r, night, lake){
   const g = new THREE.Group();
+  if (lake) {   // a molten lake: a solid glowing floor with a darker crust drifting over it
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({color:0xff5010})); pool.rotation.x = -Math.PI/2; pool.position.y = -1; g.add(pool);
+    const crust = new THREE.Mesh(new THREE.RingGeometry(r*0.25, r*0.92, 40, 1), new THREE.MeshBasicMaterial({color:0x3a1a0a, transparent:true, opacity:0.45, depthWrite:false})); crust.rotation.x = -Math.PI/2; g.add(crust);
+    const L = new THREE.PointLight(0xff5a1a, night ? 3 : 1.2, r*4, 1.4); L.position.y = 60; g.add(L);
+    g.userData.tick = () => { const t = performance.now()*0.001; crust.rotation.z = t*0.02; crust.material.opacity = 0.35 + 0.12*Math.sin(t*0.7); pool.material.color.setRGB(1, 0.3 + 0.06*Math.sin(t*1.3), 0.05); };
+    return g;
+  }
   const skin = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({color:0xff6a1a, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending}));
   skin.rotation.x = -Math.PI/2; skin.scale.set(1.15, 0.92, 1); g.add(skin);
   const steam = buildPlume(1.4, night); steam.position.set(r*0.2, 0, -r*0.1); g.add(steam);
@@ -688,7 +701,10 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (md.kind === 'hideout') o = buildHideout();
     if (md.kind === 'hulk') o = buildHulk();
     if (md.kind === 'keep') { o = buildKeep(); w.addBlocker({x:p.x, z:p.z, hw:30, hd:30, top:p.y + 28}); }
-    if (md.kind === 'volcano') { o = buildPlume(md.plume || 1, this.night); this.anim.push(o.userData.tick); }
+    if (md.kind === 'volcano') {
+      o = buildPlume(md.plume || 1, this.night); this.anim.push(o.userData.tick);
+      if (md.caldera) { const lake = buildLava(md.caldera, this.night, true); lake.position.set(0, 2.5, 0); o.add(lake); this.anim.push(lake.userData.tick); }
+    }
     if (md.kind === 'lava') { p.y = 3.4; o = buildLava(md.r || 800, this.night); this.anim.push(o.userData.tick); }
     if (md.kind === 'cave') { p.y = 0.4; const C = Object.assign({}, md.cave), yaw = G.rng(md.id.length*97)()*Math.PI; C.P = cavePath(C); o = buildCave(C); o.rotation.y = yaw; const cv = {obj:o, C, name:md.name, t:-99, yaw, seen:null}; this.caves.push(cv); if (this.night) this.anim.push(() => { if (Math.random() < 0.6) { const e = Math.random() < 0.5 ? C.P[0] : C.P[C.P.length - 1], sd = Math.random() < 0.5 ? 1 : -1, l = new V3(e.x + e.lx*sd*(C.bw/2 - 1.5), C.bh*0.55, e.z + e.lz*sd*(C.bw/2 - 1.5)).applyAxisAngle(UP, yaw).add(p); this.g.fx.fire.emit(l.x, l.y, l.z, 0, 0.6, 0, 2.2, 0.35, 1, 0.75, 0.35, 0.9, 0, 1, 0); } }); }
     if (md.kind === 'viaduct') {
@@ -726,7 +742,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const T = sd.tower || {}, th = sd.city ? Math.max(w.height(CITY.x, CITY.z, true), 14) : this.ground(at.x, at.z, true);
       // the gallery faces the region's centre, so the approach is over open country
       const ty = sd.city ? Math.atan2(STRIP.x - CITY.x, STRIP.z - CITY.z) : Math.atan2(-at.x, -at.z);
-      const tower = G.buildSkyhookTower(T.h || 120, T.w || 38, T); tower.position.set(at.x, th - 0.5, at.z); tower.rotation.y = ty; g.scene.add(tower);
+      const tower = G.buildSkyhookTower(T.h || 120, T.w || 38, this.R.id === 'calavera' ? Object.assign({pirate:true}, T) : T); tower.position.set(at.x, th - 0.5, at.z); tower.rotation.y = ty; g.scene.add(tower);
       site.tower = tower; site.hook = tower.userData.hook.clone().applyAxisAngle(UP, ty).add(tower.position); site.n = new V3(Math.sin(ty), 0, Math.cos(ty)); site.ringR = tower.userData.ringR;
       site.point = new V3(at.x, th, at.z); site.markAt = site.hook.clone(); site.ty = ty; this.towers.push(site);
       if (sd.town) this.buildTown(g, new V3(at.x, th, at.z), 165, sd, site);
@@ -747,6 +763,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   buildTown(g, c, r, sd, hook){
     const w = g.world, h = this.ground(c.x, c.z, true), B = 58, T = g.traffic || (g.traffic = new G.Traffic(g)), rr = G.rng(sd.id.length*131 + 7);
     const cols = this.R.id === 'badlands' ? [0xc9a27a, 0xb5885a, 0xd9b48a, 0x9a7a5a] : this.R.id === 'keys' ? [0xf1e6d0, 0xe8c8a0, 0xd9e8e0, 0xf2d8b0] : this.R.id === 'frostback' ? [0xe8e0d0, 0x8a5a3a, 0xd8d0c0, 0x6b4a2b] : this.R.id === 'calavera' ? [0x5a4a42, 0x8a6a52, 0x3a3432, 0xa08870, 0x6a2a24] : [0xd8c6a4, 0xc9b38f, 0xe2d4b6, 0xb9a891];
+    if (this.R.id === 'calavera') return this.pirateTown(g, c, r, sd, hook, h, rr);
     T.streets({x:c.x, z:c.z, r}, h, B, 10);
     const ax = hook ? Math.sin(hook.ty) : 0, az = hook ? Math.cos(hook.ty) : 0, bulbs = [];
     for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) {
@@ -764,6 +781,37 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     }
     T.carsOn(this.night || sd.cavern ? 6 : 12);
     if (!sd.cavern) T.air({x:c.x, z:c.z}, {circlers:2, blimp:false, R:380});
+  },
+  /* the Brethren's towns: no street grid, just crooked stilt-houses crowded along boardwalks round a beached galleon */
+  pirateTown(g, c, r, sd, hook, h, rr){
+    const w = g.world, k = G.pirateKit(), ax = hook ? Math.sin(hook.ty) : 0, az = hook ? Math.cos(hook.ty) : 0, bulbs = [];
+    // the tavern sits in the middle of a strip town; at a skyhook it sits off to one side of the approach
+    let tc = c.clone(); if (hook) tc.add(new V3(az, 0, -ax).multiplyScalar(r*0.55));
+    const ty = rr()*Math.PI*2, tg = this.ground(tc.x, tc.z, true), tv = G.pirateTavern(k, tc.x, tg - 0.6, tc.z, ty, rr, this.night);
+    w.addBlocker({x:tc.x, z:tc.z, hw:Math.max(tv.hw, tv.hd)*0.8, hd:Math.max(tv.hw, tv.hd)*0.8, top:tg + 18});
+    const placed = [{x:tc.x, z:tc.z, r:30}];
+    // houses scattered in rough rings, never on a grid, each turned its own way
+    const n = Math.round(r*r/420);
+    for (let i = 0, tries = 0; i < n && tries < n*6; tries++) {
+      const a = rr()*Math.PI*2, d = 30 + Math.sqrt(rr())*(r - 30), x = c.x + Math.sin(a)*d, z = c.z + Math.cos(a)*d;
+      if (hook) { const dx = x - c.x, dz = z - c.z; if (Math.hypot(dx, dz) < 48 || (Math.abs(dx*az - dz*ax) < 46 && dx*ax + dz*az > -20)) continue; }
+      const ww = 8 + rr()*8; if (placed.some(p => Math.hypot(p.x - x, p.z - z) < p.r + ww*0.62)) continue;
+      const gy = this.ground(x, z, true); if (gy < 0.6) continue;
+      const hh = d < r*0.4 ? 10 + rr()*20 : 5 + rr()*9, yaw = Math.atan2(c.x - x, c.z - z) + (rr() - 0.5)*1.2;
+      const top = G.pirateHouse(k, x, gy, z, ww, hh, rr, yaw, this.night || sd.cavern);
+      w.addBlocker({x, z, hw:ww*0.6, hd:ww*0.6, top:gy + top}); placed.push({x, z, r:ww*0.62}); i++;
+      if (this.night && rr() < 0.5) bulbs.push([x, gy + 4.5, z]);
+    }
+    // boardwalks from the tavern out between the houses
+    const plank = G.mat(0x4a3a2c, {roughness:0.95});
+    for (let i = 0; i < 5; i++) {
+      const a = i/5*Math.PI*2 + rr(), len = r*0.8, mx = tc.x + Math.sin(a)*len/2, mz = tc.z + Math.cos(a)*len/2;
+      for (let s2 = -len/2; s2 < len/2; s2 += 8) { const px = mx + Math.sin(a)*s2, pz = mz + Math.cos(a)*s2, gy = this.ground(px, pz, true); if (gy < 0.4) continue; const m = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.4, 8.2), plank); m.position.set(px, gy + 0.3, pz); m.rotation.y = a; m.rotation.z = (rr() - 0.5)*0.05; g.scene.add(m); }
+    }
+    g.scene.add(G.buildKit(k));
+    if (this.night || sd.cavern) for (let d = -r*0.5; d < r*0.5; d += 11) bulbs.push([tc.x + Math.sin(ty + 1.57)*d, tg + 9, tc.z + Math.cos(ty + 1.57)*d]);
+    if (bulbs.length) { const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.75, 6, 4), new THREE.MeshBasicMaterial({color:0xffb060}), bulbs.length), mx = new THREE.Matrix4(); bulbs.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.scene.add(im); }
+    if (!sd.cavern) { const T = g.traffic || (g.traffic = new G.Traffic(g)); T.air({x:c.x, z:c.z}, {circlers:2, blimp:false, R:380}); }
   },
   buildCity(g){
     const s = this.sites.find(x => x.def.city), tx = s.point.x, tz = s.point.z, ax = Math.sin(s.ty), az = Math.cos(s.ty);

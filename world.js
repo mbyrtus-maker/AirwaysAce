@@ -66,6 +66,7 @@ G.World = class {
     this.scene = scene; this.noise = G.Noise(opts.seed); this.rand = G.rng(opts.seed + 7);
     this.terr = opts.region || 'halcyon'; this.RT = G.TERRAIN[this.terr] || G.TERRAIN.halcyon;
     this.flats = (opts.flats || []).map(f => Object.assign({}, f));
+    if (this.terr === 'calavera') this.calderaFloor = this.rawSkull(0, 3000);
     for (const f of this.flats) if (f.h === undefined) f.h = Math.max(this.raw(f.x, f.z), 14);
     const S = this.S = 18000, N = this.N = 512, st = this.step = S / N, W = N + 1;
     this.h = new Float32Array(W*W); this.h0 = new Float32Array(W*W);
@@ -129,6 +130,7 @@ G.World = class {
       r = (0.2 + 0.2*sc)*lum; g = (0.18 + 0.05*sc)*lum; b = (0.17 + 0.03*sc)*lum;
       r += (0.16*lum - r)*jungle; g += (0.4*lum - g)*jungle; b += (0.14*lum - b)*jungle;
       const ash = sm(200, 420, hh + v1*60); r += (0.55 - r)*ash*0.7; g += (0.53 - g)*ash*0.7; b += (0.5 - b)*ash*0.7;
+      if (this.terr === 'calavera') { const rc = Math.hypot(x, z - 3000); if (rc < 300 && hh < this.calderaFloor + 14) { const glow = 0.55 + 0.45*sm(-0.2, 0.4, n(x*0.02 + 3, z*0.02, 2)); return [0.95*glow + 0.15, 0.3*glow + 0.05, 0.05]; } if (rc < 560 && rc > 250) { const k2 = sm(560, 300, rc)*0.6; r += (0.12 - r)*k2; g += (0.1 - g)*k2; b += (0.09 - b)*k2; } }
       if (this.terr === 'calavera' && this.skullD(x, z).eyeR > 0) { const glow = 0.5 + 0.5*sm(-0.2, 0.4, n(x*0.006 + 3, z*0.006, 3)); return [0.95*glow + 0.15, 0.32*glow + 0.05, 0.06]; }
     } else {
       if (RT.cold) { r *= 0.86; g *= 0.94; b *= 1.05; }
@@ -235,12 +237,16 @@ G.World = class {
     const wv = v < 0 ? 3900 : 3900 - 1300*Math.min(1, v/3600), face = v < -200 ? -1e4 : Math.min(3600 - v, wv - Math.abs(u), v + 2000);
     let d = Math.max(crown, face) + wob;
     // the teeth: islets along the bottom of the jaw, with channels between them you can fly through
-    const P = 720, cu = ((u + 1e5 + P/2) % P) - P/2;
-    const tooth = Math.min(250 - Math.abs(cu), v - 3480, 4700 - v - Math.abs(cu)*0.35, 2500 - Math.abs(u));
+    // every tooth its own: wider or narrower, shoved sideways, leaning, longer or stubbier, some broken off, with a ragged outline
+    const P = 720, kk = Math.floor((u + 1e5 + P/2)/P), hr = i => { const q = Math.sin(kk*127.1 + i*311.7)*43758.5453; return q - Math.floor(q); };
+    const cu = ((u + 1e5 + P/2) % P) - P/2 - (hr(1) - 0.5)*110, top = 3480 + (hr(3) - 0.5)*300, tip = 4700 + (hr(4) - 0.5)*600;
+    const cul = cu + (v - top)*(hr(5) - 0.5)*0.45, rag = n(x*0.011 + kk*7.3, z*0.011 - kk, 2)*45;
+    const tooth = Math.min(150 + hr(2)*95 - Math.abs(cul) + rag, v - top, tip - v - Math.abs(cul)*(0.2 + hr(6)*0.35) + rag*0.6, 2500 - Math.abs(u));
+    const toothH = hr(8) < 0.14 ? 0.12 : 0.35 + hr(7)*0.95;
     d = Math.max(d, tooth);
     const eyeL = ell(-1750, 600, 1150, 950), eyeR = ell(1750, 600, 1150, 950);
     const nose = Math.min(v - 1550, 2950 - v, 650*(v - 1550)/1400 - Math.abs(u));
-    return {d:Math.min(d, -eyeL, -eyeR, -nose), eyeL, eyeR, tooth};
+    return {d:Math.min(d, -eyeL, -eyeR, -nose), eyeL, eyeR, tooth, toothH, kk};
   }
   rawSkull(x, z){
     const n = this.noise, S = this.skullD(x, z), d = S.d;
@@ -249,12 +255,22 @@ G.World = class {
     if (d < 0) h = -6 - 42*sm(0, 450, -d);
     else h = 3 + 46*sm(0, 380, d) + 60*sm(250, 1800, d) + n(x*0.0016 + 8, z*0.0016 - 3, 3)*28*sm(100, 600, d);
     // the tooth islets stand up as basalt pillars
-    if (S.tooth > -60) h = Math.max(h, (S.tooth > 0 ? 34 + sm(0, 120, S.tooth)*36 : h));
+    if (S.tooth > -60 && S.tooth > 0) {
+      const crag = n(x*0.02 + S.kk*3.1, z*0.02, 2)*14 + n(x*0.05, z*0.05 + S.kk, 2)*5;   // broken basalt tops, never two the same
+      h = Math.max(h, 18 + sm(0, 70 + 60*S.toothH, S.tooth)*(26 + 74*S.toothH) + crag*sm(0, 60, S.tooth));
+    }
     // caldera rims round both eyes, the eastern one taller and still smoking
     for (const [e, H] of [[S.eyeL, 170], [S.eyeR, 250]]) { const o = -e; if (o > -80) h += H*Math.exp(-(((o - 140)/240)**2))*(d > -60 ? 1 : 0.4); }
     // volcanoes: Mount Cranium on the crown (with a summit crater) and two smaller cones on the cheekbones
     const cone = (cx, cz, H, R, cr, dip) => { const r = Math.hypot(x - cx, z - cz); if (r > R) return 0; let c = H*Math.pow(1 - r/R, 1.5); if (r < cr) c -= dip*(1 - r/cr)**2; return c; };
-    if (d > -200) h += cone(0, 3000, 640, 2300, 230, 120) + cone(-3050, -1150, 330, 1150, 110, 60) + cone(3050, -1150, 360, 1150, 110, 60);
+    // Mount Cranium: a broad cone blown open at the top, a ragged rim round a deep caldera with a lava lake in the bottom
+    const caldera = () => {
+      const r = Math.hypot(x, z - 3000), R = 2300, H = 700, rim = 540 + n(x*0.004, z*0.004 + 5, 2)*60; if (r > R) return 0;
+      const c = H*Math.pow(1 - Math.min(r, rim)/R, 1.5), lip = 26*Math.exp(-(((r - rim)/70)**2)) + n(x*0.015, z*0.015, 2)*16*sm(rim - 200, rim, r);
+      if (r >= rim) return c + lip;
+      const floor = c - 330; return floor + (c - floor)*sm(rim*0.5, rim, r)**1.6 + lip;
+    };
+    if (d > -200) h += caldera() + cone(-3050, -1150, 330, 1150, 120, 75) + cone(3050, -1150, 360, 1150, 120, 75);
     h += n(x*0.007, z*0.007, 2)*4 + n(x*0.03, z*0.03, 2)*0.8;   // rough basalt
     const far = Math.hypot(x, z); if (far > 7600) h -= (far - 7600)*0.2;
     return Math.max(h, -50);

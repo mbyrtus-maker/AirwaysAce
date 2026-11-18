@@ -16,6 +16,8 @@ const A = G.audio = {
         const ok = b => { if (!this.buf[k]) { this.buf[k] = b; this.edges(k, b); if (k === 'engine' || k === 'engine2') this.startEngines(); } };
         const pr = c.decodeAudioData(u8.buffer, ok, () => {}); if (pr && pr.then) pr.then(ok).catch(() => {});
       }
+      // the Zephyr's turbine is a recording of its own, fetched alongside the game
+      if (typeof fetch === 'function') fetch('sounds/turbine.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.turbine = b; this.edges('turbine', b); }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : (G.save ? G.save.vol : 0.7); },
@@ -57,7 +59,10 @@ const A = G.audio = {
     if (this.eng && P) {
       const on = P.alive && game.running && !P.engineDead;
       const jet = P.st && P.st.jet, sp = P.speed/P.top, s = jet ? (P.spool ?? P.throttle) : P.throttle, rate = jet ? 1.35 + s*0.9 + sp*0.25 : 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);   // the jet: the same recording wound right up into a whine
-      this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
+      if (jet && !this.turb && this.buf.turbine) this.turb = this.loop('turbine', 0);
+      const realJet = jet && this.turb;   // with the turbine recording in hand the piston loop falls silent
+      this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
+      if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
     if (this.eng2) {
       let best = null, bd = 900; for (const p of game.planes) if (p.alive && !p.isPlayer) { const d = p.pos.distanceTo(game.camera.position); if (d < bd) { bd = d; best = p; } }
@@ -81,7 +86,7 @@ const A = G.audio = {
   },
   stopAll(){
     const t = this.ctx ? this.ctx.currentTime : 0;
-    for (const L of [this.eng, this.eng2, this.shipEng]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
+    for (const L of [this.eng, this.eng2, this.shipEng, this.turb]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
   shot(pos, pitch){ const a = this.att(pos, 1200); if (a < 0.02 || this.thr('shot', 55)) return; this.one('gunshot', a*0.5, pitch*(0.95 + Math.random()*0.1)); },

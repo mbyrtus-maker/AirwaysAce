@@ -1277,6 +1277,94 @@ G.buildBlimp = (o = {}) => {
 };
 
 /* Port Halcyon skyline: stepped Art Deco towers with lit windows, a brass spire on the tall ones. */
+/* ---------- Calavera pirate towns: ramshackle stilt-houses of salvaged timber, upturned-hull roofs, crow's nests and black flags.
+   A whole town goes into one Kit (a handful of meshes). Every house is a little crooked, and no two are stacked alike. ---------- */
+G.pirateKit = () => new Kit();
+G.buildKit = (k, g = new THREE.Group()) => { k.build(g); return g; };
+G.pirateHouse = (k, x, y, z, ww, hh, rr, yaw = 0, night = false) => {
+  const pick = a => a[Math.floor(rr()*a.length)], P = (lx, ly, lz) => mul(T(x, y, z), RY(yaw), T(lx, ly, lz));
+  const woods = [0x5a4632, 0x6b5440, 0x4a3a2e, 0x7a6248, 0x8a3a2a, 0x3a5a5a, 0x2e2a28, 0x6a4a3a, 0x58503a];
+  const dark = G.mat(0x2a221c, {roughness:0.95}), deck = G.mat(0x4a3a2c, {roughness:0.95}), tar = G.mat(0x231e1b, {roughness:0.9}), rope = G.mat(0x8a7a5a, {roughness:1});
+  const win = G.mat(0x1e1812, {roughness:0.6, emissive:0xffa040, emissiveIntensity:night ? 0.9 : 0.12}), black = G.mat(0x111111, {roughness:0.9}), bone = G.mat(0xe8e0cc, {roughness:0.8});
+  // stilts and a plank deck: these towns stand over mud, surf and lava-crust
+  const dk = ww + 2 + rr()*3;
+  for (const [sx, sz] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [0, 1], [0, -1]]) k.add(cyl(0.32, 0.4, 8, 5), dark, P(sx*dk/2*0.92, -2.5, sz*dk/2*0.92));
+  k.add(box(dk, 0.5, dk*(0.9 + rr()*0.25)), deck, P(0, 1.4, 0));
+  // storeys: each one a touch smaller, shoved off-centre and twisted, in whatever paint was going
+  const storeys = hh > 24 ? 3 : hh > 12 ? 2 : 1; let by = 1.6, w = ww*0.86, d = ww*(0.7 + rr()*0.25), ox = 0, oz = 0, tw = 0;
+  for (let s = 0; s < storeys; s++) {
+    const sh = Math.max(4.2, hh/storeys*(0.85 + rr()*0.3)), col = G.mat(pick(woods), {roughness:0.92}), M = (lx, ly, lz) => mul(P(ox, 0, oz), RY(tw), RZ((rr() - 0.5)*0.0), T(lx, ly, lz));
+    const lean = (rr() - 0.5)*0.07, L = (lx, ly, lz) => mul(P(ox, by, oz), RY(tw), RZ(lean), T(lx, ly, lz));
+    k.add(box(w, sh, d), col, L(0, sh/2, 0));
+    // corner posts, a sill and a lintel band in dark timber
+    for (const [cx, cz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) k.add(box(0.6, sh + 0.4, 0.6), dark, L(cx*w/2, sh/2, cz*d/2));
+    k.add(box(w + 0.5, 0.35, d + 0.5), dark, L(0, sh - 0.2, 0));
+    // shuttered windows, unevenly spaced; some boarded up
+    for (const f of [1, -1]) for (let i = 0; i < Math.max(1, Math.floor(w/5)); i++) {
+      const wx = -w/2 + (i + 0.3 + rr()*0.4)*w/Math.max(1, Math.floor(w/5)), wy = sh*(0.45 + rr()*0.2);
+      if (rr() < 0.2) { k.add(box(1.8, 0.35, 0.2), dark, mul(L(wx, wy, f*d/2), RZ((rr() - 0.5)*0.8))); continue; }
+      k.add(box(1.5, 1.8, 0.2), win, L(wx, wy, f*(d/2 + 0.05))); k.add(box(0.6, 2, 0.15), col, L(wx - 1.15, wy, f*(d/2 + 0.12)));
+    }
+    if (s === 0) k.add(box(2.2, 3.4, 0.25), dark, L((rr() - 0.5)*w*0.5, 1.7, d/2 + 0.08));   // the door
+    by += sh; ox += (rr() - 0.5)*2.2; oz += (rr() - 0.5)*2.2; tw += (rr() - 0.5)*0.35;
+    if (s < storeys - 1) { w *= 0.78 + rr()*0.15; d *= 0.78 + rr()*0.15; k.add(box(w + 2.2, 0.4, d + 2.2), deck, P(ox, by, oz)); by += 0.4; }
+  }
+  const R = (lx, ly, lz) => mul(P(ox, by, oz), RY(tw), T(lx, ly, lz)), roof = rr();
+  if (roof < 0.45) {
+    // an old boat turned keel-up for a roof
+    const L = Math.max(w, d)*1.25, Rr = Math.min(w, d)*0.62, hull = lathe([[0.4, -L/2], [Rr*0.7, -L*0.36], [Rr, -L*0.1], [Rr, L*0.15], [Rr*0.75, L*0.38], [0.5, L/2]], 10, 1, 0.55);
+    const rot = w > d ? RY(PI/2) : RY(0);
+    k.add(hull, G.mat(pick([0x3a2e26, 0x4a3a2a, 0x2a3a3a, 0x5a2a22]), {roughness:0.9}), mul(R(0, 0, 0), rot, RX(0)));
+    k.add(box(0.5, 0.7, L*0.95), tar, mul(R(0, Rr*0.55, 0), rot));
+  } else if (roof < 0.75) {
+    // a steep tarred hip roof, patched
+    const r = Math.max(w, d)*0.78, h = 3 + rr()*4;
+    k.add(cyl(0, r, h, 4), G.mat(pick([0x231e1b, 0x3a3028, 0x5a4a32, 0x7a6a44]), {roughness:0.95}), mul(R(0, h/2, 0), RY(PI/4)));
+  } else {
+    // a lean-to of planks with junk on top
+    k.add(box(w + 1.6, 0.4, d + 1.6), deck, mul(R(0, 0.6, 0), RZ(0.18 + rr()*0.1)));
+    for (let i = 0; i < 2; i++) k.add(cyl(0.6, 0.6, 1.3, 7), G.mat(0x6a4a2a, {roughness:0.9}), R((rr() - 0.5)*w*0.6, 1.6, (rr() - 0.5)*d*0.6));
+  }
+  // what's lying about on the deck
+  for (let i = 0; i < 1 + Math.floor(rr()*3); i++) k.add(cyl(0.55, 0.55, 1.2, 7), G.mat(0x6a4a2a, {roughness:0.9}), P((rr() - 0.5)*dk*0.9, 2.25, dk/2 - 0.8));
+  if (rr() < 0.18) { k.add(cyl(0.32, 0.42, 3.4, 7), black, mul(P(dk*0.3, 2.3, dk/2 - 0.3), RX(PI/2 - 0.1))); k.add(box(1.4, 0.6, 1.8), dark, P(dk*0.3, 1.9, dk/2 - 1.2)); }
+  // a crow's nest or a black flag on a pole
+  const top = by + 4;
+  if (rr() < 0.3) {
+    const px = w*0.35, pz = -d*0.3; k.add(cyl(0.22, 0.3, top + 8, 5), dark, P(ox + px, (top + 8)/2, oz + pz));
+    k.add(cyl(1.2, 1, 1.6, 8), G.mat(0x5a4632, {roughness:0.9}), P(ox + px, top + 7, oz + pz));
+    for (let i = 0; i < 3; i++) k.add(cyl(0.05, 0.05, top + 6, 3), rope, mul(P(ox + px + (i - 1)*1.6, (top + 6)/2, oz + pz + 1), RX(0.12)));
+  }
+  if (rr() < 0.45) {
+    const px = -w*0.3, pz = d*0.25, fy = top + 3 + rr()*4; k.add(cyl(0.12, 0.16, fy, 4), dark, P(ox + px, fy/2, oz + pz));
+    const flap = rr() < 0.5 ? black : G.mat(0x7a1a1a, {roughness:0.9});
+    k.add(box(0.12, 2.4, 3.6), flap, mul(P(ox + px, fy - 1.3, oz + pz + 1.9), RX((rr() - 0.5)*0.3)));
+    if (flap === black) k.add(box(0.16, 0.8, 0.8), bone, P(ox + px, fy - 1.2, oz + pz + 1.9));
+  }
+  if (night || rr() < 0.4) k.add(ball(0.4, 6, 3), lamp(0xffa040), P(dk/2 - 0.5, 4, dk/2 - 0.5));
+  return by + 4;
+};
+/* The heart of every pirate town: a galleon run aground and turned into a tavern, masts still standing, sails in rags. */
+G.pirateTavern = (k, x, y, z, yaw, rr, night = false) => {
+  const P = (lx, ly, lz) => mul(T(x, y, z), RY(yaw), T(lx, ly, lz)), L = 46, R = 9;
+  const hullM = G.mat(0x3a2a20, {roughness:0.9}), band = G.mat(0x8a6a2a, {roughness:0.6, metalness:0.2}), dark = G.mat(0x2a221c, {roughness:0.95}), sail = G.mat(0xb8ac8c, {roughness:1}), win = G.mat(0x1e1812, {emissive:0xffa040, emissiveIntensity:night ? 1 : 0.2});
+  const hull = lathe([[1, -L/2], [R*0.75, -L*0.38], [R, -L*0.12], [R, L*0.2], [R*0.85, L*0.4], [R*0.45, L/2]], 12, 1, 0.75);
+  k.add(hull, hullM, mul(P(0, R*0.3, 0), RZ(0.16)));   // listing to one side in the mud
+  k.add(box(R*1.9, 0.6, L*0.92), G.mat(0x5a4632, {roughness:0.95}), mul(P(0, R*0.3 + R*0.68, 0), RZ(0.16)));
+  for (const f of [1, -1]) for (let i = 0; i < 7; i++) k.add(box(0.3, 1.4, 2), win, mul(P(0, R*0.3, 0), RZ(0.16), T(f*R*0.97, R*0.25, -L*0.32 + i*L*0.1)));
+  k.add(box(R*1.5, 6, 8), hullM, mul(P(0, R*0.3, -L*0.42), RZ(0.16), T(0, R*0.75 + 3, 0)));   // the sterncastle
+  for (let i = 0; i < 6; i++) k.add(box(1.4, 1.8, 0.3), win, mul(P(0, R*0.3, -L*0.42), RZ(0.16), T(-R*0.6 + i*R*0.24, R*0.75 + 3.4, -4.1)));
+  for (const [mz, mh] of [[-L*0.2, 34], [L*0.12, 40], [L*0.36, 26]]) {
+    const mm = mul(P(0, R*0.3, mz), RZ(0.16)); k.add(cyl(0.45, 0.6, mh, 7), dark, mul(mm, T(0, R*0.7 + mh/2, 0)));
+    k.add(cyl(0.22, 0.22, mh*0.5, 5), dark, mul(mm, T(0, R*0.7 + mh*0.72, 0), RZ(PI/2)));
+    k.add(box(0.12, mh*0.28, mh*0.4), sail, mul(mm, T(0, R*0.7 + mh*0.56, 0), RY(PI/2), RX(0.08)));   // what's left of a sail
+    k.add(box(0.12, 1.8, 3), G.mat(0x111111), mul(mm, T(0, R*0.7 + mh + 1, 1.6)));
+  }
+  for (const s of [-1, 1]) for (const zz of [-L*0.3, 0, L*0.3]) k.add(cyl(0.5, 0.7, 8, 5), dark, P(s*R*0.9, 2, zz));   // the props that keep her upright
+  k.add(box(4, 1.6, 0.3), G.mat(0x9e1b1b), P(R + 1, 6, 0));
+  k.add(ball(0.6, 6, 3), lamp(0xffa040), P(R + 1.5, 4.5, -3)); k.add(ball(0.6, 6, 3), lamp(0xffa040), P(R + 1.5, 4.5, 3));
+  return {hw:R + 2, hd:L/2 + 2, top:R*0.3 + R*0.7 + 40};
+};
 G.buildTower = (h, w, hex, rand = Math.random) => {
   const g = new THREE.Group(), k = new Kit(), wall = G.mat(hex, {roughness:0.85}), trimM = G.mat(0xe8dcc0), win = G.mat(0x2f3a44, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:0.25});
   let y = 0, ww = w, lvl = 0;
@@ -1380,16 +1468,30 @@ G.buildAirstrip = (len = 560, wid = 26, o = {}) => {
 /* Halcyon Aero Works: a tall Deco tower with a flying-through gallery cut clean through its upper floors.
    The skyhook ring hangs from the gallery ceiling, so you fly INTO the building to deliver. The gallery runs along local Z. */
 G.buildSkyhookTower = (h = 140, w = 40, o = {}) => {
-  const g = new THREE.Group(), k = new Kit(), wall = G.mat(o.walls || 0xd8c6a4, {roughness:0.85}), trimM = G.mat(0xe8dcc0), dark = G.mat(0x3a3530, {roughness:0.9});
+  const g = new THREE.Group(), k = new Kit(), PIR = !!o.pirate, wall = G.mat(o.walls || 0xd8c6a4, {roughness:0.85}), trimM = PIR ? G.mat(0x2a221c, {roughness:0.95}) : G.mat(0xe8dcc0), dark = G.mat(0x3a3530, {roughness:0.9});
   const win = G.mat(0x2f3a44, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:0.25});
+  const rr = G.rng ? G.rng(Math.round(h*31 + w*7)) : Math.random;
   const y0 = o.y0 ?? Math.min(92, h - 32), oh = 18, ow = 26, y1 = y0 + oh, side = (w - ow)/2;
   const windows = (x0, x1, ya, yb, z, face) => { for (let y = ya + 3; y < yb - 2.5; y += 4.2) for (let x = x0 + 2.5; x < x1 - 2; x += 4.6) k.add(box(1.8, 2.2, 0.12), win, T(x, y, z + face*0.07)); };
   // base block, the two gallery piers, the upper block
   k.add(box(w, y0, w), wall, T(0, y0/2, 0));
   for (const sx of [1, -1]) k.add(box(side, oh, w), wall, T(sx*(ow/2 + side/2), y0 + oh/2, 0));
   k.add(box(w, h - y1, w), wall, T(0, y1 + (h - y1)/2, 0));
+  if (!PIR) {
   for (const f of [1, -1]) { windows(-w/2, w/2, 0, y0, f*w/2, f); windows(-w/2, w/2, y1, h, f*w/2, f); }
   for (const f of [1, -1]) for (let y = 3; y < h - 2; y += 4.2) { if (y > y0 - 1 && y < y1 + 1) continue; for (let z = -w/2 + 2.5; z < w/2 - 2; z += 4.6) k.add(box(0.12, 2.2, 1.8), win, T(f*(w/2 + 0.07), y, z)); }
+  } else {
+    // a pirate's tower: rough black stone to the gallery, salvaged timber above, braced all over, windows wherever someone knocked one through
+    const stone = G.mat(0x2e2a28, {roughness:1}), plank = G.mat(0x5a4632, {roughness:0.95});
+    k.add(box(w + 0.6, y0*0.35, w + 0.6), stone, T(0, y0*0.175, 0));
+    k.add(box(w + 0.3, h - y1, w + 0.3), plank, T(0, y1 + (h - y1)/2, 0));
+    for (const f of [1, -1]) for (const ax of [0, 1]) {
+      const at = (u, y) => ax ? T(f*(w/2 + 0.2), y, u) : T(u, y, f*(w/2 + 0.2));
+      for (let y = 6; y < h - 3; y += 7 + rr()*5) { if (y > y0 - 2 && y < y1 + 2) continue; if (rr() < 0.55) { const u = (rr() - 0.5)*(w - 6); k.add(ax ? box(0.2, 2.4, 1.8) : box(1.8, 2.4, 0.2), win, at(u, y)); } }
+      for (let y = 8; y < h - 4; y += 16) { if (y > y0 - 18 && y < y1 + 2) continue; k.add(bar(ax ? [f*(w/2 + 0.5), y, -w/2] : [-w/2, y, f*(w/2 + 0.5)], ax ? [f*(w/2 + 0.5), y + 14, w/2] : [w/2, y + 14, f*(w/2 + 0.5)], 0.35), trimM); k.add(bar(ax ? [f*(w/2 + 0.5), y + 14, -w/2] : [-w/2, y + 14, f*(w/2 + 0.5)], ax ? [f*(w/2 + 0.5), y, w/2] : [w/2, y, f*(w/2 + 0.5)], 0.35), trimM); }
+    }
+    for (let i = 0; i < 6; i++) { const a = rr()*PI*2, y = y1 + 6 + rr()*(h - y1 - 12); k.add(box(3 + rr()*3, 2.4, 2.4), plank, mul(T(Math.sin(a)*(w/2 + 1), y, Math.cos(a)*(w/2 + 1)), RY(a))); }   // lean-to cabins nailed on
+  }
   for (const sx of [1, -1]) for (const sz of [1, -1]) k.add(box(1.6, h, 1.6), trimM, T(sx*w/2, h/2, sz*w/2));   // corner piers
   for (const y of [y0, y1]) k.add(box(w + 1.2, 1.2, w + 1.2), trimM, T(0, y, 0));
   // the gallery: dark floor and ceiling, brass edging, lamps down both walls
@@ -1397,9 +1499,21 @@ G.buildSkyhookTower = (h = 140, w = 40, o = {}) => {
   for (const sx of [1, -1]) { k.add(box(0.3, oh, w), dark, T(sx*(ow/2 - 0.15), y0 + oh/2, 0)); for (const f of [1, -1]) k.add(box(0.6, oh, 0.6), BRASS(), T(sx*ow/2, y0 + oh/2, f*w/2));
     for (let z = -w/2 + 4; z < w/2; z += 8) k.add(ball(0.35, 6, 3), lamp(0xffd27a), T(sx*(ow/2 - 0.5), y0 + oh - 2, z)); }
   for (const f of [1, -1]) k.add(box(ow + 1.2, 0.6, 0.6), BRASS(), T(0, y1, f*w/2));
+  if (!PIR) {
   // stepped Deco crown and spire
   k.add(box(w*0.7, 14, w*0.7), wall, T(0, h + 7, 0)); k.add(box(w*0.7 + 1, 1, w*0.7 + 1), trimM, T(0, h + 14, 0));
   k.add(box(w*0.4, 10, w*0.4), wall, T(0, h + 19, 0)); k.add(cyl(0.12, 2.2, 22, 6), BRASS(), T(0, h + 35, 0)); k.add(ball(0.7, 6, 3), lamp(0xff3b30), T(0, h + 46.5, 0));
+  } else {
+    // a plank deck with a rail, a ship's mast, a crow's nest and the black flag
+    const plank = G.mat(0x4a3a2c, {roughness:0.95}), black = G.mat(0x111111, {roughness:0.9}), bone = G.mat(0xe8e0cc, {roughness:0.8});
+    k.add(box(w + 6, 0.8, w + 6), plank, T(0, h + 0.4, 0));
+    for (let i = 0; i < 16; i++) { const a = i/16*PI*2, r2 = (w + 5)/2; k.add(box(0.4, 2.2, 0.4), trimM, T(Math.cos(a)*r2*1.15*Math.min(1, 1/Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))))/1.15, h + 1.9, Math.sin(a)*r2*Math.min(1, 1/Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)))))); }
+    k.add(cyl(0.5, 0.75, 40, 7), trimM, T(0, h + 20, 0)); k.add(bar([-10, h + 26, 0], [10, h + 26, 0], 0.3), trimM);
+    k.add(cyl(2.4, 2, 2.6, 9), plank, T(0, h + 33, 0));
+    k.add(box(0.2, 7, 11), black, T(0, h + 35, 6)); k.add(box(0.3, 2.2, 2.2), bone, T(0.1, h + 35.6, 6)); k.add(bar([0.2, h + 33.6, 4.4], [0.2, h + 33.6, 7.6], 0.18), bone);
+    k.add(ball(0.7, 6, 3), lamp(0xff6a2a), T(0, h + 40.5, 0));
+    for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) k.add(ball(0.55, 6, 3), lamp(0xffa040), T(x*(w/2 + 2), h + 3.4, z*(w/2 + 2)));
+  }
   // the skyhook: a drop arm from the gallery ceiling holding the catch-ring in the middle of the opening
   const R = new V3(0, y0 + 10.5, 0);
   k.add(tube([0, y1 - 0.4, 0], [0, R.y + 4.6, 0], 0.35, 6), STEEL()); k.add(bar([0, R.y + 4.6, 0], [0, R.y + 4.3, 0], 1.0), BRASS());
