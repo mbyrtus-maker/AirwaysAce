@@ -60,6 +60,10 @@ G.hasMod = id => (G.save.mods || []).includes(id);
 G.hookTop = P => (P && P.L && (P.L.mods || []).includes('winch') ? 125 : 105)*MPH;
 /* ---------- Liveries: paint schemes found or won ---------- */
 G.LIVERIES = {
+  swallow:    {name:'Swallow', paint:[0x7d8a5a, 0x6b5446, 0xb8c2bc], from:'Finishing the story (with the Zephyr)'},
+  airracer:   {name:'Air Racer', paint:[0x1f3b6b, 0xd9b44a, 0xc0392b], from:'Finishing the story (with the Zephyr)'},
+  quicksilver:{name:'Quicksilver', paint:[0xc8ced4, 0x9e1b1b, 0x1b1b1b], from:'Finishing the story (with the Zephyr)'},
+  nightjet:   {name:'Night Jet', paint:[0x1a1f2e, 0x5a6a8a, 0x9ec7f0], from:'Finishing the story (with the Zephyr)'},
   brimstone:  {name:'Brimstone', paint:[0x161616, 0xe0742a, 0x9e1b1b], from:'A treasure in the Calavera Isles'},
   blackthirteen:{name:'Black Thirteen', paint:[0x161616, 0xe8e0cc, 0x9e1b1b], from:'Volume II, Chapter 4'},
   barnstormer:{name:'Barnstormer', paint:[0xd94f2a, 0xf1e9d6, 0x1f2a44], from:'10,000 stunt points'},

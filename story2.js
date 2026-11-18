@@ -784,8 +784,8 @@ G.storyCommit = r => {
   commit0(r);
   const S = G.save;
   if (S.story && S.story.node === 'c6end' && !S.owned.includes('zephyr')) {
-    S.owned.push('zephyr'); if (!S.liveries.includes('blackthirteen')) S.liveries.push('blackthirteen'); G.persist();
-    if (G.HUD) G.HUD.toast('New airframe: the Hollis Zephyr jet');
+    S.owned.push('zephyr'); for (const l of ['blackthirteen', 'swallow', 'airracer', 'quicksilver', 'nightjet']) if (!S.liveries.includes(l)) S.liveries.push(l); G.persist();
+    if (G.HUD) G.HUD.toast('New airframe: the Hollis Zephyr jet, and five bonus liveries');
   }
 };
 // saves that finished Volume I before Volume II existed pick up where it starts
