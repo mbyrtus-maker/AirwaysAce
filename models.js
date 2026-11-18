@@ -1107,12 +1107,13 @@ function hornet(paint){
   return g;
 }
 
-/* ---------- Banshee: Dr. Quill's twin-boom fighter from Ashgrove's drawings. A slim shark of a nacelle with the hood well forward,
-   a cluster of four guns in the nose and a five-bladed pusher propeller at its tail; a thick centre section carrying a cannon
-   in each root and two needle booms slung under it, each with a chin radiator; cranked outer panels swept on the leading edge;
-   tall raked fins with the tailplane carried between them and a stub outboard of each. A radio mast with a glowing valve,
-   aerial wires to both fins and a loop under the nose fly the ghost drone it carries.
-   Paint: main = nacelle, booms and wings; second = the ghost colour: nose, flashes, bands, fin tops; trim = tips, collars, boom noses. ---------- */
+/* ---------- Banshee: Dr. Quill's twin-engine, twin-boom fighter from Ashgrove's drawings. An engine at the head of each boom
+   with a three-bladed tractor propeller, the two turning opposite ways; a turbo-supercharger let into the top of each boom over
+   the wing and radiator scoops on its flanks behind it; a short nacelle between them, starting ahead of the propeller discs,
+   with a framed hood and every gun in the nose: four machine guns round two long cannon. Oval fins at the boom ends carry a
+   straight tailplane and elevator between them. Tricycle gear. A raked radio mast with a glowing valve, aerial wires to both
+   fins and a loop under the nose fly the ghost drone it carries.
+   Paint: main = nacelle, booms and wings; second = the ghost colour: spinners, fin tops, boom flashes, wing bands; trim = tips, bands, collars. ---------- */
 /* The wraith badge: black disc, a ring and a wailing ghost in the second colour. */
 function wraithBadge(r, mS){
   const S2 = SC(r, r, 1), gh = move(disc(0.4, 8), 0, 0.2), ink = [];
@@ -1124,78 +1125,98 @@ function wraithBadge(r, mS){
 }
 function banshee(paint){
   const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr), props = [];
-  // the nacelle: a 12-sided lathe, narrow and deep, drawn out into a long gun nose
-  const N = 12, SX = 0.86, SY = 1.12, CF = Math.cos(PI/N);
-  const F = [[0.27, -2.75], [0.4, -2.45], [0.6, -1.6], [0.72, -0.5], [0.74, 0.6], [0.68, 1.7], [0.55, 2.7], [0.38, 3.5], [0.22, 4.0], [0.08, 4.25]];
+  // the nacelle: short, narrow and deep, a 12-sided lathe ending in a blunt bare-metal gun nose well ahead of the propellers
+  const N = 12, SX = 0.8, SY = 0.94;
+  const F = [[0.06, -2.15], [0.3, -1.7], [0.56, -0.8], [0.7, 0.2], [0.72, 1.2], [0.66, 2.2], [0.54, 3.0], [0.4, 3.6], [0.27, 4.0], [0.13, 4.16]];
   const seg = (z0, z1, m, caps = false) => k.add(lathe(cut(F, z0, z1), N, SX, SY, caps), m);
-  seg(-2.75, -2.45, STEEL(), true); seg(-2.45, -2.27, mT); seg(-2.27, 2.9, mP); seg(2.9, 3.0, mT); seg(3.0, 4.25, mS, true);   // engine ring, collar, body, pinstripe, ghost nose
-  k.both(stripe(F, -1.3, 2.9, 0.1, 0.23, SX, SY, N), mS);                                                    // flash along the flank
-  k.add(facet(F, 2.3, 4.0, 3, -0.24, 0.24, SX, SY, N), DARK());                                              // anti-glare deck
-  for (let i = 0; i < 4; i++) { const z = -2.15 + i*0.24; k.both(box(0.08, 0.09, 0.19), DARK(), mul(T(rAt(F, z)*CF*SX + 0.025, -0.02, z), RY(0.5))); }   // exhaust stacks
-  // shoulder scoops feeding the buried engine
-  k.both(loft([quadRing(-0.3, 0.4, 0.8, 0.06, 0.5), quadRing(-1.0, 0.4, 0.8, 0.04, 0.5), quadRing(-2.2, 0.3, 0.42, 0.1, 0.3)]), mP);
-  k.both(box(0.32, 0.36, 0.04), INK(), T(0.63, 0.28, -0.295));
-  // framed hood well forward, a razor spine running back to the propeller
-  const CS = [[2.35, 0.2, 0.54, 0.66], [1.7, 0.31, 0.6, 1.2], [1.05, 0.33, 0.62, 1.3], [0.35, 0.31, 0.62, 1.25], [-0.4, 0.2, 0.6, 1.0]];
+  seg(-2.15, -1.72, mT, true); seg(-1.72, 3.05, mP); seg(3.05, 3.17, mT); seg(3.17, 3.68, mP); seg(3.68, 4.16, GUNMETAL(), true);   // tail cone, body, pinstripe, gun bay, nose cap
+  k.both(stripe(F, -1.3, 3.05, 0.08, 0.2, SX, SY, N), mS);                                                   // flash along the flank
+  k.add(facet(F, 2.2, 3.68, 3, -0.24, 0.24, SX, SY, N), DARK());                                             // anti-glare deck
+  // framed hood, a razor spine fairing it into the tail cone
+  const CS = [[2.2, 0.2, 0.44, 0.66], [1.55, 0.31, 0.48, 1.08], [0.9, 0.33, 0.5, 1.16], [0.2, 0.31, 0.5, 1.1], [-0.55, 0.2, 0.46, 0.86]];
   const hoop = ([z, w, yb, yt]) => [[-w, yb, z], [w, yb, z], [w*0.96, yb + (yt - yb)*0.55, z], [w*0.56, yt, z], [-w*0.56, yt, z], [-w*0.96, yb + (yt - yb)*0.55, z]];
   k.add(loft(CS.map(hoop)), GLASS());
-  k.add(loft([hoop(CS[4]), hoop([-1.4, 0.12, 0.5, 0.84]), hoop([-2.4, 0.04, 0.3, 0.5])]), mP);
+  k.add(loft([hoop(CS[4]), hoop([-1.3, 0.12, 0.3, 0.62]), hoop([-2.05, 0.03, 0.02, 0.14])]), mP);
   { const H = CS.map(hoop);
     for (let i = 1; i < 5; i++) for (let j = 1; j < 5; j++) k.add(bar(H[i][j], H[i][j+1], i === 2 || i === 3 ? 0.032 : 0.045), mP);
     for (const j of [2, 3, 4, 5]) k.add(bar(H[0][j === 2 ? 1 : j === 5 ? 0 : j], H[1][j], 0.045), mP);
     for (let i = 0; i < 4; i++) for (const j of [1, 0]) k.add(bar([H[i][j][0], H[i][j][1] + 0.02, H[i][j][2]], [H[i+1][j][0], H[i+1][j][1] + 0.02, H[i+1][j][2]], 0.04), mP);
     for (const j of [2, 5]) k.add(bar(H[1][j], H[4][j], 0.03), mP); }
-  k.add(box(0.4, 0.42, 0.04), PLATE(), T(0, 0.9, 0.58)); k.add(box(0.2, 0.14, 0.07), LEATHER(), T(0, 1.02, 0.62));
-  k.add(box(0.44, 0.08, 0.3), DARK(), T(0, 0.74, 1.82)); k.add(box(0.06, 0.08, 0.06), GUNMETAL(), T(0, 0.82, 1.74));
-  seatAndPilot(g, k, 0, 1.0, 0.92);
-  // the wing: a thick centre section drooping to the booms, then thin outer panels cranked up and swept on the leading edge
-  const BX = 2.15, KK = (BX - 0.55)/5.5, wf = t => { const u = t < KK ? t/KK : (t - KK)/(1 - KK), le = t < KK ? 1.6 - 0.12*u : 1.48 - 1.5*u, te = t < KK ? -1.3 + 0.2*u : -1.1 + 0.32*u;
-    return [0.55 + 5.5*t, le - te, t < KK ? 0.34 - 0.06*u : 0.28 - 0.17*u, (le + te)/2, t < KK ? -0.1 - 0.12*u : -0.22 + 0.62*u]; };
-  k.both(pan(wf, 0, KK), mP); k.both(pan(wf, KK, 0.76), mP); k.both(pan(wf, 0.76, 0.86), mS); k.both(pan(wf, 0.86, 1), mT);
+  k.add(box(0.4, 0.4, 0.04), PLATE(), T(0, 0.8, 0.42)); k.add(box(0.2, 0.13, 0.07), LEATHER(), T(0, 0.92, 0.46));
+  k.add(box(0.44, 0.08, 0.3), DARK(), T(0, 0.62, 1.66)); k.add(box(0.06, 0.08, 0.06), GUNMETAL(), T(0, 0.7, 1.58));
+  seatAndPilot(g, k, 0, 0.88, 0.76);
+  // the wing: a long straight centre section between the booms, then outer panels tapering on both edges with a little dihedral
+  const BX = 2.2, BY = -0.2, KK = (BX - 0.4)/5.9, wf = t => { const u = t < KK ? t/KK : (t - KK)/(1 - KK), le = t < KK ? 1.75 : 1.75 - 1.02*u, te = t < KK ? -1.15 : -1.15 + 0.85*u;
+    return [0.4 + 5.9*t, le - te, t < KK ? 0.36 : 0.34 - 0.2*u, (le + te)/2, t < KK ? -0.12 : -0.12 + 0.5*u]; };
+  k.both(pan(wf, 0, KK), mP); k.both(pan(wf, KK, 0.72), mP); k.both(pan(wf, 0.72, 0.79), mS); k.both(pan(wf, 0.79, 0.88), mP); k.both(pan(wf, 0.88, 1), mT);
   k.both(tipOf(wf, 0.2, 0.5), mT); navLamps(k, wf);
   const seam = (f, t0, t1, w = 0.03) => { const a = f(t0), b = f(t1), o = bar([a[0], a[4] + 0.46*a[2], a[3] - 0.15*a[1]], [b[0], b[4] + 0.46*b[2], b[3] - 0.15*b[1]], w, 0.02);
     for (const v of bar([a[0], a[4] - 0.42*a[2], a[3] - 0.1*a[1]], [b[0], b[4] - 0.42*b[2], b[3] - 0.1*b[1]], w, 0.02)) o.push(v); return o; };
-  k.both(seam(wf, 0.03, KK - 0.07), INK()); k.both(seam(wf, KK + 0.08, 0.98), INK());
-  wingEmblem(k, wf, 0.52, wraithBadge(0.34, mS));
-  // the booms: needles slung under the wing, each with a chin radiator, a ghost band and a flash down the outside
-  const BY = -0.24, BSY = 1.12, B = [[0.05, -6.0], [0.15, -5.6], [0.2, -4.4], [0.26, -2.4], [0.33, -0.8], [0.37, 0.5], [0.34, 1.5], [0.23, 2.2], [0.08, 2.62]];
+  k.both(seam(wf, 0.03, KK - 0.09), INK()); k.both(seam(wf, KK + 0.09, 0.98), INK());
+  wingEmblem(k, wf, 0.56, wraithBadge(0.36, mS));
+  { const s = wf(0.45); k.add(tube([s[0], s[4] - 0.05, s[3] + s[1]*0.5 - 0.05], [s[0], s[4] - 0.05, s[3] + s[1]*0.5 + 0.55], 0.022, 4), STEEL()); }   // pitot
+  // the booms: engine in front, chin cooler under it, turbo let into the top over the wing, radiator scoops on the flanks, a long taper to the fins
+  const BN = 10, BSY = 1.16, BCF = Math.cos(PI/BN);
+  const B = [[0.05, -6.15], [0.14, -5.8], [0.2, -4.8], [0.27, -3.3], [0.37, -1.9], [0.45, -0.4], [0.48, 1.0], [0.47, 2.2], [0.41, 2.75], [0.31, 2.98]];
   const chin = (z, w, yT, yB) => [[-w, yT, z], [-w*0.78, yB, z], [w*0.78, yB, z], [w, yT, z]];
-  const fin = t => [1.75*t, 1.72 - 1.04*t, 0.1*(1 - 0.3*t), -5.05 - 0.78*t, 0], vfin = t => [0.5*t, 1.25 - 0.6*t, 0.09, -5.2 - 0.3*t, 0], FY = BY + 0.12, TY = FY + 0.82;
+  const finU = t => [1.42*t, 1.62*Math.sqrt(1 - 0.86*t*t), 0.1*(1 - 0.3*t), -5.22 - 0.3*t, 0], finL = t => [0.62*t, 1.62*Math.sqrt(1 - 0.9*t*t), 0.1, -5.22 + 0.12*t, 0];
+  const TY = BY + 0.06, TZ = -5.2;
   for (const sx of [1, -1]) {
-    const M = T(sx*BX, BY, 0), bs = (z0, z1, m, caps = false) => k.add(lathe(cut(B, z0, z1), 8, 1, BSY, caps), m, M);
-    bs(-6.0, -1.9, mP, true); bs(-1.9, -1.72, mS); bs(-1.72, 2.0, mP); bs(2.0, 2.62, mT, true);
-    k.add(loft([chin(1.95, 0.2, -0.12, -0.5), chin(1.25, 0.23, -0.26, -0.6), chin(-0.2, 0.12, -0.34, -0.47)]), mP, M);
-    k.add(poly([[-0.155, -0.18], [-0.125, -0.455], [0.125, -0.455], [0.155, -0.18]]), INK(), mul(M, T(0, 0, 1.955)));
-    k.add(bar([-0.15, -0.48, 1.96], [0.15, -0.48, 1.96], 0.05), mT, M);
-    paintFin(k, fin, UP(sx*BX, FY), mP, mT, mS, 0.56, 0.61);
-    k.add(seam(fin, 0.06, 0.97), INK(), UP(sx*BX, FY));
-    k.add(pan(vfin, 0, 1), mP, DOWN(sx*BX, BY - 0.1)); k.add(tipOf(vfin, 0.06, 0.6), mT, DOWN(sx*BX, BY - 0.1));
-    k.add(tube([sx*BX, FY + 1.8, -5.78], [sx*BX, FY + 2.12, -5.92], 0.014, 4), STEEL());                            // whip aerial on the fin
+    const M = T(sx*BX, BY, 0), bs = (z0, z1, m, caps = false) => k.add(lathe(cut(B, z0, z1), BN, 1, BSY, caps), m, M);
+    bs(-6.15, -3.5, mP, true); bs(-3.5, -3.3, mT); bs(-3.3, 2.5, mP); bs(2.5, 2.62, mT); bs(2.62, 2.98, STEEL(), true);                 // tail, band, engine, collar, nose ring
+    for (const s of [1, -1]) k.add(stripe(B, -5.0, -3.5, -0.1, 0.17, 1, BSY, BN), mS, mul(M, SC(s, 1, 1)));                          // ghost flash on both flanks
+    // chin oil cooler
+    k.add(loft([chin(2.72, 0.2, -0.2, -0.66), chin(2.0, 0.25, -0.3, -0.74), chin(0.5, 0.13, -0.42, -0.6)]), mP, M);
+    k.add(poly([[-0.16, -0.27], [-0.13, -0.61], [0.13, -0.61], [0.16, -0.27]]), INK(), mul(M, T(0, 0, 2.725)));
+    k.add(bar([-0.16, -0.64, 2.73], [0.16, -0.64, 2.73], 0.05), mT, M);
+    for (let i = 0; i < 4; i++) { const z = 1.3 + i*0.3; k.add(box(0.08, 0.08, 0.18), DARK(), mul(M, T(-sx*(rAt(B, z)*BCF + 0.02), 0.2, z), RY(sx*0.5))); }   // exhaust stubs, inboard
+    // turbo-supercharger: intake scoop, a hump faired into the boom top, the turbine wheel lying in a steel well
+    k.add(loft([quadRing(1.0, -0.15, 0.15, 0.44, 0.72), quadRing(0.3, -0.25, 0.25, 0.4, 0.74), quadRing(-0.9, -0.25, 0.25, 0.38, 0.68), quadRing(-2.0, -0.09, 0.09, 0.3, 0.42)]), mP, M);
+    k.add(box(0.22, 0.17, 0.04), INK(), mul(M, T(0, 0.6, 1.005)));
+    k.add(cyl(0.21, 0.23, 0.07, 10), STEEL(), mul(M, T(0, 0.74, -0.3))); k.add(cyl(0.15, 0.15, 0.03, 10), INK(), mul(M, T(0, 0.775, -0.3)));
+    k.add(cyl(0.05, 0.08, 0.06, 6), BRASS(), mul(M, T(0, 0.8, -0.3)));
+    k.add(tube([0, 0.7, -0.62], [0, 0.78, -1.05], 0.065, 6), DARK(), M);                                                         // waste pipe
+    // radiator scoops on both flanks behind the wing
+    for (const s of [1, -1]) {
+      k.add(loft([quadRing(-1.45, s*0.3, s*0.62, -0.24, 0.24), quadRing(-2.3, s*0.26, s*0.6, -0.24, 0.24), quadRing(-3.25, s*0.18, s*0.3, -0.12, 0.12)]), mP, M);
+      k.add(box(0.2, 0.38, 0.04), INK(), mul(M, T(s*0.5, 0, -1.445)));
+      k.add(box(0.035, 0.42, 0.06), mT, mul(M, T(s*0.615, 0, -1.44)));
+    }
+    // oval fin, above and below the boom, in bands; a whip aerial on top
+    const UPM = UP(sx*BX, BY), DNM = DOWN(sx*BX, BY), ts = [0, 0.3, 0.52, 0.6, 0.82, 1];
+    for (let i = 0; i < 5; i++) k.add(pan(finU, ts[i], ts[i+1]), i < 2 ? mP : i === 2 ? mT : mS, UPM);
+    k.add(tipOf(finU, 0.1, 0.55), mS, UPM);
+    k.add(pan(finL, 0, 0.45), mP, DNM); k.add(pan(finL, 0.45, 0.8), mP, DNM); k.add(pan(finL, 0.8, 1), mT, DNM); k.add(tipOf(finL, 0.07, 0.5), mT, DNM);
+    k.add(bar([sx*(BX + 0.035), BY - 0.5, -5.78], [sx*(BX + 0.035), BY + 1.2, -6.02], 0.03, 0.02), INK()); k.add(bar([sx*(BX - 0.035), BY - 0.5, -5.78], [sx*(BX - 0.035), BY + 1.2, -6.02], 0.03, 0.02), INK());   // rudder hinge line
+    k.add(tube([sx*BX, BY + 1.5, -5.66], [sx*BX, BY + 1.86, -5.82], 0.014, 4), STEEL());
+    // main leg under the engine
+    gearLeg(k, [sx*BX, BY - 0.42, 0.2], [sx*(BX + 0.17), -1.72, 0.26], 0.38, mT, mP, sx);
   }
-  k.both(xf(stripe(B, -4.6, -1.9, -0.1, 0.16, 1, BSY, 8), T(BX, BY, 0)), mS);
-  k.decal(onSide(BX + 0.068, FY + 0.5, -5.12), wraithBadge(0.29, mS), true);
-  // tailplane carried between the fins, with a stub outboard of each
-  for (const [a, b, m] of [[-BX, -0.5, mP], [-0.5, 0.5, mS], [0.5, BX, mP]]) k.add(loft([foil(a, 1.0, 0.11, -5.46, TY), foil(b, 1.0, 0.11, -5.46, TY)]), m);
-  k.both(loft([foil(BX, 0.95, 0.1, -5.48, TY), foil(BX + 0.62, 0.42, 0.05, -5.72, TY + 0.03)]), mT);
-  // radio: raked blade mast on the spine with a glowing valve, aerial wires to both fins, a loop under the nose
-  const MT = [0, 1.74, -1.82];
-  k.add(bar([0, 0.72, -1.3], MT, 0.05, 0.13), DARK()); k.add(ball(0.065, 6, 3), lamp(S), T(MT[0], MT[1] + 0.05, MT[2]));
-  for (const sx of [1, -1]) k.add(wire(MT, [sx*BX, FY + 1.74, -5.72]), DARK());
-  k.add(bar([0, -0.68, 1.75], [0, -0.86, 1.75], 0.04, 0.1), DARK()); k.add(torus(0.17, 0.022, 8, 4), STEEL(), mul(T(0, -1.0, 1.75), RY(PI/2)));
-  // four guns clustered in the nose, each in a blast fairing, and a long cannon in each wing root
-  const mz = [[0.14, 0.19, 4.12], [-0.14, 0.19, 4.12], [0.25, -0.07, 3.86], [-0.25, -0.07, 3.86]].map(([x, y, z]) => new V3(x, y, z));
-  for (const m of mz) { k.add(lathe([[0.03, -1.05], [0.085, -0.6], [0.07, -0.1]], 6), mP, T(m.x, m.y, m.z)); gun(k, m, 0.5, 0.036, 0); }
-  for (const sx of [1, -1]) { const m = new V3(sx*1.3, -0.12, 2.5); mz.push(m);
-    k.add(lathe([[0.05, 0.9], [0.14, 1.25], [0.14, 1.62], [0.09, 1.85]], 8), mP, T(m.x, m.y, 0));
-    gun(k, m, 0.9, 0.055, 0.32); k.add(tube([m.x, m.y, m.z - 0.2], [m.x, m.y, m.z + 0.02], 0.085, 6), GUNMETAL()); }
-  const rl = wf(0.6), RYy = rl[4] - rl[2]*0.5 - 0.07; rails(k, rl[0], RYy, rl[3] + 0.05, 1.1);
-  // tricycle gear: nose leg under the guns, mains under the booms
-  gearLeg(k, [0, -0.58, 2.65], [0, -1.8, 2.72], 0.3, mT, null, 0);
-  for (const sx of [1, -1]) gearLeg(k, [sx*BX, BY - 0.36, 0.25], [sx*(BX + 0.17), -1.72, 0.3], 0.38, mT, mP, sx);
-  hookMast(k, -0.75, 0.9);
+  k.decal(onSide(BX + 0.07, BY + 0.38, -5.2), wraithBadge(0.3, mS), true);
+  // straight tailplane between the fins with a one-piece elevator, its mass balance on a stalk, and a small tip outboard of each fin
+  k.add(loft([foil(-BX, 0.78, 0.12, TZ + 0.2, TY), foil(BX, 0.78, 0.12, TZ + 0.2, TY)]), mP);
+  const elev = (x, m) => [[x, TY + 0.045, TZ - 0.21], [x, TY + 0.012, TZ - 0.74], [x, TY - 0.012, TZ - 0.74], [x, TY - 0.045, TZ - 0.21]];
+  for (const [a, b, m] of [[-BX + 0.06, -0.55, mP], [-0.55, 0.55, mS], [0.55, BX - 0.06, mP]]) k.add(loft([elev(a), elev(b)]), m);
+  k.add(bar([-BX + 0.08, TY + 0.05, TZ - 0.2], [BX - 0.08, TY + 0.05, TZ - 0.2], 0.035, 0.02), INK());
+  for (const s of [1, -1]) { k.add(bar([0, TY, TZ - 0.4], [0, TY + s*0.34, TZ - 0.3], 0.03), DARK()); k.add(ball(0.06, 6, 3), GUNMETAL(), T(0, TY + s*0.36, TZ - 0.29)); }
+  k.both(loft([foil(BX, 0.8, 0.1, TZ + 0.18, TY), foil(BX + 0.55, 0.4, 0.05, TZ + 0.02, TY)]), mT);
+  // radio: raked blade mast behind the hood with a glowing valve, aerial wires to both fins, a loop under the nose
+  const MT = [0, 1.62, -1.5];
+  k.add(bar([0, 0.6, -1.05], MT, 0.05, 0.13), DARK()); k.add(ball(0.065, 6, 3), lamp(S), T(MT[0], MT[1] + 0.05, MT[2]));
+  for (const sx of [1, -1]) k.add(wire(MT, [sx*BX, BY + 1.5, -5.66]), DARK());
+  k.add(bar([0, -0.7, 1.7], [0, -0.88, 1.7], 0.04, 0.1), DARK()); k.add(torus(0.17, 0.022, 8, 4), STEEL(), mul(T(0, -1.02, 1.7), RY(PI/2)));
+  // all the guns in the nose: four machine guns in blast tubes round two long cannon
+  const mz = [[0.19, 0.15, 4.42], [-0.19, 0.15, 4.42], [0.2, -0.13, 4.3], [-0.2, -0.13, 4.3], [0.075, 0.0, 4.74], [-0.075, 0.0, 4.74]].map(([x, y, z]) => new V3(x, y, z));
+  for (const m of mz.slice(0, 4)) { k.add(tube([m.x, m.y, 3.7], [m.x, m.y, m.z - 0.2], 0.062, 6), GUNMETAL()); gun(k, m, 0.5, 0.034, 0); }
+  for (const m of mz.slice(4)) { k.add(tube([m.x, m.y, 3.9], [m.x, m.y, 4.3], 0.07, 6), STEEL()); gun(k, m, 0.7, 0.048, 0); k.add(tube([m.x, m.y, m.z - 0.14], [m.x, m.y, m.z + 0.02], 0.065, 6), GUNMETAL()); }
+  const rl = wf(0.66), RYy = rl[4] - rl[2]*0.5 - 0.07; rails(k, rl[0], RYy, rl[3] + 0.05, 1.1);
+  // nose leg under the gun bay
+  gearLeg(k, [0, -0.52, 3.0], [0, -1.8, 3.06], 0.3, mT, null, 0);
+  hookMast(k, -0.85, 0.8);
   k.build(g);
-  addProp(g, props, new V3(0, 0, -2.84), 5, 2.7, 0.2, DARK(), mS, mT, [[0.29, -0.05], [0.27, 0.14], [0.16, 0.42], [0.04, 0.62]], true);
-  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(rl[0], RYy - 0.2, rl[3] + 0.55), new V3(-rl[0], RYy - 0.2, rl[3] + 0.55)], radius:6.4, cockpit:new V3(0, 1.06, 1.0), exhaust:new V3(0, 0.3, -2.4), gear:2.1};
+  // two tractor propellers, turning opposite ways (inward over the top)
+  for (const sx of [1, -1]) addProp(g, props, new V3(sx*BX, BY, 3.0), 3, 3.0, 0.27, DARK(), mT, mS, [[0.31, -0.03], [0.29, 0.14], [0.19, 0.42], [0.04, 0.64]], false, sx);
+  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(rl[0], RYy - 0.2, rl[3] + 0.55), new V3(-rl[0], RYy - 0.2, rl[3] + 0.55)], radius:6.6, cockpit:new V3(0, 0.94, 0.85), exhaust:new V3(BX, BY + 0.8, -0.5), gear:2.1};
   return g;
 }
 
