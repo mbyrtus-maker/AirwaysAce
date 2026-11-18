@@ -1023,48 +1023,87 @@ function zephyr(paint){
 }
 
 /* ---------- Hornet: Ambrose Kroll's rocket-boosted interceptor, rebuilt by Hollis.
-   A long slim fuselage, inverted gull wings with the main gear at the kink, contra-rotating propellers on a long nose,
-   and a rocket motor in the tail that lights up when the boost is on.
-   Paint: main = fuselage and wings; second = the hornet bands, spinner and fin; trim = tips, cowl ring, nozzle collar. ---------- */
+   A long slim wasp-waisted fuselage with a chin radiator, inverted gull wings with the main gear in a knuckle pod at the kink,
+   contra-rotating propellers on a long nose, a hood set well back, a tall swept fin, and a rocket motor in the tail
+   that lights up when the boost is on.
+   Paint: main = fuselage and wings; second = the hornet bands, flash, fin and front spinner; trim = tips, cowl ring, nozzle collar. ---------- */
+/* The stinger badge: black disc, a ring and a hornet's dart with two wings in the second colour. */
+function stingBadge(r, mS){
+  const art = poly([[0, -0.66*r], [0.2*r, 0.08*r], [0, 0.4*r], [-0.2*r, 0.08*r]]);
+  for (const t of [poly([[0.12*r, 0.14*r], [0.6*r, 0.44*r], [0.14*r, 0.36*r]]), poly([[-0.12*r, 0.14*r], [-0.14*r, 0.36*r], [-0.6*r, 0.44*r]])]) for (const v of t) art.push(v);
+  return [[disc(r, 14), INK()], [ring(r*0.8, r*0.9, 14), mS], [art, mS]];
+}
 function hornet(paint){
   const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr), props = [];
-  const F = [[0.12, -4.75], [0.34, -4.4], [0.52, -3.4], [0.66, -2.0], [0.74, -0.6], [0.76, 0.6], [0.74, 1.8], [0.66, 2.9], [0.56, 3.7], [0.46, 4.05]];
-  k.add(lathe(cut(F, -4.75, -4.3), 12, 1, 1.08), mT);                                                         // nozzle collar
-  k.add(lathe(cut(F, -4.3, 3.7), 12, 1, 1.08, false), mP);
-  for (const [z0, z1] of [[-3.3, -2.95], [-2.6, -2.25], [-1.9, -1.55]]) k.add(lathe(cut(F, z0, z1), 12, 1.012, 1.092, false), mS);   // hornet bands round the tail
-  k.add(lathe(cut(F, 3.7, 4.05), 12, 1, 1.08, false), mT);                                                    // cowl ring
-  for (let i = 0; i < 5; i++) for (const sx of [1, -1]) k.add(box(0.06, 0.1, 0.32), DARK(), T(sx*0.7, 0.18 - i*0.13, 2.6 - i*0.05));   // exhaust stubs
-  // bubble canopy well forward, a tall razor spine behind it
-  canopy(k, [[1.3, 0.3, 0.62, 0.86], [0.7, 0.4, 0.62, 1.32], [0.0, 0.4, 0.62, 1.36], [-0.7, 0.32, 0.62, 1.2], [-1.2, 0.18, 0.62, 0.98]], mT);
-  k.add(loft([[[-0.16, 0.7, -1.2], [0.16, 0.7, -1.2], [0.05, 0.98, -1.2], [-0.05, 0.98, -1.2]], [[-0.12, 0.6, -3.6], [0.12, 0.6, -3.6], [0.03, 0.7, -3.6], [-0.03, 0.7, -3.6]]]), mP);
-  seatAndPilot(g, k, 0, 1.06, 0.1);
-  // inverted gull wings: down and out to the kink, then up and out to the tips
-  const KK = 0.3, wf = t => [0.55 + 5.0*t, 2.3 - 1.4*t, 0.26*(1 - 0.5*t), 0.55 - 0.5*t, t < KK ? -0.3 - 0.55*t/KK : -0.85 + 1.0*(t - KK)/(1 - KK)];
-  k.both(pan(wf, 0, KK), mP); k.both(pan(wf, KK, 0.62), mP); k.both(pan(wf, 0.62, 0.72), mS); k.both(pan(wf, 0.72, 1), mT); k.both(tipOf(wf, 0.2, 0.55), mT); navLamps(k, wf);
-  // tail: a tall swept fin in the second colour, a small tailplane, and the rocket nozzle under it all
-  const FY = 0.45, vf = t => [1.5*t, 1.7 - 0.9*t, 0.12*(1 - 0.3*t), -3.85 - 0.75*t, 0];
-  paintFin(k, vf, UP(0, FY), mS, mS, mT, 0.7, 0.8);
-  const tp = wingF(0.2, 1.65, 1.0, 0.55, 0.09, -3.95, 0.4, 0.15, 0.1); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
-  k.decal(onSide(0.62, 0.25, -2.0), [[disc(0.32, 14), mS], [ring(0.26, 0.32, 14), INK()], [poly([[-0.14, -0.18], [0.0, 0.2], [0.14, -0.18]]), INK()]], true);   // the stinger roundel
-  k.add(lathe([[0.32, -4.95], [0.3, -4.75], [0.26, -4.55]], 10, 1, 1, false), DARK());
-  k.add(disc(0.28, 10), INK(), mul(T(0, 0, -4.9), RY(PI)));
-  // four cannon in the outer wings, rocket rails under the kink
-  const mz = [0.42, 0.55].flatMap(t => { const s = wf(t); return [new V3(s[0], s[4] - 0.05, s[3] + s[1]*0.5), new V3(-s[0], s[4] - 0.05, s[3] + s[1]*0.5)]; });
-  for (const m of mz) gun(k, m, 0.9, 0.045, 0.4);
-  const kn = wf(KK); rails(k, kn[0] + 0.5, kn[4] - 0.2, kn[3]);
-  // main legs at the bottom of the gull, a tail wheel
-  for (const sx of [1, -1]) gearLeg(k, [sx*kn[0], kn[4] - 0.1, kn[3] + 0.3], [sx*kn[0], kn[4] - 1.15, kn[3] + 0.45], 0.42, mT, mP, sx);
-  k.add(bar([0, -0.4, -3.9], [0, -0.75, -4.0], 0.07), DARK()); k.add(lathe([[0.04, -0.08], [0.15, 0], [0.04, 0.08]], 8), DARK(), mul(T(0, -0.85, -4.0), RY(PI/2)));
-  hookMast(k, -0.3, 1.0);
+  // the body: a 12-sided lathe, a little deeper than it is wide, pinched behind the cockpit and swelling again over the rocket motor
+  const N = 12, SX = 0.94, SY = 1.1, CF = Math.cos(PI/N);
+  const F = [[0.2, -4.72], [0.3, -4.42], [0.45, -3.8], [0.58, -3.1], [0.63, -2.5], [0.53, -1.6], [0.57, -1.0], [0.69, -0.2], [0.77, 0.8], [0.78, 1.6], [0.74, 2.6], [0.66, 3.3], [0.56, 3.8], [0.47, 4.12]];
+  const seg = (z0, z1, m, caps = false, s = 1) => k.add(lathe(cut(F, z0, z1), N, SX*s, SY*s, caps), m);
+  seg(-4.72, -4.42, mT, true); seg(-4.42, 3.52, mP); seg(3.52, 3.66, mS); seg(3.66, 4.12, mT, true);      // nozzle collar, body, cowl pinstripe and cowl ring
+  for (const [z0, z1] of [[-3.95, -3.72], [-3.42, -3.08], [-2.74, -2.3]]) seg(z0, z1, mS, false, 1.014);  // hornet bands round the abdomen, widening forward
+  k.both(stripe(F, -1.75, 3.52, -0.21, -0.07, SX, SY, N), mS);                                            // flash along the flank
+  for (let i = 0; i < 6; i++) { const z = 2.0 + i*0.27; k.both(box(0.08, 0.09, 0.2), DARK(), mul(T(rAt(F, z)*CF*SX + 0.025, 0.16, z), RY(-0.5))); }   // exhaust stacks
+  // chin radiator under the long nose
+  const chin = (z, w, yT, yB) => [[-w, yT, z], [-w*0.78, yB, z], [w*0.78, yB, z], [w, yT, z]];
+  k.add(loft([chin(3.74, 0.3, -0.42, -0.97), chin(2.9, 0.35, -0.6, -1.06), chin(1.1, 0.2, -0.7, -0.88)]), mP);
+  k.add(poly([[-0.24, -0.5], [-0.19, -0.91], [0.19, -0.91], [0.24, -0.5]]), INK(), T(0, 0, 3.745));
+  k.add(bar([-0.22, -0.94, 3.75], [0.22, -0.94, 3.75], 0.06), mT); k.add(bar([-0.27, -0.47, 3.75], [0.27, -0.47, 3.75], 0.06), mT);
+  for (const sx of [1, -1]) k.add(bar([sx*0.275, -0.47, 3.75], [sx*0.215, -0.94, 3.75], 0.06), mT);
+  // the rocket: a bare bell in the tail cone
+  k.add(lathe([[0.36, -5.0], [0.3, -4.86], [0.2, -4.64]], 10, 1, 1, false), GUNMETAL());
+  k.add(lathe([[0.385, -5.0], [0.385, -4.95]], 10, 1, 1, false), STEEL());
+  k.add(disc(0.34, 10), INK(), mul(T(0, 0, -4.96), RY(PI)));
+  // framed hood set well back, a razor spine running from it into the fin
+  const CS = [[1.3, 0.2, 0.72, 0.86], [0.72, 0.33, 0.7, 1.27], [0.1, 0.35, 0.68, 1.36], [-0.6, 0.32, 0.62, 1.27], [-1.3, 0.2, 0.52, 1.0]];
+  const hoop = ([z, w, yb, yt]) => [[-w, yb, z], [w, yb, z], [w*0.96, yb + (yt - yb)*0.55, z], [w*0.56, yt, z], [-w*0.56, yt, z], [-w*0.96, yb + (yt - yb)*0.55, z]];
+  k.add(loft(CS.map(hoop)), GLASS());
+  k.add(loft([hoop(CS[4]), hoop([-2.2, 0.1, 0.5, 0.8]), hoop([-3.3, 0.04, 0.4, 0.62])]), mP);
+  { const H = CS.map(hoop);
+    for (let i = 1; i < 5; i++) for (let j = 1; j < 5; j++) k.add(bar(H[i][j], H[i][j+1], i === 2 || i === 3 ? 0.032 : 0.045), mP);
+    for (const j of [2, 3, 4, 5]) k.add(bar(H[0][j === 2 ? 1 : j === 5 ? 0 : j], H[1][j], 0.045), mP);
+    for (let i = 0; i < 4; i++) for (const j of [1, 0]) k.add(bar([H[i][j][0], H[i][j][1] + 0.02, H[i][j][2]], [H[i+1][j][0], H[i+1][j][1] + 0.02, H[i+1][j][2]], 0.04), mP);
+    for (const j of [2, 5]) k.add(bar(H[1][j], H[4][j], 0.03), mP); }
+  k.add(box(0.4, 0.42, 0.04), PLATE(), T(0, 0.98, -0.42)); k.add(box(0.2, 0.14, 0.07), LEATHER(), T(0, 1.1, -0.38));
+  k.add(box(0.44, 0.08, 0.3), DARK(), T(0, 0.84, 0.86)); k.add(box(0.06, 0.08, 0.06), GUNMETAL(), T(0, 0.92, 0.78));
+  seatAndPilot(g, k, 0, 1.06, -0.1);
+  // inverted gull wings: down and out to the kink, then up and out to the tips, the outer panels tapering on both edges
+  const KK = 0.3, wf = t => { const u = t < KK ? t/KK : (t - KK)/(1 - KK), le = t < KK ? 1.78 - 0.1*u : 1.68 - 0.78*u, te = t < KK ? -0.72 + 0.1*u : -0.62 + 0.52*u;
+    return [0.5 + 5.0*t, le - te, 0.3*(1 - 0.55*t), (le + te)/2, t < KK ? -0.22 - 0.6*u : -0.82 + 1.07*u]; };
+  k.both(pan(wf, 0, KK), mP); k.both(pan(wf, KK, 0.62), mP); k.both(pan(wf, 0.62, 0.69), mS); k.both(pan(wf, 0.69, 0.75), mP); k.both(pan(wf, 0.75, 0.82), mS); k.both(pan(wf, 0.82, 1), mT);
+  k.both(tipOf(wf, 0.2, 0.55), mT); navLamps(k, wf);
+  const seam = (f, t0, t1, w = 0.03) => { const a = f(t0), b = f(t1), o = bar([a[0], a[4] + 0.46*a[2], a[3] - 0.15*a[1]], [b[0], b[4] + 0.46*b[2], b[3] - 0.15*b[1]], w, 0.02);
+    for (const v of bar([a[0], a[4] - 0.42*a[2], a[3] - 0.1*a[1]], [b[0], b[4] - 0.42*b[2], b[3] - 0.1*b[1]], w, 0.02)) o.push(v); return o; };
+  k.both(seam(wf, 0.04, 0.28), INK()); k.both(seam(wf, 0.33, 0.6), INK()); k.both(seam(wf, 0.62, 0.98), INK());
+  { const s = wf(0.11); k.both(box(0.62, 0.09, 0.04), INK(), mul(T(s[0], s[4], s[3] + s[1]*0.5 + 0.004), RZ(-0.38))); }   // oil cooler slots in the roots
+  wingEmblem(k, wf, 0.47, stingBadge(0.33, mS));
+  // knuckle pod at the kink: gear bay behind, landing lamp in the nose
+  const kn = wf(KK), POD = [[0.03, -1.2], [0.15, -0.75], [0.22, 0.1], [0.22, 0.95], [0.15, 1.45], [0.06, 1.72]];
+  k.both(lathe(cut(POD, -1.2, 1.3), 8, 1, 1, false), mP, T(kn[0], kn[4] - 0.08, kn[3])); k.both(lathe(cut(POD, 1.3, 1.72), 8), mS, T(kn[0], kn[4] - 0.08, kn[3]));
+  // four cannon in the wings outboard of the kink, rocket rails beyond them
+  const mz = [0.4, 0.5].flatMap(t => { const s = wf(t), z = s[3] + s[1]*0.5 + 0.62; return [new V3(s[0], s[4] - 0.02, z), new V3(-s[0], s[4] - 0.02, z)]; });
+  for (const m of mz) { gun(k, m, 1.15, 0.042, 0.58); k.add(tube([m.x, m.y, m.z - 0.12], [m.x, m.y, m.z + 0.02], 0.06, 6), GUNMETAL()); }
+  const rl = wf(0.64), RYy = rl[4] - rl[2]*0.5 - 0.07; rails(k, rl[0], RYy, rl[3] + 0.05, 1.1);
+  // short main legs under the knuckles, folding inward under the roots; a ventral strake carries the tail wheel
+  for (const sx of [1, -1]) gearLeg(k, [sx*kn[0], kn[4] - 0.12, kn[3] + 0.35], [sx*(kn[0] + 0.18), -1.6, kn[3] + 0.42], 0.4, mT, mP, sx);
+  const vs = t => [0.5*t, 1.5 - 0.85*t, 0.1, -3.7 - 0.38*t, 0];
+  k.add(pan(vs, 0, 1), mP, DOWN(0, -0.36)); k.add(tipOf(vs, 0.07, 0.6), mT, DOWN(0, -0.36));
+  tailWheel(k, -4.2, -0.8, -1.03, 0.13);
+  // tail: a tall swept fin in the second colour with the badge on it, and a small tailplane
+  const FY = 0.42, vf = t => [1.62*t, 1.85 - 1.05*t, 0.12*(1 - 0.3*t), -3.72 - 0.85*t, 0];
+  paintFin(k, vf, UP(0, FY), mS, mP, mT, 0.68, 0.77);
+  k.add(seam(vf, 0.06, 0.97), INK(), UP(0, FY));
+  k.decal(onSide(0.072, FY + 0.6, -4.02), stingBadge(0.3, mS), true);
+  const tp = wingF(0.15, 1.75, 1.1, 0.55, 0.09, -4.0, 0.45, 0.18, 0.14); paintWing(k, tp, mP, mS, mT, 0.66, 0.78);
+  hookMast(k, -1.0, 1.05); k.add(wire([0, 1.58, -0.05], [0, FY + 1.56, -4.5]), DARK());
   k.build(g);
-  // two propellers, turning opposite ways
-  addProp(g, props, new V3(0, 0, 4.12), 3, 2.9, 0.28, DARK(), mT, mS, [[0.36, -0.05], [0.3, 0.2]], false, 1);
-  addProp(g, props, new V3(0, 0, 4.42), 3, 2.8, 0.26, DARK(), mT, mS, [[0.3, -0.05], [0.24, 0.25], [0.04, 0.62]], false, -1);
+  // two propellers, turning opposite ways, on stacked spinners
+  addProp(g, props, new V3(0, 0, 4.17), 3, 2.9, 0.3, DARK(), mS, mP, [[0.45, -0.05], [0.4, 0.1], [0.36, 0.24]], false, 1);
+  addProp(g, props, new V3(0, 0, 4.45), 3, 2.8, 0.28, DARK(), mS, mS, [[0.36, -0.04], [0.29, 0.26], [0.17, 0.54], [0.04, 0.74]], false, -1);
   // the rocket's fire
-  const hot = new THREE.Mesh(new THREE.CircleGeometry(0.26, 12), new THREE.MeshBasicMaterial({color:0xff7a2a, transparent:true, opacity:0.1, depthWrite:false})); hot.position.set(0, 0, -4.92); hot.rotation.y = PI; g.add(hot);
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.28, 2.4, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
-  flame.rotation.x = -PI/2; flame.position.set(0, 0, -6.1); g.add(flame);
-  g.userData = {prop:props[0], props, burner:{hot, flame}, muzzles:mz, rails:[new V3(kn[0] + 0.5, kn[4] - 0.4, kn[3] + 0.5), new V3(-kn[0] - 0.5, kn[4] - 0.4, kn[3] + 0.5)], radius:5.6, cockpit:new V3(0, 1.12, 0.2), exhaust:new V3(0, 0, -4.9), gear:2.0};
+  const hot = new THREE.Mesh(new THREE.CircleGeometry(0.31, 12), new THREE.MeshBasicMaterial({color:0xff7a2a, transparent:true, opacity:0.12, depthWrite:false})); hot.position.set(0, 0, -4.975); hot.rotation.y = PI; g.add(hot);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.32, 2.6, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+  flame.rotation.x = -PI/2; flame.position.set(0, 0, -6.28); g.add(flame);
+  g.userData = {prop:props[0], props, burner:{hot, flame}, muzzles:mz, rails:[new V3(rl[0], RYy - 0.2, rl[3] + 0.55), new V3(-rl[0], RYy - 0.2, rl[3] + 0.55)], radius:5.6, cockpit:new V3(0, 1.12, 0), exhaust:new V3(0, 0, -4.95), gear:2.0};
   return g;
 }
 
@@ -1390,33 +1429,181 @@ G.pirateHouse = (k, x, y, z, ww, hh, rr, yaw = 0, night = false) => {
   if (night || rr() < 0.4) k.add(ball(0.4, 6, 3), lamp(0xffa040), P(dk/2 - 0.5, 4, dk/2 - 0.5));
   return by + 4;
 };
-/* ---------- The Copperton Line: an armoured steam train. Each car is its own group (nose +Z, rails at y=0, ~15 m long)
-   so the cars can follow a curving track. kinds: 'loco', 'tender', 'gun' (a flak car), 'pay' (the payroll car), 'box'. ---------- */
+/* ---------- The Copperton Line's armoured train. One group per car, nose +Z, rail top at y = 0, gauge 1.44 m.
+   Kinds: loco, tender, gun (flak car), pay (the strongroom car), box. story3.js strings the cars along the rail at
+   13.5 / 9.5 / 15 m pitches from the car origins, so each car is built about its own middle and then slid along Z
+   (ZS) until its couplers meet its neighbours'. Paint: main = armour plate, second = brass, trim = boiler and beams. ---------- */
+const STUD = (() => { const o = [], s = 0.04, c = [[0, -s, -s], [0, s, -s], [0, s, s], [0, -s, s]]; for (let i = 0; i < 4; i++) tri(o, [0.035, 0, 0], c[i], c[(i + 1) % 4]); return o; })();   // rivet head on a +X face
 G.buildTrainCar = (kind, paint = [0x6b2a1a, 0xd9b44a, 0x1a1a1a]) => {
-  const g = new THREE.Group(), k = new Kit(), mP = G.mat(paint[0], {roughness:0.7}), mS = G.mat(paint[1], {roughness:0.5, metalness:0.3}), iron = G.mat(0x2a2826, {roughness:0.6, metalness:0.4}), mT = G.mat(paint[2], {roughness:0.8});
-  const wheels = (n, L) => { for (let i = 0; i < n; i++) for (const sx of [1, -1]) k.add(cyl(0.55, 0.55, 0.25, 10), iron, mul(T(sx*1.0, 0.6, -L/2 + 1.6 + i*(L - 3.2)/Math.max(1, n - 1)), RZ(PI/2))); k.add(box(2.6, 0.5, L - 1), iron, T(0, 1.15, 0)); };
+  const g = new THREE.Group(), k = new Kit(), shade = (hex, f) => (Math.round((hex >> 16 & 255)*f) << 16) | (Math.round((hex >> 8 & 255)*f) << 8) | Math.round((hex & 255)*f);
+  const mP = G.mat(paint[0], {roughness:0.7}), mD = G.mat(shade(paint[0], 0.68), {roughness:0.75}), mS = G.mat(paint[1], {roughness:0.45, metalness:0.3}), mT = G.mat(paint[2], {roughness:0.8}),
+        iron = G.mat(0x34312e, {roughness:0.6, metalness:0.35}), rod = G.mat(0x9a9fa6, {roughness:0.35, metalness:0.4}), coal = G.mat(0x100f0e, {roughness:0.95}), amber = lamp(0xffc45a);
+  const GA = 0.72, W = 1.52, H = (kind === 'loco' ? 13.5 : kind === 'tender' ? 9.5 : 15)/2, ZS = kind === 'loco' ? 0 : kind === 'tender' ? 2 : -0.75;
+  /* rivets: a row of n studs from a to b on the +X side, mirrored to the other */
+  const rivets = (a, b, n, m = iron) => { const o = []; for (let i = 0; i < n; i++) { const t = n > 1 ? i/(n - 1) : 0.5; for (const v of offset(STUD, a[0] + (b[0] - a[0])*t, a[1] + (b[1] - a[1])*t, a[2] + (b[2] - a[2])*t)) o.push(v); } k.both(o, m); };
+  /* a wheel pair on its axle: flanged tyres, painted centres, hub caps; drivers get spokes */
+  const wheelset = (z, r, drv) => {
+    for (const sx of [1, -1]) {
+      const M = mul(T(sx*GA, r, z), RY(sx*PI/2)), n = drv ? 12 : 10;
+      k.add(lathe([[r + 0.07, -0.09], [r + 0.07, -0.04], [r, -0.03], [r, 0.09]], n), iron, M);
+      k.add(disc(r*0.84, n), drv ? mP : mD, mul(M, T(0, 0, 0.094)));
+      k.add(lathe([[r*0.26, 0.09], [r*0.2, 0.2]], 6), drv ? mS : iron, M);
+      if (drv) for (let i = 0; i < 5; i++) { const a = i*2*PI/5 + z; k.add(bar([Math.cos(a)*r*0.24, Math.sin(a)*r*0.24, 0.11], [Math.cos(a)*r*0.84, Math.sin(a)*r*0.84, 0.11], 0.07, 0.03), iron, M); }
+    }
+    k.add(tube([-GA, r, z], [GA, r, z], 0.08, 5, false), iron);
+  };
+  const bogie = zc => {
+    for (const dz of [-0.85, 0.85]) { wheelset(zc + dz, 0.42); k.both(box(0.2, 0.26, 0.34), mT, T(0.99, 0.42, zc + dz)); }
+    k.both(box(0.1, 0.22, 2.7), iron, T(0.93, 0.62, zc)); k.both(box(0.14, 0.1, 1.0), rod, T(0.99, 0.8, zc)); k.add(box(1.7, 0.2, 0.5), iron, T(0, 0.8, zc));
+  };
+  /* buffer beam, buffers and coupler at z, facing d (+1 forward, -1 aft); the coupler reaches 0.55 beyond the beam */
+  const beam = (z, d) => { k.add(box(2.7, 0.42, 0.18), mT, T(0, 1.02, z)); k.add(box(0.26, 0.24, 0.52), iron, T(0, 0.92, z + d*0.29)); k.both(cyl(0.16, 0.1, 0.32, 8), rod, mul(T(0.95, 1.02, z + d*0.24), RX(d*PI/2))); };
+  const sect = (z, w, y0, y1, ch = 0.25) => [[-w + ch, y0, z], [w - ch, y0, z], [w, y0 + ch, z], [w, y1, z], [-w, y1, z], [-w, y0 + ch, z]];
+  const lid = (z, w, y1, wr, yr) => [[-w, y1, z], [w, y1, z], [wr, yr, z], [-wr, yr, z]];
+  const deck = (y, w, z0, z1) => [[-w, y, z0], [w, y, z0], [w, y, z1], [-w, y, z1]];
+  /* armoured car shell from z0 to z1: chamfered hull, sloped roof plates, underframe, two bogies and both beams */
+  const shell = (z0, z1, y1 = 3.6, yr = 4.2, zb = 4.6) => {
+    k.add(loft([sect(z0, W, 1.15, y1), sect(z1, W, 1.15, y1)]), mP); k.add(loft([lid(z0 - 0.07, W + 0.05, y1, 1.0, yr), lid(z1 + 0.07, W + 0.05, y1, 1.0, yr)]), mD);
+    k.add(box(2.3, 0.3, z1 - z0 + 0.1), iron, T(0, 1.02, (z0 + z1)/2)); bogie(-zb); bogie(zb); beam(z0 - 0.1, -1); beam(z1 + 0.1, 1);
+    rivets([W, y1 - 0.1, z0 + 0.3], [W, y1 - 0.1, z1 - 0.3], 16); rivets([W, 1.52, z0 + 0.3], [W, 1.52, z1 - 0.3], 16);
+    for (const z of [z0 - 0.02, z1 + 0.02]) for (const x of [W + 0.02, -W - 0.02]) k.add(box(0.14, 0.22, 0.14), amber, T(x, y1 - 0.3, z));   // corner lanterns
+  };
+  const straps = (zs, y0, y1) => { for (const z of zs) { k.both(box(0.07, y1 - y0, 0.24), iron, T(W + 0.02, (y0 + y1)/2, z)); rivets([W + 0.055, y0 + 0.2, z], [W + 0.055, y1 - 0.2, z], 4, mS); } };
+  const slit = (z, y, w = 0.7) => { k.both(box(0.07, 0.24, w + 0.2), iron, T(W + 0.01, y, z)); k.both(box(0.04, 0.09, w), mT, T(W + 0.035, y, z)); };
+  const skirt = (zc, len) => { k.both(box(0.07, 0.5, len), mD, T(W - 0.01, 0.97, zc)); k.both(box(0.05, 0.07, len), mS, T(W + 0.02, 0.75, zc)); rivets([W + 0.025, 1.08, zc - len/2 + 0.2], [W + 0.025, 1.08, zc + len/2 - 0.2], 6); };
+  const band = (y, z0, z1, h = 0.12) => k.both(box(0.04, h, z1 - z0), mS, T(W + 0.005, y, (z0 + z1)/2));
+  const herald = (z, y, s = 1) => k.decal(onSide(W + 0.012, y, z), [[poly([[0, -0.5*s], [0.36*s, 0], [0, 0.5*s], [-0.36*s, 0]]), mS], [poly([[0, -0.34*s], [0.24*s, 0], [0, 0.34*s], [-0.24*s, 0]]), mT], [disc(0.1*s, 8), mS]], true);
+  const z0 = -H + 0.65, z1 = H - 0.65;
+
   if (kind === 'loco') {
-    wheels(4, 13); k.add(cyl(1.25, 1.25, 9, 14), mT, mul(T(0, 2.7, 1.8), RX(PI/2)));                         // boiler
-    for (const z of [-1.2, 0.6, 2.4, 4.2]) k.add(cyl(1.3, 1.3, 0.25, 14), mS, mul(T(0, 2.7, z), RX(PI/2)));   // brass bands
-    k.add(cyl(0.45, 0.6, 2.2, 10), iron, T(0, 4.6, 5.3)); k.add(cyl(0.75, 0.5, 0.5, 10), iron, T(0, 5.8, 5.3)); // smokestack
-    k.add(ball(0.6, 8, 4), mS, T(0, 4.1, 2.2));                                                                 // steam dome
-    k.add(box(3.0, 3.6, 3.4), mP, T(0, 3.2, -3.9)); k.add(box(3.3, 0.3, 3.8), iron, T(0, 5.1, -3.9));          // armoured cab
-    for (const sx of [1, -1]) k.add(box(0.1, 0.7, 1.2), G.mat(0x1e1812, {emissive:0xffa040, emissiveIntensity:0.4}), T(sx*1.52, 3.8, -3.6));
-    k.add(loft([[[-1.4, 0.3, 6.6], [1.4, 0.3, 6.6], [0.2, 1.6, 6.6], [-0.2, 1.6, 6.6]], [[-0.2, 0.3, 8.0], [0.2, 0.3, 8.0], [0.1, 0.5, 7.6], [-0.1, 0.5, 7.6]]]), mS);   // cowcatcher
-    k.add(ball(0.4, 8, 4), lamp(0xffe2a0), T(0, 4.0, 6.6));
-    for (const sx of [1, -1]) k.add(box(0.15, 1.2, 9), mP, T(sx*1.35, 2.0, 1.5));                               // armour skirts
+    const BY = 2.8, BR = 1.12, top = BY + BR*Math.cos(PI/12);
+    // frame, pilot truck, three coupled drivers, trailing axle
+    k.add(box(1.3, 0.4, 11.5), iron, T(0, 1.42, -0.45));
+    wheelset(4.75, 0.42); wheelset(3.55, 0.42); k.both(box(0.1, 0.2, 1.9), iron, T(0.93, 0.5, 4.15));
+    for (const z of [1.9, -0.1, -2.1]) wheelset(z, 0.92, true);
+    wheelset(-4.55, 0.5); k.both(box(0.12, 0.5, 1.5), iron, T(0.94, 0.78, -4.55)); k.both(box(0.2, 0.26, 0.34), mT, T(1.0, 0.5, -4.55));
+    // cylinders, steam chests, crossheads and the rods (the two sides quartered)
+    k.both(lathe([[0.34, 3.5], [0.39, 3.56], [0.39, 4.76], [0.34, 4.82]], 8), mT, T(1.2, 1.0, 0)); k.both(disc(0.26, 8), mS, T(1.2, 1.0, 4.825));
+    k.both(box(0.52, 0.42, 1.1), mP, T(1.2, 1.52, 4.16)); k.add(box(1.7, 1.0, 1.3), iron, T(0, 1.78, 4.3));
+    for (const sx of [1, -1]) {
+      const a = sx > 0 ? -2.2 : -0.6, dz = 0.42*Math.cos(a), dy = 0.42*Math.sin(a), y = 0.92 + dy;
+      k.add(bar([sx*0.98, y, 1.9 + dz], [sx*0.98, y, -2.1 + dz], 0.06, 0.15), rod);
+      for (const z of [1.9, -0.1, -2.1]) k.add(tube([sx*0.9, y, z + dz], [sx*1.13, y, z + dz], 0.085, 6), mS);
+      k.add(bar([sx*1.08, 1.0, 3.0], [sx*1.08, y, -0.1 + dz], 0.05, 0.13), rod);
+      k.add(box(0.14, 0.32, 0.3), rod, T(sx*1.1, 1.0, 3.0)); k.add(tube([sx*1.2, 1.0, 3.5], [sx*1.12, 1.0, 3.0], 0.04, 5), rod);
+      for (const yy of [1.2, 0.8]) k.add(box(0.07, 0.05, 1.1), iron, T(sx*1.13, yy, 2.98));
+    }
+    // boiler with brass bands, smokebox and its door
+    k.add(lathe([[BR, -3.2], [BR, 3.6]], 12, 1, 1, false), mT, T(0, BY, 0)); k.add(lathe([[BR + 0.05, 3.6], [BR + 0.05, 5.25]], 12), iron, T(0, BY, 0));
+    for (const z of [-2.4, -0.8, 0.8, 2.4, 3.6]) k.add(lathe([[BR + 0.035, z - 0.09], [BR + 0.035, z + 0.09]], 12, 1, 1, false), mS, T(0, BY, 0));
+    k.decal(T(0, BY, 5.262), [[ring(0.84, 0.98, 12), mS], [disc(0.84, 12), mT], [disc(0.18, 8), mS]], false, 0.012);
+    for (const dy of [0.36, -0.36]) k.add(box(1.5, 0.08, 0.04), iron, T(-0.2, BY + dy, 5.3));
+    // armour: sloped jackets over the boiler flanks, running boards, skirts over the drivers
+    k.both(loft([[[1.48, 2.02, -3.1], [1.56, 2.02, -3.1], [1.3, 3.42, -3.1], [1.22, 3.42, -3.1]], [[1.48, 2.02, 3.3], [1.56, 2.02, 3.3], [1.3, 3.42, 3.3], [1.22, 3.42, 3.3]]]), mP);
+    k.both(loft([[[1.22, 3.42, 3.3], [1.3, 3.42, 3.3], [1.56, 2.02, 3.3], [1.48, 2.02, 3.3]], [[0.95, 3.3, 4.0], [1.0, 3.3, 4.0], [1.2, 2.02, 4.0], [1.14, 2.02, 4.0]]]), mD);   // raked front plate
+    rivets([1.535, 2.2, -2.9], [1.535, 2.2, 3.1], 13); rivets([1.33, 3.28, -2.9], [1.33, 3.28, 3.1], 13);
+    for (const z of [-1.0, 1.15]) k.both(bar([1.57, 2.04, z], [1.315, 3.4, z], 0.1, 0.03), iron);
+    k.both(box(0.04, 0.13, 6.3), mS, mul(T(1.45, 2.72, 0.1), RZ(0.184)));
+    for (const z of [-2.0, 0.1, 2.2]) k.both(box(0.04, 0.09, 0.6), mT, mul(T(1.4, 3.0, z), RZ(0.184)));
+    k.both(box(0.4, 0.07, 9.0), iron, T(1.38, 1.98, 1.1));
+    k.both(box(0.07, 0.72, 6.6), mP, T(1.53, 1.6, -0.1)); k.both(box(0.05, 0.07, 6.6), mS, T(1.56, 1.28, -0.1)); rivets([1.565, 1.82, -3.2], [1.565, 1.82, 3.0], 12);
+    // funnel, domes, bell, whistle, safety valves
+    k.add(cyl(0.36, 0.42, 1.1, 10), iron, T(0, 4.4, 4.5)); k.add(cyl(0.8, 0.38, 0.85, 10, false), iron, T(0, 5.35, 4.5)); k.add(cyl(0.66, 0.8, 0.22, 10), iron, T(0, 5.88, 4.5));
+    k.add(cyl(0.83, 0.83, 0.09, 10, false), mS, T(0, 5.78, 4.5)); k.add(cyl(0.45, 0.45, 0.1, 10, false), mS, T(0, 4.02, 4.5)); k.add(disc(0.6, 10), mT, mul(T(0, 6.0, 4.5), RX(-PI/2)));
+    k.add(cyl(0.4, 0.48, 0.55, 8), mP, T(0, top + 0.2, 2.6)); k.add(ball(0.42, 8, 4), mP, T(0, top + 0.44, 2.6));
+    k.add(cyl(0.5, 0.56, 0.6, 10), mS, T(0, top + 0.25, 0.4)); k.add(ball(0.5, 10, 4), mS, T(0, top + 0.52, 0.4));
+    for (const sx of [1, -1]) k.add(bar([sx*0.26, top - 0.05, 1.6], [sx*0.26, top + 0.72, 1.6], 0.06), iron);
+    k.add(box(0.58, 0.06, 0.06), iron, T(0, top + 0.72, 1.6)); k.add(cyl(0.09, 0.25, 0.34, 8), mS, T(0, top + 0.47, 1.6));
+    k.add(cyl(0.05, 0.06, 0.6, 6), mS, T(0, top + 0.3, -1.3)); k.add(cyl(0.09, 0.09, 0.18, 6), mS, T(0, top + 0.6, -1.3));
+    for (const sx of [1, -1]) k.add(cyl(0.07, 0.1, 0.4, 6), mS, T(sx*0.22, top + 0.18, -2.2));
+    // headlamp in a hooded box on the smokebox
+    k.add(box(0.56, 0.6, 0.5), mT, T(0, 4.32, 5.02)); k.add(box(0.66, 0.06, 0.66), mS, T(0, 4.64, 5.06)); k.add(box(0.3, 0.2, 0.3), iron, T(0, 3.98, 5.02));
+    k.decal(T(0, 4.32, 5.275), [[disc(0.26, 10), mS], [disc(0.2, 10), amber]], false, 0.012);
+    // armoured cab: slit windows under raised shutters, sloped roof, ember glow from the ashpan
+    k.add(loft([sect(-6.2, W, 1.5, 4.25), sect(-3.1, W, 1.5, 4.25)]), mP); k.add(loft([lid(-6.6, W + 0.1, 4.25, 1.0, 4.8), lid(-2.85, W + 0.1, 4.25, 1.0, 4.8)]), mD);
+    k.both(box(0.05, 0.32, 1.4), WINDOW(), T(W + 0.012, 3.7, -4.65)); k.both(box(0.05, 0.26, 1.5), mD, mul(T(W + 0.045, 3.98, -4.65), RZ(0.42)));
+    k.both(box(0.06, 0.07, 1.6), mS, T(W + 0.02, 3.5, -4.65));
+    for (const sx of [1, -1]) k.add(box(0.44, 0.3, 0.05), WINDOW(), T(sx*1.16, 3.9, -3.085));
+    k.add(box(1.0, 2.1, 0.05), mT, T(0, 2.9, -6.215));
+    rivets([W, 4.12, -6.05], [W, 4.12, -3.25], 8); rivets([W, 1.9, -6.05], [W, 1.9, -3.25], 8); rivets([W, 2.2, -6.05], [W, 3.9, -6.05], 5); rivets([W, 2.2, -3.25], [W, 3.9, -3.25], 5);
+    herald(-4.65, 2.75, 0.9); band(3.2, -6.1, -3.2, 0.08);
+    k.add(box(1.1, 0.2, 0.9), lamp(0xff8a30), T(0, 1.12, -3.6)); k.both(box(0.3, 0.06, 0.6), iron, T(1.38, 1.0, -5.8)); k.both(box(0.3, 0.06, 0.6), iron, T(1.38, 0.55, -5.8)); k.both(box(0.05, 1.05, 0.06), iron, T(1.5, 1.0, -5.52));
+    k.add(box(0.26, 0.24, 0.6), iron, T(0, 0.92, -6.45)); k.add(box(2.7, 0.42, 0.18), mT, T(0, 1.2, -6.15));
+    // buffer beam, marker lamps and the plough
+    k.add(box(2.9, 0.5, 0.22), mP, T(0, 1.0, 5.6)); k.add(box(2.9, 0.07, 0.05), mS, T(0, 1.22, 5.7));
+    for (const sx of [1, -1]) k.add(box(0.18, 0.22, 0.12), amber, T(sx*1.2, 1.0, 5.74));
+    k.add(loft([[[-1.45, 0.14, 5.7], [1.45, 0.14, 5.7], [1.45, 1.15, 5.7], [-1.45, 1.15, 5.7]], [[-0.07, 0.14, 6.72], [0.07, 0.14, 6.72], [0.07, 0.5, 6.72], [-0.07, 0.5, 6.72]]]), iron);
+    for (const sx of [1, -1]) {
+      for (const t of [0.07, 0.29, 0.51, 0.73, 0.95]) { const x = sx*(0.1 + 1.38*(1 - t)), z = 5.74 + 0.96*t; k.add(bar([x, 0.14, z], [x, 1.16 - 0.65*t, z], 0.07), mS); }
+      k.add(bar([sx*1.47, 1.17, 5.72], [sx*0.08, 0.52, 6.7], 0.07), mS);
+    }
+  } else if (kind === 'tender') {
+    // riveted tub with a flared brass-rimmed coaming, coal heaped forward, water filler and ladder aft
+    k.add(loft([sect(z0, W - 0.04, 1.15, 3.3), sect(z1, W - 0.04, 1.15, 3.3)]), mP);
+    k.add(loft([deck(3.3, W - 0.04, z0, z1), deck(3.75, W + 0.08, z0 - 0.06, z1 + 0.06)]), mP);
+    k.add(box(2.3, 0.3, z1 - z0 + 0.1), iron, T(0, 1.02, 0)); bogie(-2.45); bogie(2.45); beam(z0 - 0.1, -1); beam(z1 + 0.1, 1);
+    k.both(box(0.07, 0.08, z1 - z0 + 0.2), mS, T(W + 0.08, 3.77, 0)); for (const z of [z0 - 0.06, z1 + 0.06]) k.add(box(3.2, 0.08, 0.07), mS, T(0, 3.77, z));
+    k.add(loft([deck(3.74, 1.42, -1.3, z1 - 0.1), deck(4.12, 0.95, -0.5, z1 - 0.7), deck(4.4, 0.3, 0.7, z1 - 1.7)]), coal);
+    for (const [x, y, z, s, a] of [[0.7, 4.05, 2.9, 0.42, 0.6], [-0.8, 4.0, 1.2, 0.5, 1.1], [0.3, 4.38, 1.6, 0.4, 0.3], [-0.5, 4.2, 3.0, 0.36, 2.0], [0.9, 3.9, 0.1, 0.44, 1.5], [-0.2, 3.95, -0.8, 0.4, 0.9]]) k.add(box(s, s*0.8, s), coal, mul(T(x, y, z), RY(a), RX(a*0.7)));
+    k.add(box(2.6, 0.5, 0.1), mD, T(0, 4.0, -1.35));                                                           // coal board
+    k.add(cyl(0.38, 0.44, 0.24, 10), mS, T(0, 3.87, -2.9)); k.add(box(0.9, 0.3, 0.6), mD, T(-0.7, 3.9, -3.6)); k.add(box(0.94, 0.05, 0.1), mS, T(-0.7, 4.0, -3.6));
+    const tsk = W - 0.04; rivets([tsk, 3.15, z0 + 0.25], [tsk, 3.15, z1 - 0.25], 12); rivets([tsk, 1.55, z0 + 0.25], [tsk, 1.55, z1 - 0.25], 12);
+    for (const z of [z0 + 0.14, -1.35, 1.35, z1 - 0.14]) { k.both(box(0.07, 1.85, 0.22), iron, T(tsk + 0.02, 2.37, z)); rivets([tsk + 0.055, 1.7, z], [tsk + 0.055, 3.05, z], 4, mS); }
+    k.both(box(0.04, 0.1, z1 - z0), mS, T(tsk + 0.005, 2.95, 0)); k.decal(onSide(tsk + 0.012, 2.25, 0), [[poly([[0, -0.55], [0.4, 0], [0, 0.55], [-0.4, 0]]), mS], [poly([[0, -0.38], [0.27, 0], [0, 0.38], [-0.27, 0]]), mT], [disc(0.11, 8), mS]], true);
+    for (const sx of [0.25, -0.25]) k.add(bar([sx + 0.7, 1.3, z0 - 0.06], [sx + 0.7, 3.8, z0 - 0.06], 0.05), iron);
+    for (let i = 0; i < 5; i++) k.add(box(0.5, 0.05, 0.05), iron, T(0.7, 1.6 + i*0.5, z0 - 0.06));
+    k.add(box(0.2, 0.2, 0.1), lamp(0xff3b30), T(-0.9, 1.5, z0 - 0.05));
   } else {
-    const L = kind === 'tender' ? 8 : 14; wheels(kind === 'tender' ? 2 : 4, L);
-    if (kind === 'tender') { k.add(box(2.9, 2.4, L - 0.6), mP, T(0, 2.6, 0)); k.add(box(2.6, 0.6, L - 1.4), G.mat(0x141414), T(0, 4.0, 0)); }
-    else {
-      k.add(box(3.0, 3.0, L - 0.6), mP, T(0, 2.9, 0)); k.add(box(3.2, 0.3, L - 0.2), iron, T(0, 4.5, 0));
-      for (let i = 0; i < 6; i++) for (const sx of [1, -1]) k.add(box(0.08, 3.0, 0.15), iron, T(sx*1.52, 2.9, -L/2 + 1.2 + i*(L - 2.4)/5));   // riveted straps
-      for (const sx of [1, -1]) k.add(box(0.1, 0.5, L - 2), mS, T(sx*1.53, 3.9, 0));                            // the line's stripe
-      if (kind === 'pay') { k.add(box(1.6, 1.0, 0.1), mS, T(1.55, 2.8, 0)); for (const sx of [1, -1]) k.add(box(0.12, 1.4, 1.8), iron, T(sx*1.56, 2.6, 0)); }
-      if (kind === 'gun') { k.add(cyl(1.2, 1.4, 1.0, 10), iron, T(0, 5.2, 0)); for (const sx of [0.3, -0.3]) k.add(cyl(0.12, 0.14, 3.2, 6), iron, mul(T(sx, 6.0, 1.2), RX(-0.9))); }
+    const gunCar = kind === 'gun', y1 = gunCar ? 3.3 : 3.6, yr = gunCar ? 3.8 : 4.2;
+    shell(z0, z1, y1, yr);
+    if (kind === 'box') {
+      // armoured boxcar: strapped plate, a sliding door on a rail, firing slits, roof walk and hatches
+      skirt(-4.6, 3.6); skirt(4.6, 3.6); straps([z0 + 0.14, -4.5, -2.3, 2.3, 4.5, z1 - 0.14], 1.35, 3.6); band(3.3, z0, z1);
+      k.both(box(0.1, 2.2, 2.7), mD, T(W + 0.03, 2.45, 0)); k.both(box(0.07, 0.1, 5.6), iron, T(W + 0.05, 3.62, 1.35)); k.both(box(0.07, 0.08, 5.6), iron, T(W + 0.05, 1.3, 1.35));
+      for (const s of [1, -1]) k.both(bar([W + 0.085, 1.45, -1.25*s], [W + 0.085, 3.45, 1.25*s], 0.05, 0.05), iron);
+      for (const z of [-1.15, 1.15]) k.both(box(0.1, 0.16, 0.2), rod, T(W + 0.07, 3.62, z)); k.both(box(0.07, 0.5, 0.08), mS, T(W + 0.09, 2.4, -1.12));
+      for (const z of [-5.6, -3.4, 3.4, 5.6]) slit(z, 2.75);
+      k.add(box(0.5, 0.06, z1 - z0 - 0.8), iron, T(0, yr + 0.03, 0)); for (const z of [-3.6, 3.6]) { k.add(box(0.95, 0.14, 0.95), mD, T(0, yr + 0.07, z)); k.add(box(0.12, 0.08, 0.5), mS, T(0.3, yr + 0.16, z)); }
+      for (const z of [-0.9, 0.9]) k.add(cyl(0.16, 0.2, 0.3, 6), iron, T(0, yr + 0.18, z));
+    } else if (kind === 'pay') {
+      // the strongroom: brass-bound from sill to eaves, a round vault door each side, barred windows, a strongbox clerestory and guard cupolas
+      skirt(0, z1 - z0 - 0.3); band(1.5, z0, z1, 0.16); band(3.42, z0, z1, 0.16);
+      for (const z of [z0 + 0.16, z1 - 0.16, -3.05, 3.05]) k.both(box(0.09, 2.1, 0.3), mS, T(W + 0.02, 2.46, z));
+      k.decal(onSide(W + 0.02, 2.46, 0), [[disc(1.12, 16), mS], [disc(0.98, 16), iron], [ring(0.62, 0.7, 16), mS]], true, 0.016);
+      { const o = []; for (let i = 0; i < 10; i++) { const a = i*PI/5; for (const v of offset(STUD, W + 0.05, 2.46 + Math.sin(a)*0.84, Math.cos(a)*0.84)) o.push(v); } k.both(o, mS); }
+      k.both(lathe([[0.2, 0], [0.15, 0.1]], 8), mS, onSide(W + 0.03, 2.46, 0)); k.both(torus(0.44, 0.04, 10, 4), rod, onSide(W + 0.08, 2.46, 0));
+      for (let i = 0; i < 3; i++) { const a = i*PI/3 + 0.3, c = Math.cos(a)*0.44, s = Math.sin(a)*0.44; k.both(bar([W + 0.09, 2.46 + s, c], [W + 0.09, 2.46 - s, -c], 0.05), rod); }
+      for (const dy of [0.62, -0.62]) k.both(box(0.12, 0.3, 0.42), mS, T(W + 0.06, 2.46 + dy, 1.12));
+      for (const zc of [-4.85, 4.85]) {
+        k.both(box(0.05, 1.7, 2.9), mD, T(W, 2.46, zc)); rivets([W + 0.025, 1.78, zc - 1.3], [W + 0.025, 1.78, zc + 1.3], 5, mS); rivets([W + 0.025, 3.16, zc - 1.3], [W + 0.025, 3.16, zc + 1.3], 5, mS);
+        k.both(box(0.05, 0.46, 1.1), WINDOW(), T(W + 0.02, 2.75, zc)); for (let i = 0; i < 5; i++) k.both(box(0.05, 0.54, 0.05), iron, T(W + 0.05, 2.75, zc - 0.44 + i*0.22));
+        for (const dy of [0.3, -0.3]) k.both(box(0.07, 0.08, 1.3), mS, T(W + 0.04, 2.75 + dy, zc));
+        herald(zc, 2.08, 0.42);
+      }
+      for (const z of [-2.1, 2.1]) herald(z, 2.46, 0.8);
+      k.add(loft([lid(-4.9, 0.78, yr - 0.02, 0.56, yr + 0.42), lid(4.9, 0.78, yr - 0.02, 0.56, yr + 0.42)]), mD); k.both(box(0.06, 0.07, 9.8), mS, T(0.56, yr + 0.44, 0));
+      for (const z of [-3, -1, 1, 3]) k.both(box(0.05, 0.14, 0.7), WINDOW(), mul(T(0.69, yr + 0.2, z), RZ(0.48)));
+      for (const z of [-6.05, 6.05]) { k.add(loft([deck(yr - 0.05, 0.62, z - 0.55, z + 0.55), deck(yr + 0.6, 0.5, z - 0.45, z + 0.45)]), mP); k.add(box(1.16, 0.08, 1.06), mS, T(0, yr + 0.62, z));
+        k.both(box(0.05, 0.1, 0.5), mT, T(0.585, yr + 0.34, z)); k.add(box(0.5, 0.1, 0.05), mT, T(0, yr + 0.34, z + Math.sign(z)*0.52)); }
+    } else {
+      // flak car: low strapped hull, a twin-gun turret amidships, searchlight forward, a machine-gun cupola aft, ammunition lockers
+      skirt(-4.6, 3.6); skirt(4.6, 3.6); straps([z0 + 0.14, -4.6, -2.3, 0, 2.3, 4.6, z1 - 0.14], 1.35, 3.3); band(3.02, z0, z1);
+      for (const z of [-5.7, -3.45, -1.15, 1.15, 3.45, 5.7]) slit(z, 2.5);
+      k.add(cyl(1.3, 1.42, 0.75, 10), iron, T(0, yr + 0.3, 0)); k.add(cyl(1.35, 1.35, 0.09, 10, false), mS, T(0, yr + 0.64, 0));
+      const TM = mul(T(0, yr + 0.68, 0), RY(0.3)), EL = 0.62, ce = Math.cos(EL), se = Math.sin(EL);
+      k.add(loft([deck(0, 1.0, -1.1, 0.95), deck(0.45, 1.0, -1.1, 0.95), deck(0.95, 0.66, -0.8, 0.4)]), mP, TM); k.add(box(0.7, 0.07, 0.7), mS, mul(TM, T(0, 0.96, -0.2)));
+      k.add(box(1.1, 0.6, 0.3), iron, mul(TM, T(0, 0.52, 0.82), RX(-EL))); k.add(tube([-1.1, 0.7, -0.45], [1.1, 0.7, -0.45], 0.09, 6), iron, TM);
+      { const o = []; for (const z of [-0.8, -0.2, 0.4]) for (const v of offset(STUD, 1.0, 0.24, z)) o.push(v); k.add(o, mS, TM); k.add(o, mS, mul(TM, MIRX)); }
+      for (const sx of [0.3, -0.3]) { const a = [sx, 0.5, 0.7], P = d => [sx, 0.5 + d*se, 0.7 + d*ce];
+        k.add(tube(a, P(1.3), 0.15, 6), rod, TM); k.add(tube(P(1.3), P(3.3), 0.085, 6), mT, TM); k.add(tube(P(3.3), P(3.65), 0.1, 6, true, 0.15), mT, TM); }
+      k.add(cyl(0.1, 0.14, 0.7, 6), iron, T(0, yr + 0.3, 5.7)); k.add(lathe([[0.3, -0.25], [0.4, 0.2]], 8), mT, mul(T(0, yr + 0.9, 5.7), RX(-0.35))); k.add(disc(0.36, 8), amber, mul(T(0, yr + 0.9, 5.7), RX(-0.35), T(0, 0, 0.205)));
+      k.add(cyl(0.6, 0.66, 0.4, 8), iron, T(0, yr + 0.15, -5.5)); k.add(ball(0.55, 8, 4), mD, T(0, yr + 0.38, -5.5));
+      for (const sx of [0.1, -0.1]) k.add(tube([sx, yr + 0.6, -5.7], [sx, yr + 1.15, -6.75], 0.04, 5), mT);
+      for (const z of [-3.1, 3.1]) for (const sx of [1, -1]) { k.add(box(0.7, 0.36, 1.3), mD, T(sx*0.5, yr + 0.17, z)); k.add(box(0.74, 0.05, 0.1), mS, T(sx*0.5, yr + 0.36, z - 0.35)); k.add(box(0.74, 0.05, 0.1), mS, T(sx*0.5, yr + 0.36, z + 0.35)); }
     }
   }
-  k.build(g); return g;
+  k.build(g); for (const m of g.children) m.position.z = ZS;
+  return g;
 };
 /* A railway along a list of points [{x, y, z, gy}] (y = rail level, gy = ground): sleepers, two rails, and timber bents
    holding the track up wherever it runs above the ground. */
