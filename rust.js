@@ -100,9 +100,9 @@ G.JOBS.push(
   {id:'della_papers', contact:'della', type:'errand', title:'The early edition', pay:2600, time:300, cargo:'Bundles of the Courier',
    legs:[{how:'drop', mark:'downtown', say:'Paperboys downtown have got it!'}, {how:'drop', mark:'millrow', say:'The mill gate gets its paper. The foremen hate this edition.'}, {how:'drop', mark:'docks', say:'Docks delivered. The stevedores cheered. Or jeered. Hard to tell.'}],
    blurb:'The presses broke down and the morning edition\'s late. Drop bundles downtown, at the mills and at the docks before the newsstands open. Low and slow over the streets.', go:'The Courier always delivers. Today, that means you.'},
-  {id:'della_photo', contact:'della', type:'errand', title:'Who owns the Conductor?', pay:3200, night:true, time:300, cargo:'A camera and a lot of film',
+  {id:'della_photo', contact:'della', type:'errand', title:'Who owns the Conductor?', pay:3200, night:true, time:300, cargo:'A camera and a lot of film', spot:'count', spotMax:3,
    legs:[{how:'near', mark:'wgcx', r:250, say:'Got a shot of the WGCX aerials. Funny: there are more of them than the station needs.'}, {how:'low', mark:'gasworks', say:'Picture of the gasworks gate. Two men in grey coats, unloading crates marked "radio parts".'}],
-   blurb:'Della\'s chasing a story about strange radio traffic at night. Get close to the WGCX tower, then low over the gasworks gate. Searchlights don\'t like photographers.', go:'If anybody asks, you\'re from the Gazette.'},
+   blurb:'Della\'s chasing a story about strange radio traffic at night. Get close to the WGCX tower, then low over the gasworks gate. Stay out of the searchlights: get caught in the beams three times and every source in Gantry clams up.', go:'If anybody asks, you\'re from the Gazette.'},
   {id:'strand_bounty', contact:'strand', type:'bounty', title:'The Gearjammers\' run', pay:4200, at:'millrow', gang:'gearjammers', n:4, waves:[3],
    blurb:'The Gearjammers have been robbing payroll trucks on Mill Row. Captain Strand wants them out of the sky, in that order.', go:'Keep your fire off the rooftops. I mean it.'},
   {id:'strand_night', contact:'strand', type:'bounty', title:'Night on the docks', pay:4800, night:true, at:'docks', gang:'gearjammers', n:4, waves:[3],
@@ -114,11 +114,14 @@ G.JOBS.push(
    blurb:'The steelworkers are out on strike and the company\'s starving them out. Pick up food at Municipal and drop it at the picket by the works gate.', go:'They\'ve got guards with rifles on the roofs. Fly fast.'},
   {id:'stan_scabs', contact:'stan', type:'bounty', title:'Company planes', pay:3800, at:'steelworks', gang:'gearjammers', n:3, waves:[3],
    blurb:'The company hired Gearjammers to buzz the picket line and scare the strikers off. Show them the strikers have friends with guns too.', go:'Solidarity, flyer. And good aim.'},
-  {id:'bucco_run', contact:'bucco', type:'errand', title:'Up the canal', pay:3600, night:true, time:300, cargo:'Crates of "machine parts"', fragile:{hard:true},
+  {id:'bucco_run', contact:'bucco', type:'errand', title:'Up the canal', pay:3600, night:true, time:300, cargo:'Crates of "machine parts"', fragile:{hard:true}, spot:'heat',
    legs:[{how:'low', mark:'reservoir', say:'Over the dam and down on the water. The boat\'s waiting.'}, {how:'land', site:'quarry', say:'Delivered at Quarry Field. Quill didn\'t ask. Smart man.'}],
-   blurb:'A load for a friend up the valley. Over the dam at wave-top height, under the police searchlights, and down at Quarry Field. Don\'t ask what\'s in the crates.', go:'If the coppers stop you, you\'ve never heard of me. Nobody has.'},
+   blurb:'A load for a friend up the valley. Over the dam at wave-top height and down at Quarry Field. If a searchlight catches you with these crates aboard, the Air Police will be on you in a minute. Don\'t ask what\'s in the crates.', go:'If the coppers stop you, you\'ve never heard of me. Nobody has.'},
   {id:'bucco_drain', contact:'bucco', type:'race', title:'Down the drain', pay:3400, rivals:2, laps:1, low:true, course:{path:['undercroft', 'gasworks', 'drawbridge', 'docks', 'municipal'], agl:40},
    blurb:'Out of the Undercroft and down to the harbour, against two of Sal\'s couriers. Low over the gasworks, under the drawbridge if it\'s down.', go:'Losers pay for drinks. Winners drink.'},
+  {id:'strand_lights', contact:'strand', type:'errand', title:'Test the searchlights', pay:2600, night:true, time:240, cargo:'Nothing but nerve', spot:'count', spotMax:3,
+   legs:[{how:'low', mark:'docks', say:'Through the docks unseen. Strand\'s sergeant is furious.'}, {how:'low', mark:'gasworks', say:'Past the gasworks lights. Not bad.'}, {how:'near', mark:'liberty', r:200, say:'Under the Liberty Span\'s own lights. Strand will have words with her crews.'}],
+   blurb:'Captain Strand wants to know if her searchlight crews are any good. Slip past the docks, the gasworks and the Liberty Span at night, and don\'t get caught in the beams more than twice.', go:'If they catch you, they\'re good. If they don\'t, they\'re fired. No pressure.'},
   {id:'quill_updraft', contact:'quill', type:'stunt', title:'Ride the smoke', pay:2800, at:'steelworks', r:800, target:5000, time:180, gates:3,
    blurb:'Dr. Quill is studying the thermals off the steelworks chimneys. Score 5,000 stunt points over the works; the updrafts will help, if they don\'t kill you.', go:'Take notes! No, don\'t. Fly.'},
   {id:'quill_test', contact:'quill', type:'errand', title:'A test flight', pay:2200, time:240, cargo:'Dr. Quill\'s new instrument',
@@ -879,6 +882,27 @@ function fogTexture(){
     for (const [ox, oy] of [[0, 0], [256, 0], [-256, 0], [0, 256], [0, -256]]) { x.save(); x.translate(ox, oy); x.fillStyle = gr; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.restore(); } }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(9, 20); return (fogTexture.t = t);
 }
+/* a beam has the player: with police heat, it brings the police; on certain night jobs, it's worse */
+function spotted(c, g, S){
+  const t = g.t, P = g.player, quiet = !c.caughtT || t - c.caughtT > 25;
+  if (quiet) { c.caughtT = t; G.HUD.toast('Caught in a searchlight!'); }
+  // police who already want you now know exactly where you are
+  if (!c.noPolice && (c.heat || 0) >= 10) {
+    G.policeHeat(c, g, 12); c.hostileTill = Math.max(c.hostileTill || 0, t + 25);
+    if (!c.callT || t - c.callT > 20) { c.callT = t; G.HUD.radio('Gantry Air Police', G.pick(['Searchlight has him! All units, converge!', 'We have the plane in the light. Close in!', 'There he is, in the beam. Bring him down!'])); }
+    for (const p of c.police || []) { const pl = p.alive && g.pilots.find(x => x.p === p); if (pl) { pl.route = null; pl.target = P; } }
+  }
+  // the job decides what being seen costs
+  const J = c.job, sp = J && J.def && J.def.spot;
+  if (!sp || (J.spotT && t - J.spotT < 6)) return;
+  J.spotT = t; J.seen = (J.seen || 0) + 1;
+  if (sp === 'heat') { G.policeHeat(c, g, 30); c.hostileTill = t + 40; G.HUD.radio(G.CONTACTS[J.def.contact].name.split(' ').slice(-1)[0], 'They\'ve seen the crates! Lose the police before you land, or don\'t land at all!'); }
+  else if (sp === 'count') {
+    const max = J.def.spotMax || 3;
+    if (J.seen >= max) c.finishJob({win:false, note:'Spotted', say:'Too many people saw your face tonight. The story\'s dead; nobody will talk to the Courier now.'});
+    else G.HUD.radio('Della', J.seen === max - 1 ? 'They\'ve seen you twice! Once more and every door in Gantry closes on us.' : 'You were in the light! Keep to the dark.');
+  }
+}
 function afterDark(c, g){
   const time = g.world.time, night = time === 'night', dusk = time === 'evening'; if (!night && !dusk) return;
   // three thin sheets of mist at rooftop height and below, drifting slowly downriver; the hills stand up out of it
@@ -911,7 +935,7 @@ function afterDark(c, g){
           // a beam that sweeps across the player catches them and holds on for a few seconds
           const cy = Math.cos(el); dir.set(Math.sin(yaw)*cy, Math.sin(el), Math.cos(yaw)*cy);
           const along = dx*dir.x + dy*dir.y + dz*dir.z, off = Math.sqrt(Math.max(0, d*d - along*along));
-          if (along > 60 && along < 2500 && off < 6 + along*0.055) { S.lock = 4 + Math.random()*3; if (!c.caughtT || t - c.caughtT > 25) { c.caughtT = t; G.HUD.toast('Caught in a searchlight!'); } }
+          if (along > 60 && along < 2500 && off < 6 + along*0.055) { S.lock = 4 + Math.random()*3; spotted(c, g, S); }
         }
       }
       const dyaw = ((yaw - S.head.rotation.y + PI*3) % (PI*2)) - PI; S.head.rotation.y += dyaw*Math.min(1, dt*(S.lock > 0 ? 6 : 2)); S.head.rotation.x += (-el - S.head.rotation.x)*Math.min(1, dt*(S.lock > 0 ? 6 : 2));
