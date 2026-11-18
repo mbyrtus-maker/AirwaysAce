@@ -151,15 +151,6 @@ const H = G.HUD = {
         }
       }
     }
-    // rocket pip: where your rockets will be when they reach the target's range (drop and your own speed included)
-    if (P.rockets > 0) {
-      const def = P.rocketDef, tgt = g.assist && g.assist.target ? g.assist.target.pos : g.partAim ? g.partAim.ship.worldPoint(g.partAim.cp.pos, tB) : null;
-      const D = tgt ? Math.min(900, tgt.distanceTo(P.pos)) : 400, v = tA.copy(P.fwd).multiplyScalar(def.speed).add(P.vel), t = D/v.length();
-      const at = tC.copy(P.pos).addScaledVector(v, t); at.y -= 0.5*9.81*0.12*def.drop*t*t;
-      this.proj(at, pt);
-      if (pt.z < 1) { c.strokeStyle = 'rgba(255,190,120,.9)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(pt.x, pt.y - 7); c.lineTo(pt.x + 7, pt.y); c.lineTo(pt.x, pt.y + 7); c.lineTo(pt.x - 7, pt.y); c.closePath(); c.stroke();
-        c.fillStyle = 'rgba(255,190,120,.9)'; c.font = '600 10px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(def.short, pt.x, pt.y + 17); }
-    }
     for (const t of g.targets || []) {
       if (!t.alive || t.team === 0 || t.pos.distanceTo(P.pos) > 2200) continue; this.proj(t.pos, pt); if (pt.z >= 1) continue;
       c.strokeStyle = t.kind === 'tank' ? '#ff9a3c' : '#ff6b57'; c.lineWidth = 1.6; c.strokeRect(pt.x - 8, pt.y - 8, 16, 16);

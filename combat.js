@@ -240,6 +240,10 @@ G.Combat = {
     const p = tA.copy(railLocal).applyQuaternion(plane.q).add(plane.pos);
     const m = new THREE.Mesh(this.rkGeo, this.rkMat); m.position.copy(p); this.scene.add(m);
     let dir = plane.fwd.clone();
+    if (plane.isPlayer) {   // no rocket pip: your rockets converge on the gun crosshair (330 m ahead), allowing for their drop
+      const t = 330/def.speed, at = tB.copy(plane.pos).addScaledVector(plane.fwd, 330); at.y += 0.5*9.81*0.12*def.drop*t*t;
+      dir.copy(at.sub(p).normalize());
+    }
     if (plane.isPlayer && G.save.aimAssist !== false) {
       let T = null, Tv = null;
       if (this.assist && this.assist.target && this.assist.target.alive) { T = this.assist.target.pos; Tv = this.assist.target.vel; }
