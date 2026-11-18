@@ -10,7 +10,7 @@
      Square (X)    Split-S                                   L3            flaps
      R3            hold to look back, tap for chase / cockpit   Create / View   landing gear
      D-pad         wingmen: up attack, right cover, left zeppelin, down form; down twice quickly sends them home
-     Touchpad      chase / cockpit (DualSense)               Options / Menu    pause / resume
+     Touchpad      camera, for photo objectives (DualSense)  Options / Menu    pause / resume
    ===================================================================== */
 (() => {
 const B = {cross:0, circle:1, square:2, triangle:3, l1:4, r1:5, l2:6, r2:7, create:8, options:9, l3:10, r3:11, up:12, down:13, left:14, right:15, touch:17};
@@ -31,7 +31,8 @@ const ACTIONS = [
   {id:'flaps',   label:'Flaps',                         def:B.l3},
   {id:'gear',    label:'Landing gear',                  def:B.create},
   {id:'look',    label:'Look back (hold) / view (tap)', def:B.r3},
-  {id:'view',    label:'Chase / cockpit view',          def:B.touch},
+  {id:'photo',   label:'Camera (photo objectives)',     def:B.touch},
+  {id:'view',    label:'Chase / cockpit view',          def:-1},
   {id:'attack',  label:'Wingmen: attack',               def:B.up},
   {id:'cover',   label:'Wingmen: cover me',             def:B.right},
   {id:'zep',     label:'Wingmen: the zeppelin',         def:B.left},
@@ -97,6 +98,7 @@ const Pad = G.pad = {
         if (press('flaps')) tap('KeyF');
         if (press('gear')) tap('KeyG');
         if (press('view')) tap('KeyC');
+        if (press('photo')) tap('KeyP');
         if (press('attack')) tap('Digit1');
         if (press('cover')) tap('Digit2');
         if (press('zep')) tap('Digit3');
@@ -165,7 +167,7 @@ const Pad = G.pad = {
       <div class="pad-grid">${ACTIONS.map(a => {
         const cap = this.capturing === a.id;
         return `<div class="pad-row${cap ? ' cap' : ''}"><span>${esc(a.label)}</span><b>${cap ? 'Press a button…' : esc(this.btnName(M[a.id]))}</b>
-          <button class="btn ghost sm" onclick="G.pad.${cap ? 'listen(null)' : `listen('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button>${a.id === 'home' || a.id === 'view' ? `<button class="btn ghost sm" onclick="G.pad.clear('${a.id}')" title="Unbind">✕</button>` : ''}</div>`;
+          <button class="btn ghost sm" onclick="G.pad.${cap ? 'listen(null)' : `listen('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button>${a.id === 'home' || a.id === 'view' || a.id === 'photo' ? `<button class="btn ghost sm" onclick="G.pad.clear('${a.id}')" title="Unbind">✕</button>` : ''}</div>`;
       }).join('')}</div>
       <div class="pad-opts">
         <label><span>Aim speed (right stick)</span><input type="range" min="0.4" max="2" step="0.05" value="${S.padSens || 1}" oninput="G.save.padSens = +this.value; G.persist()"></label>

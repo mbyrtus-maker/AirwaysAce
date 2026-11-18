@@ -60,20 +60,31 @@ const W = G.weather = {
 };
 
 /* ---------- weather sound: recorded loops (sounds/), faded to suit the spell ---------- */
-const AMB = {rain:'sounds/rain.mp3', storm:'sounds/storm.mp3', wind:'sounds/wind.mp3', blizzard:'sounds/blizzard.mp3'};
-const MIX = {rain:{rain:0.5}, squall:{rain:0.55, wind:0.25}, storm:{storm:0.65, wind:0.2}, tropical:{storm:0.65, wind:0.45}, dust:{wind:0.6}, drystorm:{wind:0.35},
-  snow:{blizzard:0.16}, blizzard:{blizzard:0.65}, ash:{wind:0.12}, overcast:{wind:0.07}, haze:{wind:0.05}, smog:{wind:0.05}};
+const AMB = {rain:'sounds/rain.mp3', storm:'sounds/storm.mp3', wind:'sounds/wind.mp3', blizzard:'sounds/blizzard.mp3', breeze:'sounds/breeze.mp3', waves:'sounds/waves.mp3', canopy:'sounds/canopy.mp3', rumble:'sounds/rumble.mp3'};
+const SHOTS = {thunder:'sounds/thunder.mp3', foghorn:'sounds/foghorn.mp3'};
+const CRACKS = [0, 5.6, 10.6, 25.8, 34.6, 48.6, 53.6];   // where each thunderclap starts in the thunder recording
+const MIX = {clear:{breeze:0.12}, haze:{breeze:0.14, wind:0.03}, overcast:{breeze:0.16, wind:0.05}, rain:{rain:0.5, breeze:0.08}, squall:{rain:0.55, wind:0.25}, storm:{storm:0.65, wind:0.2},
+  tropical:{storm:0.65, wind:0.45}, dust:{wind:0.6}, drystorm:{wind:0.35}, snow:{blizzard:0.12, breeze:0.12}, blizzard:{blizzard:0.65}, ash:{wind:0.12, rumble:0.32}, smog:{wind:0.05, breeze:0.06, rumble:0.22},
+  fog:{breeze:0.05, waves:0.24}, mist:{breeze:0.08, waves:0.3}};
+const SEA = {halcyon:1, keys:1, calavera:1};   // places where fog means a foghorn and a swell below
 const Amb = G.weatherSound = {
   buf:{}, loops:{}, loading:false,
   load(){
     const A = G.audio; if (!A || !A.ctx || this.loading || typeof fetch !== 'function') return; this.loading = true;
-    for (const [k, u] of Object.entries(AMB)) fetch(u).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = A.ctx.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(buf => { this.buf[k] = buf; }).catch(() => {});
+    for (const [k, u] of Object.entries(Object.assign({}, AMB, SHOTS))) fetch(u).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = A.ctx.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(buf => { this.buf[k] = buf; }).catch(() => {});
   },
   set(k, gain){
     const A = G.audio; if (!A || !A.ctx) return;
     let L = this.loops[k];
     if (!L) { if (!this.buf[k] || gain < 0.01) return; const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = this.buf[k]; src.loop = true; g.gain.value = 0; src.connect(g).connect(A.sfxBus); src.start(0, Math.random()*this.buf[k].duration*0.8); L = this.loops[k] = {src, g}; }
     L.g.gain.setTargetAtTime(gain, A.ctx.currentTime, 0.8);
+  },
+  /* a one-off: a thunderclap or a foghorn, from a point in the recording, faded out at the end */
+  shot(k, gain, off = 0, dur, rate = 1){
+    const A = G.audio, b = this.buf[k]; if (!A || !A.ctx || !b) return false;
+    const src = A.ctx.createBufferSource(), g = A.ctx.createGain(), t = A.ctx.currentTime, len = Math.min(dur || b.duration, b.duration - off);
+    src.buffer = b; src.playbackRate.value = rate; g.gain.setValueAtTime(gain, t); g.gain.setValueAtTime(gain, t + Math.max(0, len/rate - 1.2)); g.gain.linearRampToValueAtTime(0, t + len/rate);
+    src.connect(g).connect(A.sfxBus); src.start(t, off, len); return true;
   },
   mix(levels){ for (const k of Object.keys(AMB)) this.set(k, levels[k] || 0); },
   silence(){ this.mix({}); }
@@ -148,7 +159,17 @@ class Sky {
     this.precip(dt, cam);
     // sound: blend the outgoing spell's mix into the incoming one; quiet when the sortie's over
     if (G.audio && G.audio.ctx) { Amb.load(); const a = MIX[this.from] || {}, b = MIX[this.id] || {}, L = {}, on = this.g.done ? 0 : 1;
-      for (const k of Object.keys(AMB)) L[k] = ((a[k] || 0)*(1 - this.blend) + (b[k] || 0)*this.blend)*on; Amb.mix(L); }
+      for (const k of Object.keys(AMB)) L[k] = ((a[k] || 0)*(1 - this.blend) + (b[k] || 0)*this.blend)*on;
+      const sea = !!SEA[this.region]; if (!sea) L.waves = 0;
+      if (this.region === 'calavera') L.rumble = Math.max(L.rumble || 0, 0.1*on);   // the skull's volcanoes never quite sleep
+      // in the cockpit you hear the rain drumming on the canopy rather than the hiss outside
+      const wet = Math.min(1, (L.rain || 0)/0.5 + (L.storm || 0)/0.65), inside = this.g.view === 'cockpit' && this.g.player && this.g.player.alive;
+      L.canopy = inside ? wet*0.55 : 0; if (inside) { L.rain = (L.rain || 0)*0.35; L.storm = (L.storm || 0)*0.6; }
+      Amb.mix(L);
+      // a foghorn somewhere out in the murk
+      const foggy = sea ? Math.max(this.id === 'fog' || this.id === 'mist' ? this.blend : 0, this.from === 'fog' || this.from === 'mist' ? 1 - this.blend : 0) : 0;
+      if (foggy > 0.5 && on && dt > 0) { this.hornT = (this.hornT ?? 8 + Math.random()*10) - dt; if (this.hornT <= 0) { this.hornT = 28 + Math.random()*40; Amb.shot('foghorn', 0.16 + Math.random()*0.14, 0, undefined, 0.9 + Math.random()*0.15); } }
+    }
     // lightning
     const L = this.mix('lightning');
     if (L > 0.2 && dt > 0) { this.boltT -= dt*L; if (this.boltT <= 0) { this.boltT = 5 + Math.random()*12; this.strike(cam); } }
@@ -196,7 +217,7 @@ class Sky {
     if (this.bolt) g.scene.remove(this.bolt.m);
     g.scene.add(m); this.bolt = {m, t:0.18}; this.flash = 1;
     const delay = d/340*1000, gain = Math.max(0.12, 0.6 - d/9000);
-    if (g.audio && g.audio.one) setTimeout(() => { if (G.game === g && !g.paused) try { g.audio.one('boom', gain, 0.42 + Math.random()*0.08); } catch (e) {} }, delay);
+    setTimeout(() => { if (G.game !== g || g.paused) return; if (!Amb.shot('thunder', gain*1.3, G.pick(CRACKS), 4.5 + Math.random()*2, 0.9 + Math.random()*0.15) && g.audio && g.audio.one) try { g.audio.one('boom', gain, 0.42 + Math.random()*0.08); } catch (e) {} }, delay);
   }
   /* push every plane in the air downwind, and bump yours about in rough air */
   drift(dt){

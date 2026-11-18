@@ -13,7 +13,7 @@ addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight, fal
 G.HUD.init();
 
 const UI = G.UI = {
-  screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact', 'controls']) if ($(s)) $(s).hidden = s !== id; },
+  screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact', 'controls', 'ach']) if ($(s)) $(s).hidden = s !== id; },
   /* ---------- main menu ---------- */
   menu(){
     if (G.Net) setTimeout(() => G.Net.render(), 0);
@@ -359,6 +359,7 @@ Object.assign(UI, {
         return `<li><b>${esc(C.name)}</b><span>${esc(s.name)}, ${s.kind === 'hook' ? 'by skyhook' : 'airfield'}. ${C.local ? 'Gossip, rumours and free repairs.' : `${done} of ${js.length} jobs done${nj ? `, ${nj} after dark` : ''}.`}</span></li>`; }).join('')}
         <li><b>Treasure</b><span>${sel.treasures.filter(t => O.found[t.id]).length} of ${sel.treasures.length} found.</span></li>
         <li><b>Bandits</b><span>${esc((sel.danger > 0.5 ? 'Plenty of ' : sel.danger > 0.3 ? 'Some ' : 'A few ') + ({tigers:'Paper Tigers', rattlers:'Rattlesnake Gang', wolves:'Frost Wolves', corsairs:'Corsairs', brethren:'Brethren of the Black Flag'}[sel.gang] || 'pirates'))}${night ? ', more at night' : ''}.</span></li>
+        <li><b>Job board</b><span>${(() => { const open = sites.filter(s => !G.CONTACTS[s.contact].local).flatMap(s => jobsFor(s.contact)).filter(j => !(O.jobs[j.id] || {}).done); return open.length ? `${open.length} unfinished: ${open.slice(0, 5).map(j => `${esc(j.title)} ($${j.pay.toLocaleString()})`).join(', ')}${open.length > 5 ? '…' : ''}. Take any of them from any stop's board.` : 'Every job here is done; the regulars still pay for repeats.'; })()}</span></li>
         <li><b>Stunts</b><span>${O.stuntTotal.toLocaleString()} points all told; best chain ${O.stuntBest.toLocaleString()}.</span></li></ul>
       <div class="np-foot"><span>Kitty <b>$${S.cash.toLocaleString()}</b></span>
         ${move ? `<button class="btn sm" ${S.cash < move.cash ? 'disabled' : ''} onclick="UI.travel('${sel.id}')">Sail here · ${move.hours} h · $${move.cash}</button>` : `<button class="btn ghost sm" onclick="UI.wait()">${night ? 'Wait until morning' : G.timeOfDay() === 'evening' ? 'Wait until night' : 'Wait until dusk'}</button>`}</div>
@@ -381,15 +382,24 @@ Object.assign(UI, {
   renderContact(){
     const O = UI.O, info = O.offer(UI.site), C = info.C, S = G.save;
     const kind = {race:'Race', stunt:'Stunt show', errand:'Delivery', bounty:'Bounty'};
-    const jobs = info.jobs.map(({def, rec, lock}) => `<div class="job ${lock ? 'locked' : ''}"><div class="jt"><b>${esc(def.title)}</b><span class="ty">${def.night ? 'Night · ' : ''}${kind[def.type]}${def.type === 'errand' && def.legs.some(l => l.how === 'drop') ? ' · airdrop' : ''}${def.lights ? ' · smuggling' : ''}</span></div>
+    const jobHtml = ({def, rec, lock, C:from, at}) => `<div class="job ${lock ? 'locked' : ''}"><div class="jt"><b>${esc(def.title)}</b>${from ? `<span class="ty">for ${esc(from.name.replace(/".*" /, ''))} · ${esc(at.name)}</span>` : ''}<span class="ty">${def.night ? 'Night · ' : ''}${kind[def.type]}${def.type === 'errand' && def.legs.some(l => l.how === 'drop') ? ' · airdrop' : ''}${def.lights ? ' · smuggling' : ''}</span></div>
       <p>${esc(def.blurb)}</p><div class="jf"><span>Pays <b>$${def.pay.toLocaleString()}</b>${def.reward && !rec.done ? ` + ${esc(UI.rewardText(def.reward))}` : ''}${rec.done ? ` · done ×${rec.done}` : ''}${rec.medal ? ` · <span class="medal ${rec.medal}">${rec.medal.toUpperCase()}</span>` : ''}${rec.best !== undefined && def.type === 'race' ? ` · best ${UI.fmtT(rec.best)}` : ''}</span>
-      ${lock ? `<span>${esc(lock)}</span>` : `<button class="btn sm" onclick="UI.takeJob('${def.id}')">Take the job</button>`}</div></div>`).join('') || '<p class="note">No work today.</p>';
+      ${lock ? `<span>${esc(lock)}</span>` : `<button class="btn sm" onclick="UI.takeJob('${def.id}')">Take the job</button>`}</div></div>`;
+    const jobs = info.jobs.map(jobHtml).join('') || '<p class="note">No work today.</p>';
+    if (UI.ctTab === 'board') {
+      const B = O.board(UI.site), open = B.filter(j => !j.lock || j.lock === 'After dark'), list = B.map(jobHtml).join('') || '<p class="note">The board is bare.</p>';
+      $('ctBody').innerHTML = `<div class="kicker">${esc(UI.site.name)} · ${esc(G.timeLabel())}</div><h3 class="deco" style="font-size:30px;margin:4px 0">The Job Board</h3>
+        <p class="note">Notices pinned up by everyone flying work in ${esc(O.R.name)}. Take one here and fly straight to it; the pay is the same as asking in person. ${open.length} open.</p>
+        ${O.job ? `<p class="note">You're on a job: <b>${esc(O.job.def.title)}</b>.</p>` : ''}<div class="board">${list}</div>
+        <div class="row"><button class="btn ghost" onclick="UI.ctTab=null;UI.renderContact()">Back to ${esc(C.name.split(' ')[0].replace(/"/g, ''))}</button><button class="btn" onclick="UI.closeContact()">${UI.site.kind === 'hook' ? 'Drop off the hook' : 'Back to the plane'}</button></div>`;
+      return;
+    }
     const shop = info.shop.length ? info.shop.map(it => `<div class="shop"><b>${esc(it.name)}</b>${it.owned ? '<em class="note" style="margin:0">Owned</em>' : `<button class="btn sm" ${S.cash < it.price ? 'disabled' : ''} onclick="UI.buy('${it.kind}','${it.id}',${it.price})">$${it.price.toLocaleString()}</button>`}<span>${esc(it.desc)}</span></div>`).join('') : '<p class="note">Nothing for sale here.</p>';
     const rum = info.rumors.length ? info.rumors.slice(0, 2).map(r => `<p class="rumor">${esc(r)}</p>`).join('') : '<p class="note">"Treasure? You\'ve found it all, chéri. Leave some for the rest of us."</p>';
     $('ctBody').innerHTML = `<div class="ct-top"><div>${G.portrait(C.look)}</div><div><small>${esc(C.role)} · ${esc(UI.site.name)} · ${esc(G.timeLabel())}</small><h3>${esc(C.name)}</h3><p>“${esc(UI.hello || (UI.hello = info.hello))}”</p></div></div>
       <div class="ct-cols"><div>${C.club ? UI.barHtml(info) : ''}${C.local ? `<h4>Gossip</h4><p class="rumor">“${esc(info.gossip)}”</p>${O.patched ? '<p class="note">The town mechanic patched your plane and refilled your guns. No charge.</p>' : ''}` : `<h4>Work</h4>${O.job ? `<p class="note">You're on a job: <b>${esc(O.job.def.title)}</b>.</p>` : ''}${jobs}`}</div>
         <div><h4>For sale · bank $${S.cash.toLocaleString()}</h4>${shop}<h4 style="margin-top:14px">Word around here</h4>${rum}</div></div>
-      <div class="row"><button class="btn" onclick="UI.closeContact()">${UI.site.kind === 'hook' ? 'Drop off the hook' : 'Back to the plane'}</button></div>`;
+      <div class="row"><button class="btn ghost" onclick="UI.ctTab='board';UI.renderContact()">Job board</button><button class="btn" onclick="UI.closeContact()">${UI.site.kind === 'hook' ? 'Drop off the hook' : 'Back to the plane'}</button></div>`;
   },
   rewardText(rw){ const o = []; if (rw.livery) o.push(`${G.LIVERIES[rw.livery].name} paint`); if (rw.chassis) o.push(`a ${G.CHASSIS[rw.chassis].name}`); if (rw.mod) o.push(G.MODS[rw.mod].name); return o.join(' and '); },
   fmtT(t){ const m = Math.floor(t/60), s = t - m*60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; },
@@ -403,7 +413,7 @@ Object.assign(UI, {
       : '<p class="note">Nobody here will fly against you any more. They just buy you drinks.</p>'}${beaten.length ? `<p class="note">Beaten here: ${beaten.map(x => esc(x.name)).join(', ')}</p>` : ''}`;
   },
   buy(kind, id, price){ if (UI.O.buy(kind, id, price)) { if (G.audio) G.audio.ding(); UI.renderContact(); } },
-  closeContact(){ if (!UI.inContact) return; UI.inContact = false; UI.hello = null; this.screen(null); const O = UI.O; UI.O = null; O.leave(); lock(); },
+  closeContact(){ if (!UI.inContact) return; UI.inContact = false; UI.ctTab = null; UI.hello = null; this.screen(null); const O = UI.O; UI.O = null; O.leave(); lock(); },
   abandonJob(){ const g = G.game; if (g && g.mission.job) g.mission.abandon(); UI.resume(); },
   returnHome(){ const g = G.game; if (!g) return; this.pause(false); g.mission.finish(); }
 });

@@ -97,10 +97,13 @@ const UC = {
     if (near > 2600 || this.escT > 70) { this.ended = true; G.HUD.radio(G.RADIO.short, 'We\'re clear. Barely. Hale\'s going to have kittens.'); g.end(this.result(g, 'fail', 'blown')); }
   },
   /* secret objectives: hold a target in the gunsight (a photograph), or loiter beside it slow and close (a beacon) */
-  photoTick(g, dt, pos, need = 2.5, range = 900){
-    const P = g.player, d = pos.distanceTo(P.pos), ang = tA.copy(pos).sub(P.pos).normalize().angleTo(P.fwd);
-    if (d < range && ang < 0.14) this.secretT += dt; else this.secretT = Math.max(0, this.secretT - dt*0.5);
-    return this.secretT >= need;
+  /* a photograph: frame the target (close enough, and in the gunsight) and press the camera key (P, or the pad's camera button) */
+  photoTick(g, dt, pos, need, range = 900){
+    const P = g.player, d = pos.distanceTo(P.pos), ang = tA.copy(pos).sub(P.pos).normalize().angleTo(P.fwd), framed = d < range && ang < 0.16;
+    this.framed = framed; this.secretT = framed ? 1 : 0;
+    if (framed && (this.camHintT = (this.camHintT || 0) - dt) <= 0) { this.camHintT = 4; G.HUD.toast(`In frame · press ${G.keymap ? G.keymap.label(G.keymap.key('KeyP')) : 'P'} to photograph`); }
+    if (g.snapPhoto) { if (framed) return true; G.HUD.toast(d >= range ? 'Too far away for a good picture' : 'Nothing in frame: put it in the gunsight'); }
+    return false;
   },
   plantTick(g, dt, pos, r = 45, need = 1.6){
     const P = g.player;
@@ -131,7 +134,7 @@ const TEETH_GATES = [[-1800, -4380], [-1080, -3800], [-360, -4380], [360, -3800]
 G.MISSIONS.c4m1 = EP({
   id:'c4m1', title:'The Black Thirteen', place:'The Teeth, Calavera Isles', wing:3, planeChassis:'vandal',
   brief:'Commodore Hale has a job nobody else can do. The Brethren of the Black Flag are building something inside a volcano, and the navy can\'t get within a mile of it. So the Lucky Thirteen become the Black Thirteen: a pirate crew with a stolen zeppelin and no questions asked. You fly a Brethren Vandal now. Black Molly Quinn will audition you over the Teeth. Do what pirates do, and don\'t get caught doing what we do.',
-  sides:[{text:'Thread all 6 gates through the Teeth'}, {text:'Shoot down the navy patrol'}, {text:'Photograph Brimstone Keep', secret:true}],
+  sides:[{text:'Thread all 6 gates through the Teeth'}, {text:'Shoot down the navy patrol'}, {text:'Photograph Brimstone Keep (camera: P)', secret:true}],
   pay:{success:4000, perfect:2000, kill:250},
   worldOpts:world('day'),
   setup(g){
@@ -173,7 +176,7 @@ G.MISSIONS.c4m1 = EP({
     // secret: the Keep, from close and steady
     if (!this.secret) {
       const K = this.P.keep.clone().add(new V3(0, 30, 0));
-      if (P.pos.distanceTo(K) < 2500) g.markers.push({pos:K, label:this.secretT > 0 ? `PHOTOGRAPHING ${Math.round(this.secretT/2.5*100)}%` : 'BRIMSTONE KEEP', col:'#c9a6f0'});
+      if (P.pos.distanceTo(K) < 2500) g.markers.push({pos:K, label:this.framed ? 'IN FRAME · PRESS CAMERA' : 'BRIMSTONE KEEP (photograph)', col:'#c9a6f0', box:true});
       if (this.photoTick(g, dt, K)) { this.secret = 1; G.HUD.toast('Got the Keep on film'); G.HUD.radio(HALE, 'Lovely. Flak on the north wall, a hangar under the east tower. Thank you, Thirteen.'); this.secretSeen(P.pos); }
     }
     this.hudDone(g);
@@ -413,7 +416,7 @@ G.MISSIONS.c5m1 = EP({
 G.MISSIONS.c5m2 = EP({
   id:'c5m2', weather:'ash', region:'calavera', title:'The Devil\'s Gullet', place:'Mount Cranium, Calavera Isles', wing:0, planeChassis:'bulldog',
   brief:'Red Bess Malone stole Old Brimstone\'s map and she\'s going for his chest, on a ledge inside the Devil\'s Gullet, a lava tube under the crown. Brimstone wants it first. Fly the Gullet, grab the chest, bring it to Port Jawbone. Bess will be on your tail the whole way. And Hale says the thing in the volcano can be seen from the rim of the Burning Eye: get him a photograph.',
-  sides:[{text:'Grab the chest in the Devil\'s Gullet'}, {text:'Bring it to Port Jawbone'}, {text:'Photograph what\'s in the Burning Eye', secret:true}],
+  sides:[{text:'Grab the chest in the Devil\'s Gullet'}, {text:'Bring it to Port Jawbone'}, {text:'Photograph what\'s in the Burning Eye (camera: P)', secret:true}],
   pay:{success:6000, perfect:2500, kill:0},
   worldOpts:world('day'),
   setup(g){
@@ -462,7 +465,7 @@ G.MISSIONS.c5m2 = EP({
     if (B && B.alive && this.yielded) { flyTo(g, B, new V3(B.pos.x + B.fwd.x*2000, 500, B.pos.z + B.fwd.z*2000), {flat:true, agl:200}); }
     // the secret: the thing in the Burning Eye
     if (!this.secret) {
-      if (P.pos.distanceTo(this.levAt) < 3000) g.markers.push({pos:this.levAt, label:this.secretT > 0 ? `PHOTOGRAPHING ${Math.round(this.secretT/2.5*100)}%` : 'THE BURNING EYE', col:'#c9a6f0'});
+      if (P.pos.distanceTo(this.levAt) < 3000) g.markers.push({pos:this.levAt, label:this.framed ? 'IN FRAME · PRESS CAMERA' : 'THE BURNING EYE (photograph)', col:'#c9a6f0', box:true});
       if (this.photoTick(g, dt, this.levAt, 2.5, 1100)) { this.secret = 1; G.HUD.toast('Photographed the Leviathan'); G.HUD.radio(HALE, 'Good Lord. That\'s a zeppelin. Twice the size of anything in the navy. In a VOLCANO.'); this.secretSeen(P.pos); }
     }
     if (this.clock <= 0 && !this.ended) { this.ended = true; G.HUD.radio(G.RADIO.short, 'Too slow. Bess has the gold.'); g.end(this.result(g, 'fail', 'slow')); }

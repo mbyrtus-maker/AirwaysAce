@@ -1095,6 +1095,11 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     else return false;
     G.persist(); return true;
   },
+  /* the job board: every open job in the region, whoever is offering it, takeable from any stop */
+  board(site){
+    return this.R.sites.filter(s => s.contact && !G.CONTACTS[s.contact].local && (!site || s.contact !== site.contact))
+      .flatMap(s => this.offer(s).jobs.map(j => Object.assign(j, {at:s, C:G.CONTACTS[s.contact]})));
+  },
   accept(id){ const d = JOB(id); if (!d || this.job) return; this.pending = d; },
   acceptDuel(cid){ const a = G.aceFor(cid); if (!a || this.job) return; this.pending = {id:'duel_' + a.id, contact:cid, type:'duel', title:`Duel: ${a.name}`, pay:a.purse, ace:a, go:a.line}; },
   grant(rw){

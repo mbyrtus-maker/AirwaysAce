@@ -1,0 +1,30 @@
+'use strict';
+const fs = require('fs'), vm = require('vm'), path = require('path');
+require('./three-mock.js');
+global.window = global; global.innerWidth = 1600; global.innerHeight = 900; global.devicePixelRatio = 1;
+const els = {}; global.document = {getElementById:id => els[id] || (els[id] = Fake()), createElement:() => Fake(), addEventListener(){}, exitPointerLock(){}, pointerLockElement:null, querySelector:() => null, body:Fake()};
+global.addEventListener = () => {}; global.requestAnimationFrame = () => 0;
+const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v) => { LS[k] = String(v); }, removeItem:k => { delete LS[k]; }};
+global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
+global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
+const dir = process.argv[2];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'story2', 'net', 'pad', 'keys', 'ui', 'weather', 'ach'];
+for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
+const G = global.G, V3 = THREE.Vector3;
+let errs = 0; const fail = (where, e) => { errs++; console.log('ERROR in', where, '\n ', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n  ') : e); };
+const R = new Proxy({}, {get:() => () => {}});
+G.save.callsign = 'Tester';
+function step(g, n, dt = 1/30, hook){ for (let i = 0; i < n; i++) { if (hook) hook(i); g.update(dt); } }
+const toasts = []; G.HUD.toast = t => toasts.push(t);
+G.save.stats = null; G.save.ach = {};
+const g = new G.Game(R, G.MISSIONS.ambush); g.player.destroy = () => {}; g.mission.drop(); step(g, 30*25); console.log("enemies", g.planes.filter(p => p.team === 1 && p.alive).length);
+for (const p of g.planes.filter(p => p.team === 1 && p.alive)) p.damage(1e5, 0, G.AMMO.slug, g.player);
+step(g, 10);
+G.save.open.region = 'keys'; const g2 = new G.Game(R, G.MISSIONS.open);
+console.log('stats', JSON.stringify(G.ach.stats()));
+G.ach.check(); setTimeout(() => {
+  console.log('earned', Object.keys(G.save.ach).join(', '));
+  console.log('toasts', toasts.filter(t => /Achievement/.test(t)).join(' | '));
+  G.ach.render(); console.log('screen renders', typeof document);
+  console.log(errs ? errs + ' ERRORS' : 'ach ok');
+}, 3000);

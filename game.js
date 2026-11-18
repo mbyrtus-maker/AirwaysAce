@@ -69,6 +69,7 @@ G.Game = class {
     else this.tap = {code, t:now};
     if (this.running && (code === 'KeyR' || code === 'KeyZ')) this.stunt(code === 'KeyR' ? 'immel' : 'splits');   // left-hand keys, one press
     if (code === 'KeyC') { this.view = this.view === 'chase' ? 'cockpit' : 'chase'; G.save.view = this.view; G.persist(); }
+    if (code === 'KeyP' && this.running) { this.snapPhoto = true; G.HUD.shutter(); if (this.audio && this.audio.one) try { this.audio.one('hitshort', 0.25, 2.4); } catch (e) {} }   // the camera: missions read snapPhoto this frame
     if (G.ORDERS[code] && this.wingmen && this.wingmen.length) this.order(G.ORDERS[code]);
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
@@ -180,6 +181,7 @@ G.Game = class {
     this.updateProjectiles(dt); this.updateTorpedoes(dt); this.updateFlak(dt); this.updateRearm(dt); this.updateChutes(dt);
     this.mission.update(this, dt);
     if (this.netHost) G.Net.hostFrame(this, dt); else if (this.netGuest) G.Net.guestFrame(this, dt);
+    this.snapPhoto = false;
     this.fx.update(dt);
     this.updateCamera(dt);
     this.world.follow(this.player ? this.player.pos : this.camera.position);

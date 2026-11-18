@@ -28,6 +28,8 @@ const H = G.HUD = {
     const k = JSON.stringify(list); if (k === this.sk) return; this.sk = k;
     $('hSides').innerHTML = list.map(s => `<li data-st="${s.st}"${s.secret ? ' class="sec"' : ''}><span class="st"></span><span>${s.secret ? 'Secret · ' : ''}${esc(s.text)}</span><b>${esc(s.val)}</b></li>`).join('');
   },
+  /* the camera: a white flash over the screen when the shutter goes */
+  shutter(){ const el = $('hFlash'); if (!el) return; el.style.transition = 'none'; el.style.opacity = '0.85'; void el.offsetWidth; el.style.transition = 'opacity .45s'; el.style.opacity = '0'; },
   /* undercover episodes: how far the Brethren still trust you (null hides the meter) */
   cover(v, note){
     const el = $('hCover'); if (!el) return;
