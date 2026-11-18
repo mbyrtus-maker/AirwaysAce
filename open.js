@@ -398,16 +398,17 @@ G.regionLayout = id => layout(REG[id]);
 G.regionScene = (g, id, o = {}) => {
   const R = REG[id], L = layout(R), c = Object.create(G.MISSIONS.open);
   Object.assign(c, {g, R, L, time:g.world.time, night:g.world.time === 'night', anim:[], towers:[], arches:[], caves:[], tunnels:[], cavern:null, P:{}, markObj:{}, job:null, phase:1,
-    sc:{chain:0, mult:1, last:-99, label:'', session:0, cont:0, shown:''}, story:true});
+    sc:{chain:0, mult:1, last:-99, label:'', session:0, cont:0, shown:''}, story:true, rtick:null});
   for (const md of R.marks) { const p = L.marks[md.id]; c.P[md.id] = new V3(p.x, Math.max(g.world.height(p.x, p.z), 0.4), p.z); c.buildMark(g, md, c.P[md.id]); }
   if (R.cavern) c.buildCavern(g, planCavern(R));
   for (const T of L.tunnels) { c.tunnels.push(c.buildTunnel(g, T)); c.P[T.td.id] = new V3(T.mid.x, T.floor, T.mid.z); }
   c.sites = R.sites.map(sd => c.buildSite(g, sd, L.sites[sd.id]));
   for (const s of c.sites) c.P[s.id] = s.point;
+  if (G.REGION_BUILD && G.REGION_BUILD[R.id]) G.REGION_BUILD[R.id](c, g);
   if (o.traffic !== false) { const T = g.traffic || (g.traffic = new G.Traffic(g)), stops = c.sites.filter(s => !s.def.cavern).map(s => s.point), pairs = [];
     for (let i = 0; i < stops.length; i++) for (let j = i + 1; j < stops.length; j++) pairs.push([stops[i], stops[j]]);
     T.routes(pairs.slice(0, 5), {night:c.night}); }
-  c.tick = dt => { g.markers = []; for (const a of c.anim) a(dt); c.towerHit(g); c.caveHit(g); c.tunnelHit(g); c.cavernHit(g); };
+  c.tick = dt => { g.markers = []; for (const a of c.anim) a(dt); c.towerHit(g); c.caveHit(g); c.tunnelHit(g); c.cavernHit(g); if (c.rtick) c.rtick(g, dt); };
   c.worldOpts = time => ({seed:R.seed, region:R.terrain, time, flats:G.regionFlats(R), cuts:G.regionCuts(R)});
   return c;
 };
@@ -667,7 +668,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.g = g; this.phase = 0; this.pt = 0; this.ended = false; this.job = null; this.earned = 0; this.jobsDone = 0; this.foundNow = 0; this.kills0 = 0;
     this.time = G.timeOfDay(); this.night = this.time === 'night'; this.lowFlying = false; this.holdOnGround = false; this.title = R.name;
     this.sc = {chain:0, mult:1, last:-99, label:'', session:0, cont:0, shown:''}; this.encT = 150 + Math.random()*90; this.bandits = [];
-    this.wing = S.wing ? 3 : 0; g.markers = []; this.towers = []; this.arches = []; this.anim = []; this.caves = []; this.tunnels = []; this.cavern = null;
+    this.wing = S.wing ? 3 : 0; g.markers = []; this.rtick = null; this.towers = []; this.arches = []; this.anim = []; this.caves = []; this.tunnels = []; this.cavern = null;
     // landmarks first (sites may sit among them)
     this.P = {}; this.markObj = {};
     for (const md of R.marks) { const p = L.marks[md.id]; this.P[md.id] = new V3(p.x, Math.max(g.world.height(p.x, p.z), 0.4), p.z); this.buildMark(g, md, this.P[md.id]); }
@@ -676,6 +677,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.sites = R.sites.map(sd => this.buildSite(g, sd, L.sites[sd.id]));
     for (const s of this.sites) this.P[s.id] = s.point;
     if (R.city) this.buildCity(g);
+    if (G.REGION_BUILD && G.REGION_BUILD[R.id]) G.REGION_BUILD[R.id](this, g);
     this.treasures = R.treasures.map(t => this.buildTreasure(g, t)).filter(Boolean);
     // neutral traffic: mail and charter planes between the stops, cargo zeppelins crossing the region
     const T = g.traffic || (g.traffic = new G.Traffic(g)), stops = this.sites.filter(s => s.kind !== 'field' && !s.def.cavern).map(s => s.point);
@@ -693,6 +695,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   /* ---------- building the region ---------- */
   ground(x, z, bare){ return Math.max(this.g.world.height(x, z, bare), 0.4); },
   buildMark(g, md, p){
+    if (G.MARK_KINDS && G.MARK_KINDS[md.kind]) return G.MARK_KINDS[md.kind].call(this, g, md, p);   // landmark kinds that live in a region's own file
     const w = g.world; let o = null;
     if (md.kind === 'lighthouse') { o = G.buildLighthouse(); w.addBlocker({x:p.x, z:p.z, hw:5, hd:5, top:p.y + 47}); this.anim.push(dt => { o.userData.beam.rotation.y += dt*0.9; }); }
     if (md.kind === 'windmill') { o = G.buildWindmill(); o.rotation.y = Math.atan2(-p.x, -p.z); w.addBlocker({x:p.x, z:p.z, hw:7, hd:7, top:p.y + 25}); this.anim.push(dt => { o.userData.sails.rotation.z += dt*0.7; }); }
@@ -842,6 +845,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     for (const a of this.anim) a(dt);
     if (this.R.city) K.towerCrash(g);
     this.towerHit(g); this.caveHit(g); this.tunnelHit(g); this.cavernHit(g);
+    if (this.rtick) this.rtick(g, dt);
     if (this.phase !== 1 || this.ended || !P.alive) { this.hudSides(g); return; }
     g.markers = [];
     for (const s of this.sites) { s.cool = Math.max(0, s.cool - dt); if (!s.armed && P.pos.distanceTo(s.apron || s.point) > 120) s.armed = true; }
@@ -1051,9 +1055,9 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     }
     // under a bridge
     for (const A of this.arches) {
-      const rel = tA.copy(P.pos).sub(A.pos), along = rel.z;
+      const rel = tA.copy(P.pos).sub(A.pos); if (A.yaw) rel.applyAxisAngle(UP, -A.yaw); const along = rel.z;
       if (A.prev !== undefined && Math.sign(along) !== Math.sign(A.prev) && Math.abs(rel.x) < A.len/2 - 4 && P.pos.y < A.deck - 3 && g.t - A.t > 6) {
-        A.t = g.t; this.award(1200, 'UNDER THE BRIDGE'); if (g.audio) g.audio.ding();
+        A.t = g.t; this.award(A.bonus || 1200, A.label || 'UNDER THE BRIDGE'); if (g.audio) g.audio.ding();
         if (this.job && this.job.onUnder) this.job.onUnder(A);
       }
       A.prev = along;

@@ -17,6 +17,9 @@ const LIST = [
   {g:'Story', id:'v3', name:'Iron Will', how:'Finish Volume III', goal:1, have:() => story('c9m3') ? 1 : 0},
   {g:'Story', id:'kroll', name:'In the Net', how:'Catch Ambrose Kroll before he escapes', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.kroll === 'caught' ? 1 : 0; }},
   {g:'Story', id:'reunion', name:'Old Friends', how:'Fly the Fleet Action with both Kit Calloway and Red Bess', goal:1, have:() => { const f = S().story && S().story.flags || {}; return story('c9m2') && f.kit === 'free' && f.bess === 'spared' ? 1 : 0; }},
+  {g:'Story', id:'v4', name:'Who You Gonna Call', how:'Finish Volume IV', goal:1, have:() => story('c12m3') ? 1 : 0},
+  {g:'Story', id:'ashgrove', name:'Pilot Required', how:'Catch Lucan Ashgrove', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.ashgrove === 'caught' ? 1 : 0; }},
+  {g:'Story', id:'dam', name:'Dry Feet', how:'Hold the Rustwater Dam without a scratch', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.dam >= 100 ? 1 : 0; }},
   {g:'Story', id:'perfect5', name:'Picture Perfect', how:'Earn a perfect rating in 5 story episodes', goal:5, have:s => s.perfect},
   {g:'Story', id:'deepcover', name:'Deep Cover', how:'Reach the Pirate King\'s coronation with your cover at 80% or more', goal:1, have:() => { const f = S().story && S().story.flags || {}; return story('c6m1') && (f.cover || 0) >= 80 ? 1 : 0; }},
   {g:'Story', id:'kit', name:'Sister Act', how:'Let Kit Calloway go and hand her the signal book', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.kit === 'free' && f.kitCodes ? 1 : 0; }},
@@ -42,13 +45,14 @@ const LIST = [
   {g:'Open skies', id:'jobs10', name:'Odd-Job Ace', how:'Finish 10 jobs', goal:10, have:s => s.jobs},
   {g:'Open skies', id:'jobs40', name:'Never Says No', how:'Finish 40 jobs', goal:40, have:s => s.jobs},
   {g:'Open skies', id:'golds', name:'Gold Standard', how:'Win 10 gold medals', goal:10, have:s => s.golds},
-  {g:'Open skies', id:'regions', name:'Globetrotter', how:'Fly in all five regions', goal:5, have:s => s.regions.length},
+  {g:'Open skies', id:'regions', name:'Globetrotter', how:'Fly in all six regions', goal:6, have:s => s.regions.length},
   {g:'Open skies', id:'treasure5', name:'Treasure Hunter', how:'Find 5 treasures', goal:5, have:found},
   {g:'Open skies', id:'treasureall', name:'X Marks Every Spot', how:'Find every treasure', goal:() => allTreasures(), have:found},
   // the hangar
   {g:'Hangar', id:'fleet', name:'Collector', how:'Own 8 airframes', goal:8, have:() => S().owned.length},
   {g:'Hangar', id:'zephyr', name:'No Propeller Required', how:'Earn the Zephyr jet', goal:1, have:() => S().owned.includes('zephyr') ? 1 : 0},
   {g:'Hangar', id:'hornet', name:'Float Like a Butterfly', how:'Earn the Hornet', goal:1, have:() => S().owned.includes('hornet') ? 1 : 0},
+  {g:'Hangar', id:'banshee', name:'Wail', how:'Earn the Banshee', goal:1, have:() => S().owned.includes('banshee') ? 1 : 0},
   {g:'Hangar', id:'liveries', name:'Dressed to Kill', how:'Collect 10 liveries', goal:10, have:() => (S().liveries || []).length},
   {g:'Hangar', id:'rich', name:'Rolling in It', how:'Have $100,000 in the bank', goal:100000, have:() => S().cash},
   // co-op
@@ -89,7 +93,7 @@ const GP = G.Game.prototype;
 const kill0 = GP.onKill;
 GP.onKill = function(plane, src, how){
   const r = kill0.apply(this, arguments);
-  if (!this.netGuest && plane && plane.team !== 0 && (src || plane.lastHitBy) === this.player) {
+  if (!this.netGuest && plane && plane.team !== 0 && !plane.police && (src || plane.lastHitBy) === this.player) {
     const s = ST(); s.kills++; this.achKills = (this.achKills || 0) + 1; s.bestSortie = Math.max(s.bestSortie, this.achKills);
     if (plane.ace) s.aces++; if (this.world && this.world.time === 'night') s.nightKills++; A.check();
   }

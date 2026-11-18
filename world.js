@@ -32,7 +32,21 @@ G.TERRAIN = {
   badlands:{desert:true, conifers:0, broadleaf:520, treeScale:0.55, treeMax:260, rocks:1600, rock:[0.62, 0.32, 0.22], water:0x3b6f7a, beach:2, snow:900},
   frostback:{cold:true, conifers:5200, broadleaf:300, coniferShare:0.95, treeMax:230, rocks:1400, snow:215, water:0x24506a},
   keys:{tropic:true, conifers:0, broadleaf:2400, treeMax:120, rocks:500, beach:9, water:0x1c8fae},
-  calavera:{volcanic:true, tropic:true, conifers:0, broadleaf:1500, treeMax:110, rocks:1800, rock:[0.24, 0.22, 0.22], beach:4, water:0x1a5466, snow:99999}
+  calavera:{volcanic:true, tropic:true, conifers:0, broadleaf:1500, treeMax:110, rocks:1800, rock:[0.24, 0.22, 0.22], beach:4, water:0x1a5466, snow:99999},
+  rustwater:{industrial:true, conifers:1400, broadleaf:2600, coniferShare:0.35, treeMax:330, rocks:500, rock:[0.42, 0.38, 0.34], beach:1, water:0x3a5550, snow:99999}
+};
+/* ---------- Rustwater Valley: one river, meandering south to the sea, shared by the terrain, the bridges and the city ---------- */
+const smR = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
+const RUST = G.RUST = {
+  DAM:4800, LAKE:84, ISLE:{z:1900, len:520, w:115},
+  rx:z => 620*Math.sin(z*0.0004 + 0.5) + 240*Math.sin(z*0.001 - 1.1),                                  // the river's centre line
+  slope:z => (RUST.rx(z + 5) - RUST.rx(z - 5))/10,
+  rw:z => (z > 2500 ? 180 : 180 + 70*smR(2500, 1200, z)) + 420*Math.exp(-(((z - 1900)/600)**2)) + Math.max(0, -3800 - z)*0.95,   // width: wider through the city, round the island and into the bay
+  fp:z => 600 + 500*smR(2400, 600, z),                                                                   // flat land each side of the river
+  dx:(x, z) => Math.abs(x - RUST.rx(z)),
+  bank:(x, z) => RUST.dx(x, z) - RUST.rw(z)/2,                                                            // metres from the water's edge (negative = in the river)
+  city:(x, z) => z < 4300 && z > -4600 && RUST.bank(x, z) > 18 && RUST.bank(x, z) < RUST.fp(z) - 60,      // flat town ground
+  isle:(x, z) => ((z - 1900)/520)**2 + ((x - RUST.rx(1900))/115)**2 < 1
 };
 const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
 let DETAIL = null;
@@ -132,6 +146,11 @@ G.World = class {
       const ash = sm(200, 420, hh + v1*60); r += (0.55 - r)*ash*0.7; g += (0.53 - g)*ash*0.7; b += (0.5 - b)*ash*0.7;
       if (this.terr === 'calavera') { const rc = Math.hypot(x, z - 3000); if (rc < 160 && hh < this.calderaFloor + 12) { const glow = 0.55 + 0.45*sm(-0.2, 0.4, n(x*0.02 + 3, z*0.02, 2)); return [0.95*glow + 0.15, 0.3*glow + 0.05, 0.05]; } if (rc < 290 && rc > 120) { const k2 = sm(290, 180, rc)*0.6; r += (0.12 - r)*k2; g += (0.1 - g)*k2; b += (0.09 - b)*k2; } }
       if (this.terr === 'calavera' && this.skullD(x, z).eyeR > 0) { const glow = 0.5 + 0.5*sm(-0.2, 0.4, n(x*0.006 + 3, z*0.006, 3)); return [0.95*glow + 0.15, 0.32*glow + 0.05, 0.06]; }
+    } else if (RT.industrial) {
+      const forest = sm(0.0, 0.2, n(x*0.003 + 31, z*0.003 - 17, 3)), soot = 0.86 - 0.1*sm(4500, 2600, Math.abs(z - 3300));
+      r = (r - 0.11*forest)*soot; g = (g - 0.08*forest)*soot; b = (b - 0.05*forest)*soot;
+      if (RUST.city(x, z) && hh < 30) { const c = 0.3 + v2*0.05; r += (c + 0.02 - r)*0.85; g += (c - r*0)*0.85 - g*0.85; b += (c - 0.02 - b)*0.85; }
+      if (Math.abs(RUST.bank(x, z) - 8) < 10 && hh > 3 && hh < 12 && z > -4600 && z < 4300) { r = 0.42; g = 0.39; b = 0.35; }   // stone quays
     } else {
       if (RT.cold) { r *= 0.86; g *= 0.94; b *= 1.05; }
       const forest = sm(0.0, 0.2, n(x*0.003 + 31, z*0.003 - 17, 3));
@@ -182,6 +201,7 @@ G.World = class {
     if (this.terr === 'frostback') return this.rawFrost(x, z, wx, wz);
     if (this.terr === 'keys') return this.rawKeys(x, z, wx, wz);
     if (this.terr === 'calavera') return this.rawSkull(x, z);
+    if (this.terr === 'rustwater') return this.rawRust(x, z, wx, wz);
     // Mostly broad, rolling lowland with a few gentle hills...
     let h = 30 + n(wx*0.00038, wz*0.00038, 4)*70;
     h += n(x*0.0016 + 5, z*0.0016 - 9, 3)*17;
@@ -219,6 +239,28 @@ G.World = class {
     return Math.max(h, -60);
   }
   /* Corsair Keys: a scatter of low islands in warm shallow water. */
+  /* Rustwater Valley: a river running south to the sea between wooded ridges, flat town land along both banks,
+     a dam and a reservoir up the valley, an island in the river, and a rocky prison islet out in the bay. */
+  rawRust(x, z, wx, wz){
+    const n = this.noise, R = RUST, b = R.bank(x, z), fp = R.fp(z), dam = z > R.DAM;
+    const floor = dam ? 72 + Math.max(0, z - 6900)*0.08 : 7 + Math.max(0, z - 3200)*0.004;
+    // the valley sides: flat ground, then a wooded slope up to the ridge and rolling upland beyond
+    const up = 190 + n(wx*0.0005 + 11, wz*0.0005 - 3, 4)*110 + Math.abs(n(x*0.0016 + 2, z*0.0016, 3))*60;
+    let h = floor + Math.max(0, b)*0.003 + n(x*0.004, z*0.004, 2)*1.2;
+    const t = smR(fp, fp + 1150 + n(z*0.0007, x > R.rx(z) ? 3 : 9, 2)*350, b);
+    h += (up - h)*t + n(x*0.01, z*0.01, 2)*4*t;
+    // quays: a straight stone edge down into the water in town, a gentler bank up the valley and round the lake
+    if (b < 18) { const quay = !dam && z > -4600 && z < 4300; h = b > 0 ? (quay ? floor : floor - (18 - b)*0.2) : (dam ? 55 : -8) + Math.max(-4, b)*0.3 + (quay ? 0 : b*0.05); }
+    if (dam && b < 0) h = Math.min(h, 60);
+    // the island in the river, flat enough for an airstrip
+    if (R.isle(x, z)) h = 6.5;
+    // the bay and the sea: the coast swings round below the city
+    const coast = -5300 + n(x*0.0007 + 4, 0.3, 3)*320 + 500*smR(2600, 5200, Math.abs(x - R.rx(-5000)));
+    if (z < coast) h = Math.min(h, (z - coast)*0.35 - 1.5);
+    // the prison islet
+    const pi = Math.hypot(x - (R.rx(-5000) + 260), z + 5050); if (pi < 210) h = Math.max(h, 24*smR(210, 120, pi) - 2 + n(x*0.03, z*0.03, 2)*3);
+    return Math.max(h, -40);
+  }
   rawKeys(x, z, wx, wz){
     const n = this.noise;
     const isl = n(wx*0.00085 + 5, wz*0.00085 - 7, 4) + n(x*0.0022, z*0.0022, 2)*0.18;
@@ -444,7 +486,7 @@ G.World = class {
     let kc = 0, kb = 0, kt = 0;
     for (let i = 0; i < (NC + NB)*6 && (kc < NC || kb < NB); i++) {
       const a = R()*Math.PI*2, d = Math.sqrt(R())*5600, x = Math.sin(a)*d, z = Math.cos(a)*d, h = this.height(x, z);
-      if (h < 5 || h > tmax || this.flatW(x, z) > 0.05 || this.slope(x, z) > 0.55 || (this.cuts.length && this.cutFloor(x, z, 70) !== null)) continue;
+      if (h < 5 || h > tmax || this.flatW(x, z) > 0.05 || (RT.industrial && (RUST.city(x, z) || RUST.bank(x, z) < 40 || RUST.isle(x, z))) || this.slope(x, z) > 0.55 || (this.cuts.length && this.cutFloor(x, z, 70) !== null)) continue;
       const dens = n(x*0.003 + 31, z*0.003 - 17, 3);
       if (dens < -0.08 && R() > 0.12) continue;
       const conifer = NB === 0 ? true : NC === 0 ? false : h > 120 ? R() < 0.92 : R() < (RT.coniferShare ?? 0.55);

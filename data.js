@@ -64,6 +64,10 @@ G.LIVERIES = {
   airracer:   {name:'Air Racer', paint:[0x1f3b6b, 0xd9b44a, 0xc0392b], from:'Finishing Volume II (with the Zephyr)'},
   quicksilver:{name:'Quicksilver', paint:[0xc8ced4, 0x9e1b1b, 0x1b1b1b], from:'Finishing Volume II (with the Zephyr)'},
   nightjet:   {name:'Night Jet', paint:[0x1a1f2e, 0x5a6a8a, 0x9ec7f0], from:'Finishing Volume II (with the Zephyr)'},
+  courier:    {name:'Gantry Courier', paint:[0xe8e0cc, 0x1a1a1a, 0x9e1b1b], from:'Finishing Volume IV'},
+  bluecoat:   {name:'Bluecoat', paint:[0x1f2a44, 0xe8edf2, 0xd9b44a], from:'Finishing Volume IV'},
+  steelworks: {name:'Steelworks', paint:[0x4a3a32, 0xe0742a, 0x1a1a1a], from:'Finishing Volume IV'},
+  ghost:      {name:'Ghost', paint:[0xd8dde2, 0x9ef0e0, 0x2a3238], from:'Finishing Volume IV'},
   syndicate:  {name:'Iron Syndicate', paint:[0x3a3f44, 0xd9b44a, 0x1a1a1a], from:'Finishing Volume III'},
   railroad:   {name:'Copperton Line', paint:[0x6b2a1a, 0xd9b44a, 0x1a1a1a], from:'Finishing Volume III'},
   glacier:    {name:'Glacier', paint:[0xe8edf2, 0x6fb0d9, 0x2a3a52], from:'Finishing Volume III'},
@@ -111,6 +115,9 @@ G.CHASSIS = {
   zephyr:     C({id:'zephyr', name:'Zephyr', role:'Twin-jet interceptor (Hollis turbojets)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
                  max:8200, arm:[20,20,20,20], guns:['70','70','60','60'], slots:4, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,
                  blurb:'Augustin Hollis\'s masterpiece: two turbojets under swept wings and not a propeller in sight. Faster than anything in the sky, four cannon in the nose, slow to spool up, heavy on the stick, and it screams. Awarded to the Lucky Thirteen for finishing the whole story.'}),
+  banshee:    C({id:'banshee', name:'Banshee', role:'Twin-boom fighter with a ghost drone (Quill)', cs:'—', cls:'medium', speed:'Good', agility:'Good', armorR:'Good', offense:'Excellent',
+                 max:10400, arm:[30,30,25,25], guns:['60','60','50','50','30','30'], slots:6, turrets:[], hp:3, hpMax:5, drone:true,
+                 blurb:'Dr. Quill built it from Ashgrove\'s own drawings and kept the best idea: a radio set in the booms that flies a pilotless ghost wingman. Launch the drone once a sortie (X) and it fights beside you until it\'s shot down. Six guns, twin booms, a pusher prop. Awarded for finishing Volume IV.'}),
   hornet:     C({id:'hornet', name:'Hornet', role:'Rocket-boosted interceptor (Kroll prototype)', cs:'—', cls:'medium', speed:'Excellent', agility:'Good', armorR:'Average', offense:'Good',
                  max:9900, arm:[25,25,20,20], guns:['60','60','50','50'], slots:4, turrets:[], hp:3, hpMax:5, interceptor:true, rocketBoost:true,
                  blurb:'The Iron Syndicate built it to catch anything in the sky; Hollis put it back together after you shot it down. Contra-rotating propellers, inverted gull wings, four cannon, and a rocket motor in the tail: six long burns of boost (Shift) that put it past the Zephyr for a few seconds at a time. Awarded for finishing Volume III.'}),
@@ -148,6 +155,7 @@ G.GANG_FLEET = {
   customs: {gallant:2, highwayman:1},
   brethren:{vandal:2, bulldog:2, highwayman:1, thunderbuss:1},
   syndicate:{mantis:3, jackal:2, grackle:1, bulldog:1},
+  ghosts:{mantis:3, jackal:2, sparrowhawk:2},
   navy:    {gallant:3, sparrowhawk:1, highwayman:1}
 };
 G.HEAVY = new Set(['highwayman', 'grackle', 'ironclad', 'thunderbuss']);
@@ -165,7 +173,7 @@ G.gangLoadout = (gang, i, n, used, paint) => {
 };
 G.FACTORY_PAINT = {gallant:[0x2f5d8a, 0xe9dcc0, 0xc0392b], comet:[0xc8ced4, 0xb5382c, 0x1f3b6b], vandal:[0x7a1f1f, 0x1b1b1b, 0xd9b44a],
   sparrowhawk:[0x2e6b4f, 0xf1e9d6, 0xf2c14e], mantis:[0x3b3f46, 0x9ef0a0, 0xd94f2a], jackal:[0xb5882a, 0x26221f, 0xe9dcc0], highwayman:[0x5a4632, 0xe8d8b0, 0x8e231c],
-  grackle:[0x2b2f3a, 0xd94f2a, 0xc8ced4], ironclad:[0x5a6048, 0x2b2b2b, 0xd9b44a], bulldog:[0xd9b44a, 0x26221f, 0xc0392b], thunderbuss:[0x6b7a8a, 0xf1e9d6, 0x1f3b6b], whirligig:[0xe0742a, 0xf1e9d6, 0x2f5d8a], zephyr:[0x151515, 0xd9b44a, 0xe8c45a], hornet:[0x2a2a2a, 0xf2c14e, 0x9e1b1b]};
+  grackle:[0x2b2f3a, 0xd94f2a, 0xc8ced4], ironclad:[0x5a6048, 0x2b2b2b, 0xd9b44a], bulldog:[0xd9b44a, 0x26221f, 0xc0392b], thunderbuss:[0x6b7a8a, 0xf1e9d6, 0x1f3b6b], whirligig:[0xe0742a, 0xf1e9d6, 0x2f5d8a], zephyr:[0x151515, 0xd9b44a, 0xe8c45a], hornet:[0x2a2a2a, 0xf2c14e, 0x9e1b1b], banshee:[0x2a3238, 0x9ef0e0, 0xe8e0cc]};
 
 /* Weight of a loadout; spent = {ammoFrac:[per gun 0..1], rockets:n left} lightens it in flight. */
 G.loadWeight = (L, spent) => {
@@ -191,7 +199,7 @@ G.flightStats = (L, spent) => {
     pitch:(1.0 + 0.22*ag)*pen*(c.pitchMul || 1),
     roll:(2.2 + 0.5*ag)*pen*(c.interceptor ? 1.1 : 1),
     yaw:0.32 + 0.03*ag,
-    rocket:!!c.rocketBoost, accel:c.jet ? 11 : (c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1), jet:!!c.jet,
+    rocket:!!c.rocketBoost, drone:!!c.drone, accel:c.jet ? 11 : (c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1), jet:!!c.jet,
     climb:c.interceptor ? 1.3 : 1,
     bleed:c.interceptor ? 0.45 : 1,
     stall:mph*MPH*(c.heavy ? 0.29 : 0.36),

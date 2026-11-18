@@ -72,11 +72,12 @@ const H = G.HUD = {
       return `<div class="ar ${cls}"><span>${gn.def.name} <em>${gn.ammo.short}</em></span><b>${gn.rounds}</b><i class="am"><i style="width:${f*100}%"></i></i></div>`;
     });
     rows.push(`<div class="ar ${P.rockets ? '' : 'out'}"><span>${P.rocketDef.name} rockets</span><b>${P.rockets}</b><i class="am"><i style="width:${P.L.hp ? P.rockets/(P.L.hp*3)*100 : 0}%"></i></i></div>`);
+    if (P.st.drone) rows.push(`<div class="ar ${g.droneUsed ? 'out' : ''}"><span>Drone <kbd>X</kbd></span><b>${g.droneUsed ? (g.drone && g.drone.alive ? 'up' : '—') : 'ready'}</b></div>`);
     if (P.L.nitro || P.st.rocket) rows.push(`<div class="ar ${P.nitroLeft ? '' : 'out'}"><span>${P.st.rocket ? 'Rocket' : 'Nitro'} <kbd>Shift</kbd></span><b>${P.nitroLeft}</b></div>`);
     $('hArms').innerHTML = rows.join('');
     const s = g.ships[0]; if (s) { $('hShip').style.width = (s.hp/s.hpMax*100) + '%'; $('hShipV').textContent = Math.round(s.hp/s.hpMax*100) + '%'; $('hShip').parentNode.classList.toggle('crit', s.hp/s.hpMax < 0.4); }
     for (const pl of g.wingmen || []) { const r = document.querySelector(`#hWing [data-id="${pl.wing.id}"] .bar>i`); if (r) r.style.width = Math.max(0, pl.p.internal/pl.p.internalMax*100) + '%'; }
-    $('hFoes').textContent = g.planes.filter(p => p.alive && p.team !== 0).length;
+    $('hFoes').textContent = g.planes.filter(p => p.alive && p.team !== 0 && !(p.police && !G.policeHostile)).length;
     const T = g.targetShip, tp = $('hTgtP');
     if (!T) tp.hidden = true;
     else {
@@ -113,7 +114,7 @@ const H = G.HUD = {
       this.proj(p.pos, pt);
       const on = pt.z < 1 && pt.x > 0 && pt.x < W && pt.y > 0 && pt.y < Hh;
       const hm = g.helpMark && g.helpMark.q === p && g.helpMark.until > g.t && g.helpMark.by.p.alive ? g.helpMark : null;
-      const col = p.team === 0 ? '#8fe3a8' : hm ? (g.t*4 % 1 < 0.6 ? '#ffb347' : '#ff6b57') : p.ace ? '#f2c14e' : '#ff6b57';
+      const col = p.team === 0 ? '#8fe3a8' : p.police ? (G.policeHostile ? '#ff6b57' : '#7ab8ff') : hm ? (g.t*4 % 1 < 0.6 ? '#ffb347' : '#ff6b57') : p.ace ? '#f2c14e' : '#ff6b57';
       if (on) {
         const s = Math.max(10, Math.min(46, 2600/dist));
         c.strokeStyle = col; c.lineWidth = 1.6; c.beginPath();
@@ -125,7 +126,7 @@ const H = G.HUD = {
         if (dist < 900) { const f = Math.max(0, p.internal/p.internalMax); c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(pt.x - 18, pt.y + s*0.7 + 4, 36, 4); c.fillStyle = col; c.fillRect(pt.x - 18, pt.y + s*0.7 + 4, 36*f, 4); }
       } else this.edge(c, pt, col);
       const ang = tA.copy(p.pos).sub(P.pos).normalize().angleTo(g.view === 'cockpit' ? P.fwd : g.aimDir);
-      if (p.team !== 0 && !p.invuln && dist < 1000 && ang < bestA) { bestA = ang; best = p; }
+      if (p.team !== 0 && !p.invuln && !(p.police && !G.policeHostile) && dist < 1000 && ang < bestA) { bestA = ang; best = p; }
     }
     for (const s of g.ships) {
       if (!s.alive || s.hidden) continue; this.proj(s.pos, pt);

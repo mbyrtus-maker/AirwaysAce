@@ -101,7 +101,7 @@ const UI = G.UI = {
     for (const [cid, C] of Object.entries(G.CONTACTS)) { const it = C.shop.find(x => x.chassis === id); if (it) return `$${it.price.toLocaleString()} · ${C.name.replace(/".*" /, '').split(' ').slice(-1)[0]}`; }
     for (const R of Object.values(G.REGIONS)) if (R.treasures.some(t => t.reward && t.reward.chassis === id)) return `Treasure · ${R.name}`;
     const j = G.JOBS.find(j => j.reward && j.reward.chassis === id); if (j) return `Job · ${j.title}`;
-    return id === 'comet' ? 'Story' : id === 'zephyr' ? 'Finish Volume II' : id === 'hornet' ? 'Finish Volume III' : 'Later';
+    return id === 'comet' ? 'Story' : id === 'zephyr' ? 'Finish Volume II' : id === 'hornet' ? 'Finish Volume III' : id === 'banshee' ? 'Finish Volume IV' : 'Later';
   },
   setGun(i, x){ UI.L.guns[i].cal = x === 'none' ? null : x; UI.renderHangar(); },
   setAmmo(i, x){ UI.L.guns[i].ammo = x; UI.renderHangar(); },
@@ -274,6 +274,7 @@ Object.assign(UI, {
     badlands:'M-84 -30 L-46 -58 L28 -52 L80 -24 L88 26 L44 56 L-30 52 L-80 24Z',
     frostback:'M-94 12 L-66 -28 L-36 -16 L-6 -52 L22 -22 L52 -48 L90 -8 L74 30 L-52 38Z',
     calavera:'M-46 6 C-56 -20 -40 -52 0 -54 C40 -52 56 -20 46 6 C44 14 36 18 32 24 L32 32 L28 38 L22 32 L16 38 L10 32 L4 38 L-2 32 L-8 38 L-14 32 L-20 38 L-26 32 L-30 38 L-32 32 L-32 24 C-36 18 -44 14 -46 6Z',
+    rustwater:'M-58 -46 L-20 -50 L-8 -40 L6 -50 L52 -44 L60 -10 L54 28 L30 42 L10 34 L4 46 L-6 34 L-30 40 L-56 22 L-62 -12Z',
     keys:'M-74 2 C-74 -8 -50 -10 -46 0 C-44 10 -72 12 -74 2Z M-34 -28 C-34 -42 4 -42 6 -28 C6 -16 -32 -14 -34 -28Z M12 8 C12 -6 60 -8 62 8 C62 22 12 24 12 8Z M-22 32 C-22 24 2 24 2 32 C2 40 -22 40 -22 32Z M44 -34 C44 -42 62 -42 62 -34 C62 -28 44 -28 44 -34Z'
   },
   /* The chart's art is painted once onto a canvas and cached as an image: newsprint, engraved sea, rippled coasts,
@@ -350,7 +351,7 @@ Object.assign(UI, {
     $('cShip').setAttribute('transform', `translate(${here.chart[0] + 36} ${here.chart[1] - 48})`);
     const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid);
     const night = G.timeOfDay() === 'night', move = sel !== here ? UI.travelCost(here, sel) : null;
-    const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS', calavera:'PIRATE BRETHREN DENY "KING" RUMOURS; VOLCANO RUMBLES'}[sel.id];
+    const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS', calavera:'PIRATE BRETHREN DENY "KING" RUMOURS; VOLCANO RUMBLES', rustwater:'GHOST PLANES OVER GANTRY? CITY HALL SAYS NONSENSE'}[sel.id];
     $('cSide').innerHTML = `<div class="np-mast"><span>Day ${O.day}</span><b>THE CHART TABLE</b><span>${esc(G.timeLabel())}</span></div>
       <div class="np-kick">${esc(sel.nation)}${sel === here ? ' · the Margaret is here' : ''}</div><h3 class="np-h">${esc(sel.name)}</h3><div class="np-sub">${esc(head)}</div>
       <p class="np-body">${esc(sel.blurb)}</p>

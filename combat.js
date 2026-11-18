@@ -270,6 +270,7 @@ G.Combat = {
       if (t.kind === 'tank') for (let i = 0; i < 3; i++) setTimeout(() => this.fx.explosion(tA.copy(t.pos).add(tB.set((Math.random() - 0.5)*14, 6 + Math.random()*8, (Math.random() - 0.5)*14)), 1.6), 250 + i*300);
       G.HUD.feed(`${src && src.isPlayer ? 'You' : 'Someone'} destroyed ${t.label.toLowerCase()}`, src && src.isPlayer);
       if (this.mission.onTargetDown) this.mission.onTargetDown(this, t, src);
+      if (t.onDown) t.onDown(this, src);
     }
   },
   spawnRocketRaw(owner, pos, dir, def){

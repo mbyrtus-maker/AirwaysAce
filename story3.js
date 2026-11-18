@@ -165,6 +165,9 @@ class Train {
   near(p, r){ return this.cars.some(c => c.grp.position.distanceTo(p) < r); }
 }
 
+G.Train = Train;   // the El in Gantry City uses it too
+G.STORY_KIT3 = {H3, EP, RES, strafe, beaten, fmtD, world, ground, flags, SYN, SYN_SHIP};   // Volume IV builds on these
+
 /* =====================================================================
    Chapter 7, Episode 1: The Payroll Express
    Escort the Copperton Line's armoured payroll train across the Badlands while the Rattlesnake Gang tries to rob it,

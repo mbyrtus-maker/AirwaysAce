@@ -15,7 +15,7 @@ const ACTIONS = [
   {id:'KeyC', label:'Chase / cockpit view'}, {id:'KeyV', label:'Look back (hold)'},
   {id:'Digit1', label:'Wingmen: attack'}, {id:'Digit2', label:'Wingmen: cover me'}, {id:'Digit3', label:'Wingmen: the zeppelin'},
   {id:'Digit4', label:'Wingmen: form up'}, {id:'Digit5', label:'Wingmen: go home'},
-  {id:'KeyP', label:'Camera (photograph objectives)'},
+  {id:'KeyP', label:'Camera (photograph objectives)'}, {id:'KeyX', label:'Launch ghost drone (Banshee)'},
   {id:'KeyM', label:'Sound on / off'}, {id:'KeyH', label:'Flight help'}
 ];
 const CANON = new Set(ACTIONS.map(a => a.id));

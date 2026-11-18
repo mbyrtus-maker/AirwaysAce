@@ -1107,7 +1107,43 @@ function hornet(paint){
   return g;
 }
 
-const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr, hornet};
+/* ---------- Banshee: Dr. Quill's twin-boom fighter from Ashgrove's drawings. A short central nacelle with a cluster of
+   nose guns and a pusher propeller at its tail, two slim booms from the wings back to twin fins joined by the tailplane,
+   and a radio mast for the ghost drone it carries. Paint: main = nacelle, booms and wings; second = nose and fins; trim = tips and bands. ---------- */
+function banshee(paint){
+  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr), props = [];
+  const N = [[0.3, -2.7], [0.5, -2.3], [0.74, -1.2], [0.82, 0.2], [0.78, 1.5], [0.6, 2.6], [0.36, 3.4], [0.1, 3.9]];
+  k.add(lathe(cut(N, -2.7, 1.6), 10, 1, 1.06), mP); k.add(lathe(cut(N, 1.6, 1.8), 10, 1, 1.06, false), mT); k.add(lathe(cut(N, 1.8, 3.9), 10, 1, 1.06), mS);
+  canopy(k, [[1.5, 0.3, 0.66, 0.8], [0.8, 0.44, 0.62, 1.34], [-0.2, 0.42, 0.62, 1.36], [-1.0, 0.2, 0.66, 0.96]], mT);
+  seatAndPilot(g, k, 0, 1.08, 0.3);
+  // wings, straight and broad, with the booms at 42% span
+  const mw = wingF(0.7, 6.2, 2.4, 1.1, 0.28, -0.2, 0.3, 0.05, 0.1);
+  paintWing(k, mw, mP, mS, mT, 0.7, 0.8); navLamps(k, mw);
+  const bs = mw(0.42), bx = bs[0], by = bs[4];
+  const B = [[0.12, -6.8], [0.3, -6.2], [0.42, -4], [0.5, -1.5], [0.52, 0.5], [0.42, 1.8], [0.15, 2.4]];
+  for (const sx of [1, -1]) {
+    k.add(lathe(B, 8, 1, 1.1), mP, T(sx*bx, by, 0)); k.add(lathe(cut(B, -0.6, -0.2), 8, 1.03, 1.13, false), mT, T(sx*bx, by, 0));
+    const fin = t => [1.8*t, 1.5 - 0.5*t, 0.1, -6.1 - 0.3*t, 0];
+    paintFin(k, fin, UP(sx*bx, by + 0.3), mS, mS, mT, 0.7, 0.85); k.add(pan(t => [0.6*t, 1.1 - 0.3*t, 0.1, -6.1, 0], 0, 1), mS, DOWN(sx*bx, by - 0.3));
+  }
+  k.add(box(bx*2, 0.12, 1.1), mP, T(0, by + 0.25, -6.2)); k.add(box(bx*2, 0.13, 0.25), mT, T(0, by + 0.25, -5.6));
+  // the radio mast and its aerial wires to the fins
+  k.add(bar([0, 0.7, -0.8], [0, 1.8, -1.2], 0.06), DARK()); for (const sx of [1, -1]) k.add(bar([0, 1.8, -1.2], [sx*bx, by + 1.6, -6.2], 0.02), DARK());
+  // four guns in the nose and two cannon in the wing roots
+  const mz = [[0.18, 0.2], [-0.18, 0.2], [0.2, -0.15], [-0.2, -0.15]].map(([x, y]) => new V3(x, y, 4.0));
+  for (const m of mz) gun(k, m, 0.6, 0.04, 0);
+  for (const sx of [1, -1]) { const m = new V3(sx*1.2, -0.05, 1.4); gun(k, m, 1.0, 0.06, 0.3); mz.push(m); }
+  rails(k, bx + 1.6, by - 0.2, 0.2);
+  gearLeg(k, [0, -0.6, 2.4], [0, -1.8, 2.5], 0.3, mT, null, 0);
+  for (const sx of [1, -1]) gearLeg(k, [sx*bx, by - 0.4, 0.2], [sx*bx, -1.7, 0.3], 0.38, mT, mP, sx);
+  hookMast(k, -0.9, 0.9);
+  k.build(g);
+  addProp(g, props, new V3(0, 0, -2.85), 3, 2.6, 0.26, DARK(), mT, mS, [[0.3, -0.05], [0.26, 0.16], [0.12, 0.4]], true);
+  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(bx + 1.6, by - 0.4, 0.4), new V3(-bx - 1.6, by - 0.4, 0.4)], radius:6.4, cockpit:new V3(0, 1.14, 0.4), exhaust:new V3(0, 0.3, -2.4), gear:2.1};
+  return g;
+}
+
+const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr, hornet, banshee};
 
 G.buildPlane = (chassis, paint) => {
   const f = AIRFRAMES[chassis] || gallant;
@@ -1900,4 +1936,6 @@ G.buildSkullRock = () => {
   g.userData = {targets};
   return g;
 };
+/* the geometry kit, for scenery built in other files (Rustwater's city, bridges and balloons) */
+G.KIT = {Kit, box, cyl, bar, ball, lathe, loft, lamp, T, RX, RY, RZ, mul, xf};
 })();

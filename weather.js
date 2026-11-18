@@ -34,7 +34,8 @@ const CLIMATE = {
   badlands: {clear:6, haze:2, dust:2, drystorm:1},
   frostback:{clear:3, overcast:2, snow:3, blizzard:1, fog:1},
   keys:     {clear:5, squall:3, mist:1, tropical:1},
-  calavera: {clear:3, smog:2, ash:2, storm:2}
+  calavera: {clear:3, smog:2, ash:2, storm:2},
+  rustwater:{overcast:4, smog:3, rain:3, fog:2, storm:1, clear:1, snow:1}
 };
 const pick = (region, not) => {
   const C = CLIMATE[region] || CLIMATE.halcyon, h = G.save.open ? G.save.open.hour : 12, morning = h >= 5 && h < 10;
@@ -66,7 +67,7 @@ const CRACKS = [0, 5.6, 10.6, 25.8, 34.6, 48.6, 53.6];   // where each thundercl
 const MIX = {clear:{breeze:0.12}, haze:{breeze:0.14, wind:0.03}, overcast:{breeze:0.16, wind:0.05}, rain:{rain:0.5, breeze:0.08}, squall:{rain:0.55, wind:0.25}, storm:{storm:0.65, wind:0.2},
   tropical:{storm:0.65, wind:0.45}, dust:{wind:0.6}, drystorm:{wind:0.35}, snow:{blizzard:0.12, breeze:0.12}, blizzard:{blizzard:0.65}, ash:{wind:0.12, rumble:0.32}, smog:{wind:0.05, breeze:0.06, rumble:0.22},
   fog:{breeze:0.05, waves:0.24}, mist:{breeze:0.08, waves:0.3}};
-const SEA = {halcyon:1, keys:1, calavera:1};   // places where fog means a foghorn and a swell below
+const SEA = {halcyon:1, keys:1, calavera:1, rustwater:1};   // places where fog means a foghorn and a swell below
 const Amb = G.weatherSound = {
   buf:{}, loops:{}, loading:false,
   load(){
