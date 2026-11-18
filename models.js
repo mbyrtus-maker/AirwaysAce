@@ -918,48 +918,59 @@ function whirligig(paint){
   g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(2.2, -0.7, 1.0), new V3(-2.2, -0.7, 1.0)], radius:5.6, cockpit:new V3(0, 1.05, -0.2), exhaust:new V3(0, -0.3, 1.6), gear:1.82};
   return g;
 }
-/* ---------- Zephyr: Hollis's jet. A stubby shoulder-wing monoplane in the manner of the Heinkel He 178:
-   an open nose intake, a centrifugal turbojet in the belly, a single jet pipe under the tail, retractable mains
-   and a tailwheel. No propeller at all. Paint: main = fuselage; second = cheat line, wing panels; trim = intake lip, fin, tips. */
+/* ---------- Zephyr: Hollis's jet, in the manner of the Messerschmitt Me 262: a shark-nosed fuselage, swept wings,
+   two turbojets slung under the wings in long nacelles, a tricycle undercarriage and four cannon in the nose.
+   No propellers. Paint: main = fuselage and nacelles; second = wing panels, cheat line; trim = nose, intake lips, fin, tips. */
 function zephyr(paint){
   const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P, {metalness:0.35, roughness:0.35}), mS = G.mat(S), mT = G.mat(Tr), polish = G.mat(0xd8dde2, {metalness:0.6, roughness:0.25});
-  // a short, fat, round fuselage: the intake mouth at the nose, tapering to the jet pipe
-  const F = [[0.36, -3.55], [0.46, -3.0], [0.6, -2.1], [0.72, -1.0], [0.8, 0.2], [0.82, 1.4], [0.78, 2.6], [0.66, 3.3], [0.5, 3.55]];
-  k.add(lathe(cut(F, -3.55, 3.3), 12, 1, 1.05, false), mP);
-  k.add(lathe([[0.66, 3.3], [0.64, 3.48], [0.56, 3.62], [0.44, 3.66], [0.4, 3.6]], 14, 1, 1.05, false), mT);        // the intake lip, rolled in
-  k.add(lathe([[0.02, 2.75], [0.36, 2.8], [0.39, 3.2], [0.4, 3.6]], 14, 1, 1.05, false), INK());                    // down the throat
-  k.add(lathe([[0.03, 3.05], [0.17, 3.2], [0.2, 3.35], [0.08, 3.45]], 10), polish);                       // the starter bullet in the intake
-  for (const [z0, z1] of [[1.6, 1.75], [-0.4, -0.25]]) k.add(lathe(cut(F, z0, z1), 12, 1.01, 1.06, false), mS);   // cheat bands
-  k.add(lathe([[0.3, -3.95], [0.33, -3.75], [0.36, -3.55]], 12), DARK());                                   // the jet pipe
-  k.add(lathe([[0.3, -4.06], [0.34, -4.02], [0.3, -3.95]], 12), polish);
-  // cockpit forward of the wing, glazed and framed, with the pilot sitting up in front
-  canopy(k, [[2.4, 0.18, 0.62, 0.7], [1.9, 0.36, 0.66, 1.12], [1.25, 0.38, 0.68, 1.16], [0.7, 0.32, 0.7, 1.0], [0.2, 0.14, 0.72, 0.8]], STEEL());
-  seatAndPilot(g, k, 0, 1.02, 1.35);
-  // shoulder wing: straight, tapered, rounded tips, mounted high on the flanks
-  const mw = wingF(0.68, 4.0, 2.0, 1.0, 0.24, 1.2, 0.2, 0.42, 0.1); paintWing(k, mw, mP, mS, mT, 0.66, 0.76); navLamps(k, mw);
-  // tail: a tall fin and tailplane sitting above the jet pipe
-  const tp = wingF(0.25, 1.55, 1.1, 0.6, 0.12, -2.55, 0.12, 0.42, 0); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
-  const vf = t => [0.3 + 1.45*t, 1.4 - 0.6*t, 0.12, -2.4 - 0.4*t, 0];
-  paintFin(k, vf, UP(0, 0.38), mP, mT, mT, 0.55, 0.7);
-  // a little red-and-silver lightning bolt on the fin, and the Lucky 13
-  k.decal(onSide(0.08, 1.2, -3.0), [[poly([[-0.25, 0.3], [0.1, 0.05], [-0.05, 0.02], [0.25, -0.3], [-0.1, -0.05], [0.05, -0.02]]), mS]], true);
-  k.decal(onSide(0.951*rAt(F, 0.6) + 0.04, 0.05, 0.6, 0.0), [[disc(0.42, 16), BONE()], [ring(0.36, 0.42, 16), mT]], true);
-  // two cannon in the nose cheeks, rails under the wings
-  const mz = [new V3(0.62, -0.25, 3.05), new V3(-0.62, -0.25, 3.05)];
-  for (const z of mz) { k.add(lathe([[0.05, 2.1], [0.12, 2.5], [0.12, 2.9], [0.07, 3.0]], 6), mP, T(z.x*0.92, z.y, 0)); gun(k, z, 0.6, 0.05, 0.3); }
-  rails(k, 2.6, 0.15, 0.6);
-  // retractable mains folding into the belly, and a tailwheel
-  for (const sx of [1, -1]) gearLeg(k, [sx*0.95, -0.35, 1.1], [sx*1.15, -1.5, 1.2], 0.36, mT, mP, sx);
-  tailWheel(k, -3.0, -0.4, -0.82, 0.14);
-  hookMast(k, 0.2, 1.0);
+  // the shark body: deep and narrow, flat-sided, a long pointed nose
+  const F = [[0.08, -4.9], [0.3, -4.3], [0.52, -3.0], [0.72, -1.4], [0.82, 0.2], [0.82, 1.4], [0.72, 2.6], [0.52, 3.6], [0.28, 4.3], [0.06, 4.75]];
+  k.add(lathe(cut(F, -4.9, 3.3), 10, 0.86, 1.15), mP);
+  k.add(lathe(cut(F, 3.3, 4.75), 10, 0.86, 1.15, false), mT);                                                // the painted nose
+  k.add(lathe(cut(F, 0.95, 1.1), 10, 0.87, 1.16, false), mS);                                                // cheat band
+  // a long framed canopy amidships
+  canopy(k, [[2.1, 0.16, 0.66, 0.78], [1.7, 0.36, 0.7, 1.2], [1.0, 0.38, 0.72, 1.26], [0.2, 0.34, 0.74, 1.14], [-0.6, 0.18, 0.76, 0.9]], STEEL());
+  seatAndPilot(g, k, 0, 1.08, 0.75);
+  // swept, tapered wings low on the body
+  const mw = wingF(0.62, 4.6, 2.3, 1.0, 0.24, 1.4, 1.25, -0.32, 0.18); paintWing(k, mw, mP, mS, mT, 0.64, 0.74); navLamps(k, mw);
+  // the twin turbojets in long nacelles under the wings, open intakes in front, hot pipes behind
+  const jets = [];
+  for (const sx of [1, -1]) {
+    const x = sx*1.95, y = -0.78, M = T(x, y, 0);
+    k.add(lathe([[0.16, -2.0], [0.3, -1.6], [0.42, -0.6], [0.46, 0.6], [0.44, 1.5], [0.38, 1.95]], 12, 1, 1.05, false), mP, M);
+    k.add(lathe([[0.38, 1.95], [0.4, 2.12], [0.34, 2.22], [0.28, 2.18]], 12, 1, 1.05, false), mT, M);         // intake lip
+    k.add(lathe([[0.02, 1.4], [0.26, 1.5], [0.28, 2.18]], 12, 1, 1.05, false), INK(), M);                       // down the intake
+    k.add(lathe([[0.02, 1.62], [0.1, 1.75], [0.12, 1.92], [0.05, 2.02]], 8), polish, M);                        // nose bullet
+    k.add(lathe([[0.12, -2.25], [0.15, -2.1], [0.16, -2.0]], 12, 1, 1.05, false), DARK(), M);                    // jet pipe
+    k.add(box(0.12, 0.42, 1.8), mP, T(x, y + 0.42, 0.2));                                                       // pylon to the wing
+    jets.push(new V3(x, y, -2.25));
+  }
+  // tail: tall fin, tailplane set halfway up it
+  const vf = t => [0.3 + 1.55*t, 1.6 - 0.7*t, 0.12, -3.0 - 0.7*t, 0];
+  paintFin(k, vf, UP(0, 0.45), mP, mT, mT, 0.55, 0.7);
+  const tp = wingF(0.15, 1.75, 1.05, 0.5, 0.1, -3.3, 0.45, 1.0, 0.05); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
+  k.decal(onSide(0.08, 1.45, -3.8), [[poly([[-0.25, 0.3], [0.1, 0.05], [-0.05, 0.02], [0.25, -0.3], [-0.1, -0.05], [0.05, -0.02]]), mS]], true);   // a lightning bolt on the fin
+  k.decal(onSide(0.86*0.951*rAt(F, -1.6) + 0.04, 0.05, -1.6, 0.0), [[disc(0.4, 16), BONE()], [ring(0.34, 0.4, 16), mT]], true);
+  // four heavy cannon in the nose, rocket rails outboard of the nacelles
+  const mz = [new V3(0.16, 0.34, 4.25), new V3(-0.16, 0.34, 4.25), new V3(0.2, 0.08, 4.05), new V3(-0.2, 0.08, 4.05)];
+  for (const z of mz) gun(k, z, 0.5, 0.045, 0.2);
+  rails(k, 3.2, -0.45, 0.2);
+  // tricycle undercarriage: a long nose leg and mains folding into the wing roots
+  gearLeg(k, [0, -0.7, 2.6], [0, -1.62, 2.7], 0.3, mT, null, 0);
+  for (const sx of [1, -1]) gearLeg(k, [sx*0.95, -0.45, 0.35], [sx*1.15, -1.55, 0.4], 0.36, mT, mP, sx);
+  hookMast(k, 0.1, 1.1);
   k.build(g);
-  // the jet's glow: a hot ring in the pipe and a soft flame behind it, brighter with throttle (planes.js)
-  const hot = new THREE.Mesh(new THREE.CircleGeometry(0.28, 14), new THREE.MeshBasicMaterial({color:0xff9a3a, transparent:true, opacity:0.8, depthWrite:false}));
-  hot.position.set(0, 0, -4.0); hot.rotation.y = PI; g.add(hot);
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.6, 12, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
-  flame.rotation.x = -PI/2; flame.position.set(0, 0, -4.85); g.add(flame);
+  // each jet glows: a hot ring in the pipe and a soft flame behind it, brighter with throttle (planes.js)
+  const glow = [];
+  for (const j of jets) {
+    const hot = new THREE.Mesh(new THREE.CircleGeometry(0.13, 12), new THREE.MeshBasicMaterial({color:0xff9a3a, transparent:true, opacity:0.8, depthWrite:false}));
+    hot.position.copy(j).add(new V3(0, 0, 0.02)); hot.rotation.y = PI; g.add(hot);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.13, 1.2, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+    flame.rotation.x = -PI/2; flame.position.copy(j).add(new V3(0, 0, -0.6)); g.add(flame);
+    glow.push({hot, flame});
+  }
   const prop = new THREE.Group(); prop.visible = false; g.add(prop);   // no propeller: an empty stand-in keeps the plane contract
-  g.userData = {prop, props:[], jet:{hot, flame}, muzzles:mz, rails:[new V3(2.6, -0.05, 1.1), new V3(-2.6, -0.05, 1.1)], radius:5.0, cockpit:new V3(0, 1.08, 1.45), exhaust:new V3(0, 0, -4.1), gear:1.86};
+  g.userData = {prop, props:[], jet:glow, muzzles:mz, rails:[new V3(3.2, -0.65, 0.7), new V3(-3.2, -0.65, 0.7)], radius:5.6, cockpit:new V3(0, 1.14, 0.85), exhaust:jets[0].clone(), gear:1.92};
   return g;
 }
 

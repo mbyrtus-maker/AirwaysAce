@@ -100,9 +100,9 @@ G.CHASSIS = {
                  max:14675, arm:[30,30,30,30], guns:['70','50'], slots:2, turrets:[], hp:8, hpMax:8}),
   thunderbuss:C({id:'thunderbuss', name:'Thunderbuss', role:'Heavy bomber', cs:'Balmoral', cls:'heavy', speed:'Fair', agility:'Poor', armorR:'Good', offense:'Good',
                  max:15760, arm:[40,35,25,25], guns:['50','50'], slots:2, turrets:['30','30'], hp:8, hpMax:8, torpedo:true}),
-  zephyr:     C({id:'zephyr', name:'Zephyr', role:'Jet interceptor (Hollis turbojet)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
-                 max:8200, arm:[20,20,20,20], guns:['70','70'], slots:2, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,
-                 blurb:'Augustin Hollis\'s masterpiece: a turbojet with no propeller at all. Faster than anything in the sky, slow to spool up, heavy on the stick, and it screams. Awarded to the Lucky Thirteen for finishing the whole story.'}),
+  zephyr:     C({id:'zephyr', name:'Zephyr', role:'Twin-jet interceptor (Hollis turbojets)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
+                 max:8200, arm:[20,20,20,20], guns:['70','70','60','60'], slots:4, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,
+                 blurb:'Augustin Hollis\'s masterpiece: two turbojets under swept wings and not a propeller in sight. Faster than anything in the sky, four cannon in the nose, slow to spool up, heavy on the stick, and it screams. Awarded to the Lucky Thirteen for finishing the whole story.'}),
   comet:      C({id:'comet', name:'Comet', role:'Prototype racer-fighter (Meridian engine)', cs:'—', cls:'medium', speed:'Excellent', agility:'Good', armorR:'Average', offense:'Average',
                  max:9600, arm:[25,25,25,25], guns:['60','50'], slots:3, turrets:[], hp:4, hpMax:6, interceptor:true,
                  blurb:'Hollis\'s prototype, built around Cyrus Vane\'s Meridian engine. The fastest thing in the Sierra sky.'}),
@@ -172,7 +172,7 @@ G.flightStats = (L, spent) => {
   const c = G.CHASSIS[L.chassis], ag = G.RATE[c.agility];
   const w = G.loadWeight(L, spent), pay = Math.max(0, (w - c.empty)/(c.max - c.empty));
   const pen = 1 - 0.25*Math.max(0, Math.min(1, (pay - 0.7)/0.3));
-  const mph = c.jet ? 345 + G.ENGINE[L.engine].mph*0.5 : SPEED_MPH[c.speed] + G.ENGINE[L.engine].mph + (c.interceptor ? 10 : 0) + ((L.mods || []).includes('prop') ? 8 : 0);   // a jet: far faster, and no propeller to tune
+  const mph = c.jet ? 375 + G.ENGINE[L.engine].mph*0.5 : SPEED_MPH[c.speed] + G.ENGINE[L.engine].mph + (c.interceptor ? 10 : 0) + ((L.mods || []).includes('prop') ? 8 : 0);   // a jet: far faster, and no propeller to tune
   return {
     weight:w, payload:pay, agilityMul:pen,
     top:mph*MPH, mph,

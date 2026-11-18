@@ -191,7 +191,7 @@ G.Plane = class {
       if (this.isPlayer && dt && t0 !== this.gearT && (this.gearT === 0 || this.gearT === 1) && this.g.audio && this.g.audio.gear) this.g.audio.gear();
     }
     const spin = (14 + this.speed*0.5)*(this.engineDead ? 0.06 : this.choke > 0 ? 0.15 : 0.4 + this.throttle*0.6)*dt;
-    if (this.ud.jet) { const s = this.alive && !this.engineDead ? (this.spool ?? this.throttle) : 0, f = this.ud.jet.flame; this.ud.jet.hot.material.opacity = 0.25 + 0.7*s; f.material.opacity = (0.1 + 0.4*s)*(0.85 + Math.random()*0.3); f.scale.set(1, 0.5 + s + (this.nitro > 0 ? 0.8 : 0), 1); }
+    if (this.ud.jet) { const s = this.alive && !this.engineDead ? (this.spool ?? this.throttle) : 0; for (const J of [].concat(this.ud.jet)) { const f = J.flame; J.hot.material.opacity = 0.25 + 0.7*s; f.material.opacity = (0.1 + 0.4*s)*(0.85 + Math.random()*0.3); f.scale.set(1, 0.5 + s + (this.nitro > 0 ? 0.8 : 0), 1); } }
     for (const pr of this.ud.props || [this.ud.prop]) { if (!pr) continue; const u = pr.userData; pr.rotation.z += spin*(u.dir || 1)*(u.rate || 1); if (u.disc) u.disc.material.opacity = this.choke > 0 ? 0.05 : 0.22; }   // twins counter-rotate; an autogyro rotor turns slower
   }
 
