@@ -101,7 +101,7 @@ const UI = G.UI = {
     for (const [cid, C] of Object.entries(G.CONTACTS)) { const it = C.shop.find(x => x.chassis === id); if (it) return `$${it.price.toLocaleString()} · ${C.name.replace(/".*" /, '').split(' ').slice(-1)[0]}`; }
     for (const R of Object.values(G.REGIONS)) if (R.treasures.some(t => t.reward && t.reward.chassis === id)) return `Treasure · ${R.name}`;
     const j = G.JOBS.find(j => j.reward && j.reward.chassis === id); if (j) return `Job · ${j.title}`;
-    return id === 'comet' ? 'Story' : id === 'zephyr' ? 'Finish the story' : 'Later';
+    return id === 'comet' ? 'Story' : id === 'zephyr' ? 'Finish Volume II' : id === 'hornet' ? 'Finish Volume III' : 'Later';
   },
   setGun(i, x){ UI.L.guns[i].cal = x === 'none' ? null : x; UI.renderHangar(); },
   setAmmo(i, x){ UI.L.guns[i].ammo = x; UI.renderHangar(); },

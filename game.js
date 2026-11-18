@@ -74,7 +74,7 @@ G.Game = class {
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
     if (code === 'KeyM' && this.audio) G.HUD.toast(this.audio.toggleMute() ? 'Sound off' : 'Sound on');
-    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && P.L.nitro && P.nitroLeft > 0 && !(P.nitro > 0)) { P.nitro = 3; P.nitroLeft--; } }
+    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && (P.L.nitro || P.st.rocket) && P.nitroLeft > 0 && !(P.nitro > 0)) { P.nitro = P.st.rocket ? 5 : 3; P.nitroLeft--; if (P.st.rocket && this.audio && this.audio.rocket) this.audio.rocket(0.7); } }
   }
   /* Canned stunts on a double-tap, as in Crimson Skies. Each is an exact rotation, so they always finish level. */
   stunt(kind){
@@ -169,7 +169,7 @@ G.Game = class {
     if (this.paused) return;
     dt = Math.min(dt, 0.05); this.t += dt;
     if (this.running) this.playerControl(dt);
-    if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro) P.nitroLeft = 3; }
+    if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; }
     else if (this.done && this.player && this.player.alive && !this.player.frozen) {
       const P = this.player, gh = P.pos.y - Math.max(this.world.height(P.pos.x, P.pos.z), 0.4);
       P.steer(tC.copy(P.fwd).setY(0).normalize().setY(gh < 300 ? 0.35 : 0.02).normalize()); P.fire = P.fireRk = false; P.throttle = 0.8;
@@ -280,7 +280,7 @@ G.MISSIONS.ambush = {
       hp:4000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8), new V3(0, 23, -20)]});
     const L = Object.assign({}, o.load || G.save.load, {mods:(G.save.mods || []).slice()});
     const P = g.player = g.addPlane({loadout:L, team:0, player:true, name:G.save.callsign || 'Ace', callsign:G.save.callsign || 'Ace', speed:0, throttle:0.9});
-    P.nitroLeft = L.nitro ? 3 : 0; P.frozen = true;
+    P.nitroLeft = G.CHASSIS[L.chassis] && G.CHASSIS[L.chassis].rocketBoost ? 6 : L.nitro ? 3 : 0; P.frozen = true;
     this.trap = ship.obj.userData.trapeze;
     this.hang();
     g.running = false;

@@ -1022,7 +1022,53 @@ function zephyr(paint){
   return g;
 }
 
-const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr};
+/* ---------- Hornet: Ambrose Kroll's rocket-boosted interceptor, rebuilt by Hollis.
+   A long slim fuselage, inverted gull wings with the main gear at the kink, contra-rotating propellers on a long nose,
+   and a rocket motor in the tail that lights up when the boost is on.
+   Paint: main = fuselage and wings; second = the hornet bands, spinner and fin; trim = tips, cowl ring, nozzle collar. ---------- */
+function hornet(paint){
+  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr), props = [];
+  const F = [[0.12, -4.75], [0.34, -4.4], [0.52, -3.4], [0.66, -2.0], [0.74, -0.6], [0.76, 0.6], [0.74, 1.8], [0.66, 2.9], [0.56, 3.7], [0.46, 4.05]];
+  k.add(lathe(cut(F, -4.75, -4.3), 12, 1, 1.08), mT);                                                         // nozzle collar
+  k.add(lathe(cut(F, -4.3, 3.7), 12, 1, 1.08, false), mP);
+  for (const [z0, z1] of [[-3.3, -2.95], [-2.6, -2.25], [-1.9, -1.55]]) k.add(lathe(cut(F, z0, z1), 12, 1.012, 1.092, false), mS);   // hornet bands round the tail
+  k.add(lathe(cut(F, 3.7, 4.05), 12, 1, 1.08, false), mT);                                                    // cowl ring
+  for (let i = 0; i < 5; i++) for (const sx of [1, -1]) k.add(box(0.06, 0.1, 0.32), DARK(), T(sx*0.7, 0.18 - i*0.13, 2.6 - i*0.05));   // exhaust stubs
+  // bubble canopy well forward, a tall razor spine behind it
+  canopy(k, [[1.3, 0.3, 0.62, 0.86], [0.7, 0.4, 0.62, 1.32], [0.0, 0.4, 0.62, 1.36], [-0.7, 0.32, 0.62, 1.2], [-1.2, 0.18, 0.62, 0.98]], mT);
+  k.add(loft([[[-0.16, 0.7, -1.2], [0.16, 0.7, -1.2], [0.05, 0.98, -1.2], [-0.05, 0.98, -1.2]], [[-0.12, 0.6, -3.6], [0.12, 0.6, -3.6], [0.03, 0.7, -3.6], [-0.03, 0.7, -3.6]]]), mP);
+  seatAndPilot(g, k, 0, 1.06, 0.1);
+  // inverted gull wings: down and out to the kink, then up and out to the tips
+  const KK = 0.3, wf = t => [0.55 + 5.0*t, 2.3 - 1.4*t, 0.26*(1 - 0.5*t), 0.55 - 0.5*t, t < KK ? -0.3 - 0.55*t/KK : -0.85 + 1.0*(t - KK)/(1 - KK)];
+  k.both(pan(wf, 0, KK), mP); k.both(pan(wf, KK, 0.62), mP); k.both(pan(wf, 0.62, 0.72), mS); k.both(pan(wf, 0.72, 1), mT); k.both(tipOf(wf, 0.2, 0.55), mT); navLamps(k, wf);
+  // tail: a tall swept fin in the second colour, a small tailplane, and the rocket nozzle under it all
+  const FY = 0.45, vf = t => [1.5*t, 1.7 - 0.9*t, 0.12*(1 - 0.3*t), -3.85 - 0.75*t, 0];
+  paintFin(k, vf, UP(0, FY), mS, mS, mT, 0.7, 0.8);
+  const tp = wingF(0.2, 1.65, 1.0, 0.55, 0.09, -3.95, 0.4, 0.15, 0.1); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
+  k.decal(onSide(0.62, 0.25, -2.0), [[disc(0.32, 14), mS], [ring(0.26, 0.32, 14), INK()], [poly([[-0.14, -0.18], [0.0, 0.2], [0.14, -0.18]]), INK()]], true);   // the stinger roundel
+  k.add(lathe([[0.32, -4.95], [0.3, -4.75], [0.26, -4.55]], 10, 1, 1, false), DARK());
+  k.add(disc(0.28, 10), INK(), mul(T(0, 0, -4.9), RY(PI)));
+  // four cannon in the outer wings, rocket rails under the kink
+  const mz = [0.42, 0.55].flatMap(t => { const s = wf(t); return [new V3(s[0], s[4] - 0.05, s[3] + s[1]*0.5), new V3(-s[0], s[4] - 0.05, s[3] + s[1]*0.5)]; });
+  for (const m of mz) gun(k, m, 0.9, 0.045, 0.4);
+  const kn = wf(KK); rails(k, kn[0] + 0.5, kn[4] - 0.2, kn[3]);
+  // main legs at the bottom of the gull, a tail wheel
+  for (const sx of [1, -1]) gearLeg(k, [sx*kn[0], kn[4] - 0.1, kn[3] + 0.3], [sx*kn[0], kn[4] - 1.15, kn[3] + 0.45], 0.42, mT, mP, sx);
+  k.add(bar([0, -0.4, -3.9], [0, -0.75, -4.0], 0.07), DARK()); k.add(lathe([[0.04, -0.08], [0.15, 0], [0.04, 0.08]], 8), DARK(), mul(T(0, -0.85, -4.0), RY(PI/2)));
+  hookMast(k, -0.3, 1.0);
+  k.build(g);
+  // two propellers, turning opposite ways
+  addProp(g, props, new V3(0, 0, 4.12), 3, 2.9, 0.28, DARK(), mT, mS, [[0.36, -0.05], [0.3, 0.2]], false, 1);
+  addProp(g, props, new V3(0, 0, 4.42), 3, 2.8, 0.26, DARK(), mT, mS, [[0.3, -0.05], [0.24, 0.25], [0.04, 0.62]], false, -1);
+  // the rocket's fire
+  const hot = new THREE.Mesh(new THREE.CircleGeometry(0.26, 12), new THREE.MeshBasicMaterial({color:0xff7a2a, transparent:true, opacity:0.1, depthWrite:false})); hot.position.set(0, 0, -4.92); hot.rotation.y = PI; g.add(hot);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.28, 2.4, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+  flame.rotation.x = -PI/2; flame.position.set(0, 0, -6.1); g.add(flame);
+  g.userData = {prop:props[0], props, burner:{hot, flame}, muzzles:mz, rails:[new V3(kn[0] + 0.5, kn[4] - 0.4, kn[3] + 0.5), new V3(-kn[0] - 0.5, kn[4] - 0.4, kn[3] + 0.5)], radius:5.6, cockpit:new V3(0, 1.12, 0.2), exhaust:new V3(0, 0, -4.9), gear:2.0};
+  return g;
+}
+
+const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr, hornet};
 
 G.buildPlane = (chassis, paint) => {
   const f = AIRFRAMES[chassis] || gallant;
@@ -1343,6 +1389,50 @@ G.pirateHouse = (k, x, y, z, ww, hh, rr, yaw = 0, night = false) => {
   }
   if (night || rr() < 0.4) k.add(ball(0.4, 6, 3), lamp(0xffa040), P(dk/2 - 0.5, 4, dk/2 - 0.5));
   return by + 4;
+};
+/* ---------- The Copperton Line: an armoured steam train. Each car is its own group (nose +Z, rails at y=0, ~15 m long)
+   so the cars can follow a curving track. kinds: 'loco', 'tender', 'gun' (a flak car), 'pay' (the payroll car), 'box'. ---------- */
+G.buildTrainCar = (kind, paint = [0x6b2a1a, 0xd9b44a, 0x1a1a1a]) => {
+  const g = new THREE.Group(), k = new Kit(), mP = G.mat(paint[0], {roughness:0.7}), mS = G.mat(paint[1], {roughness:0.5, metalness:0.3}), iron = G.mat(0x2a2826, {roughness:0.6, metalness:0.4}), mT = G.mat(paint[2], {roughness:0.8});
+  const wheels = (n, L) => { for (let i = 0; i < n; i++) for (const sx of [1, -1]) k.add(cyl(0.55, 0.55, 0.25, 10), iron, mul(T(sx*1.0, 0.6, -L/2 + 1.6 + i*(L - 3.2)/Math.max(1, n - 1)), RZ(PI/2))); k.add(box(2.6, 0.5, L - 1), iron, T(0, 1.15, 0)); };
+  if (kind === 'loco') {
+    wheels(4, 13); k.add(cyl(1.25, 1.25, 9, 14), mT, mul(T(0, 2.7, 1.8), RX(PI/2)));                         // boiler
+    for (const z of [-1.2, 0.6, 2.4, 4.2]) k.add(cyl(1.3, 1.3, 0.25, 14), mS, mul(T(0, 2.7, z), RX(PI/2)));   // brass bands
+    k.add(cyl(0.45, 0.6, 2.2, 10), iron, T(0, 4.6, 5.3)); k.add(cyl(0.75, 0.5, 0.5, 10), iron, T(0, 5.8, 5.3)); // smokestack
+    k.add(ball(0.6, 8, 4), mS, T(0, 4.1, 2.2));                                                                 // steam dome
+    k.add(box(3.0, 3.6, 3.4), mP, T(0, 3.2, -3.9)); k.add(box(3.3, 0.3, 3.8), iron, T(0, 5.1, -3.9));          // armoured cab
+    for (const sx of [1, -1]) k.add(box(0.1, 0.7, 1.2), G.mat(0x1e1812, {emissive:0xffa040, emissiveIntensity:0.4}), T(sx*1.52, 3.8, -3.6));
+    k.add(loft([[[-1.4, 0.3, 6.6], [1.4, 0.3, 6.6], [0.2, 1.6, 6.6], [-0.2, 1.6, 6.6]], [[-0.2, 0.3, 8.0], [0.2, 0.3, 8.0], [0.1, 0.5, 7.6], [-0.1, 0.5, 7.6]]]), mS);   // cowcatcher
+    k.add(ball(0.4, 8, 4), lamp(0xffe2a0), T(0, 4.0, 6.6));
+    for (const sx of [1, -1]) k.add(box(0.15, 1.2, 9), mP, T(sx*1.35, 2.0, 1.5));                               // armour skirts
+  } else {
+    const L = kind === 'tender' ? 8 : 14; wheels(kind === 'tender' ? 2 : 4, L);
+    if (kind === 'tender') { k.add(box(2.9, 2.4, L - 0.6), mP, T(0, 2.6, 0)); k.add(box(2.6, 0.6, L - 1.4), G.mat(0x141414), T(0, 4.0, 0)); }
+    else {
+      k.add(box(3.0, 3.0, L - 0.6), mP, T(0, 2.9, 0)); k.add(box(3.2, 0.3, L - 0.2), iron, T(0, 4.5, 0));
+      for (let i = 0; i < 6; i++) for (const sx of [1, -1]) k.add(box(0.08, 3.0, 0.15), iron, T(sx*1.52, 2.9, -L/2 + 1.2 + i*(L - 2.4)/5));   // riveted straps
+      for (const sx of [1, -1]) k.add(box(0.1, 0.5, L - 2), mS, T(sx*1.53, 3.9, 0));                            // the line's stripe
+      if (kind === 'pay') { k.add(box(1.6, 1.0, 0.1), mS, T(1.55, 2.8, 0)); for (const sx of [1, -1]) k.add(box(0.12, 1.4, 1.8), iron, T(sx*1.56, 2.6, 0)); }
+      if (kind === 'gun') { k.add(cyl(1.2, 1.4, 1.0, 10), iron, T(0, 5.2, 0)); for (const sx of [0.3, -0.3]) k.add(cyl(0.12, 0.14, 3.2, 6), iron, mul(T(sx, 6.0, 1.2), RX(-0.9))); }
+    }
+  }
+  k.build(g); return g;
+};
+/* A railway along a list of points [{x, y, z, gy}] (y = rail level, gy = ground): sleepers, two rails, and timber bents
+   holding the track up wherever it runs above the ground. */
+G.buildTrack = pts => {
+  const g = new THREE.Group(), k = new Kit(), tie = G.mat(0x4a3424, {roughness:1}), rail = G.mat(0x6a6a6e, {roughness:0.4, metalness:0.6}), bent = G.mat(0x5a4632, {roughness:1}), bal = G.mat(0x6a5a4a, {roughness:1});
+  let acc = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz); if (L < 0.01) continue;
+    const yaw = Math.atan2(dx, dz), lx = dz/L, lz = -dx/L;
+    for (const s of [0.72, -0.72]) k.add(bar([a.x + lx*s, a.y + 0.35, a.z + lz*s], [b.x + lx*s, b.y + 0.35, b.z + lz*s], 0.14, 0.18), rail);
+    k.add(bar([a.x, a.y - 0.25, a.z], [b.x, b.y - 0.25, b.z], 3.4, 0.3), bal);   // ballast bed
+    for (let d = (3 - acc % 3) % 3; d < L; d += 3) { const t = d/L, y = a.y + (b.y - a.y)*t; k.add(box(2.7, 0.18, 0.45), tie, mul(T(a.x + dx*t, y + 0.12, a.z + dz*t), RY(yaw))); }
+    acc += L;
+    const gap = a.y - a.gy; if (gap > 2.5 && i % 4 === 0) for (const s of [1.2, -1.2]) k.add(bar([a.x + lx*s, a.gy - 1, a.z + lz*s], [a.x + lx*s*1.4, a.y - 0.4, a.z + lz*s*1.4], 0.35), bent);
+  }
+  k.build(g); return g;
 };
 /* The heart of every pirate town: a galleon run aground and turned into a tavern, masts still standing, sails in rags. */
 G.pirateTavern = (k, x, y, z, yaw, rr, night = false) => {

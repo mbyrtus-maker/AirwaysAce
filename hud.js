@@ -72,7 +72,7 @@ const H = G.HUD = {
       return `<div class="ar ${cls}"><span>${gn.def.name} <em>${gn.ammo.short}</em></span><b>${gn.rounds}</b><i class="am"><i style="width:${f*100}%"></i></i></div>`;
     });
     rows.push(`<div class="ar ${P.rockets ? '' : 'out'}"><span>${P.rocketDef.name} rockets</span><b>${P.rockets}</b><i class="am"><i style="width:${P.L.hp ? P.rockets/(P.L.hp*3)*100 : 0}%"></i></i></div>`);
-    if (P.L.nitro) rows.push(`<div class="ar ${P.nitroLeft ? '' : 'out'}"><span>Nitro <kbd>Shift</kbd></span><b>${P.nitroLeft}</b></div>`);
+    if (P.L.nitro || P.st.rocket) rows.push(`<div class="ar ${P.nitroLeft ? '' : 'out'}"><span>${P.st.rocket ? 'Rocket' : 'Nitro'} <kbd>Shift</kbd></span><b>${P.nitroLeft}</b></div>`);
     $('hArms').innerHTML = rows.join('');
     const s = g.ships[0]; if (s) { $('hShip').style.width = (s.hp/s.hpMax*100) + '%'; $('hShipV').textContent = Math.round(s.hp/s.hpMax*100) + '%'; $('hShip').parentNode.classList.toggle('crit', s.hp/s.hpMax < 0.4); }
     for (const pl of g.wingmen || []) { const r = document.querySelector(`#hWing [data-id="${pl.wing.id}"] .bar>i`); if (r) r.style.width = Math.max(0, pl.p.internal/pl.p.internalMax*100) + '%'; }

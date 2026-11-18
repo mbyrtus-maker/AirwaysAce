@@ -14,6 +14,9 @@ const LIST = [
   // the story
   {g:'Story', id:'v1', name:'Lights, Camera, Lantern', how:'Finish Volume I', goal:1, have:() => story('c3m3') ? 1 : 0},
   {g:'Story', id:'v2', name:'Black Flag, White Lies', how:'Finish Volume II', goal:1, have:() => story('c6m3') ? 1 : 0},
+  {g:'Story', id:'v3', name:'Iron Will', how:'Finish Volume III', goal:1, have:() => story('c9m3') ? 1 : 0},
+  {g:'Story', id:'kroll', name:'In the Net', how:'Catch Ambrose Kroll before he escapes', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.kroll === 'caught' ? 1 : 0; }},
+  {g:'Story', id:'reunion', name:'Old Friends', how:'Fly the Fleet Action with both Kit Calloway and Red Bess', goal:1, have:() => { const f = S().story && S().story.flags || {}; return story('c9m2') && f.kit === 'free' && f.bess === 'spared' ? 1 : 0; }},
   {g:'Story', id:'perfect5', name:'Picture Perfect', how:'Earn a perfect rating in 5 story episodes', goal:5, have:s => s.perfect},
   {g:'Story', id:'deepcover', name:'Deep Cover', how:'Reach the Pirate King\'s coronation with your cover at 80% or more', goal:1, have:() => { const f = S().story && S().story.flags || {}; return story('c6m1') && (f.cover || 0) >= 80 ? 1 : 0; }},
   {g:'Story', id:'kit', name:'Sister Act', how:'Let Kit Calloway go and hand her the signal book', goal:1, have:() => { const f = S().story && S().story.flags || {}; return f.kit === 'free' && f.kitCodes ? 1 : 0; }},
@@ -45,6 +48,7 @@ const LIST = [
   // the hangar
   {g:'Hangar', id:'fleet', name:'Collector', how:'Own 8 airframes', goal:8, have:() => S().owned.length},
   {g:'Hangar', id:'zephyr', name:'No Propeller Required', how:'Earn the Zephyr jet', goal:1, have:() => S().owned.includes('zephyr') ? 1 : 0},
+  {g:'Hangar', id:'hornet', name:'Float Like a Butterfly', how:'Earn the Hornet', goal:1, have:() => S().owned.includes('hornet') ? 1 : 0},
   {g:'Hangar', id:'liveries', name:'Dressed to Kill', how:'Collect 10 liveries', goal:10, have:() => (S().liveries || []).length},
   {g:'Hangar', id:'rich', name:'Rolling in It', how:'Have $100,000 in the bank', goal:100000, have:() => S().cash},
   // co-op
