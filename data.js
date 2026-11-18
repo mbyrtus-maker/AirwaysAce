@@ -100,6 +100,9 @@ G.CHASSIS = {
                  max:14675, arm:[30,30,30,30], guns:['70','50'], slots:2, turrets:[], hp:8, hpMax:8}),
   thunderbuss:C({id:'thunderbuss', name:'Thunderbuss', role:'Heavy bomber', cs:'Balmoral', cls:'heavy', speed:'Fair', agility:'Poor', armorR:'Good', offense:'Good',
                  max:15760, arm:[40,35,25,25], guns:['50','50'], slots:2, turrets:['30','30'], hp:8, hpMax:8, torpedo:true}),
+  zephyr:     C({id:'zephyr', name:'Zephyr', role:'Jet interceptor (Hollis turbojet)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
+                 max:8200, arm:[20,20,20,20], guns:['70','70'], slots:2, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,
+                 blurb:'Augustin Hollis\'s masterpiece: a turbojet with no propeller at all. Faster than anything in the sky, slow to spool up, heavy on the stick, and it screams. Awarded to the Lucky Thirteen for finishing the whole story.'}),
   comet:      C({id:'comet', name:'Comet', role:'Prototype racer-fighter (Meridian engine)', cs:'—', cls:'medium', speed:'Excellent', agility:'Good', armorR:'Average', offense:'Average',
                  max:9600, arm:[25,25,25,25], guns:['60','50'], slots:3, turrets:[], hp:4, hpMax:6, interceptor:true,
                  blurb:'Hollis\'s prototype, built around Cyrus Vane\'s Meridian engine. The fastest thing in the Sierra sky.'}),
@@ -169,14 +172,14 @@ G.flightStats = (L, spent) => {
   const c = G.CHASSIS[L.chassis], ag = G.RATE[c.agility];
   const w = G.loadWeight(L, spent), pay = Math.max(0, (w - c.empty)/(c.max - c.empty));
   const pen = 1 - 0.25*Math.max(0, Math.min(1, (pay - 0.7)/0.3));
-  const mph = SPEED_MPH[c.speed] + G.ENGINE[L.engine].mph + (c.interceptor ? 10 : 0) + ((L.mods || []).includes('prop') ? 8 : 0);
+  const mph = c.jet ? 345 + G.ENGINE[L.engine].mph*0.5 : SPEED_MPH[c.speed] + G.ENGINE[L.engine].mph + (c.interceptor ? 10 : 0) + ((L.mods || []).includes('prop') ? 8 : 0);   // a jet: far faster, and no propeller to tune
   return {
     weight:w, payload:pay, agilityMul:pen,
     top:mph*MPH, mph,
     pitch:(1.0 + 0.22*ag)*pen*(c.pitchMul || 1),
     roll:(2.2 + 0.5*ag)*pen*(c.interceptor ? 1.1 : 1),
     yaw:0.32 + 0.03*ag,
-    accel:(c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1),
+    accel:c.jet ? 11 : (c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1), jet:!!c.jet,
     climb:c.interceptor ? 1.3 : 1,
     bleed:c.interceptor ? 0.45 : 1,
     stall:mph*MPH*(c.heavy ? 0.29 : 0.36),

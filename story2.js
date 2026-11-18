@@ -754,8 +754,8 @@ G.MISSIONS.c6m3 = EP({
     const kit = F.kit === 'captured' && !F.kitFree ? ' Kit is still in the Keep; the marines are going in for her now.' : ' Kit is buying the first round, and Mabel the second.';
     const bess = F.bess === 'spared' ? ' Red Bess Malone has claimed the Keep as salvage. Hale is pretending not to notice.' : '';
     return RES(this, g, kind, Object.assign({cash}, {
-      perfect:{mood:'pleased', say:`The Leviathan is on the bottom, Brimstone is in irons and both our ships came home.${kit}${bess}`, then:`The Brethren of the Black Flag are finished. The Lucky Thirteen scrub the black paint off the Margaret, slowly, because Hellcat insists on keeping a skull on her tail.`},
-      success:{mood:'pleased', say:`The Leviathan is gone and the Pirate King is in a cell.${kit}`, then:`The Brethren of the Black Flag are finished. The Lucky Thirteen scrub the black paint off the Margaret.`},
+      perfect:{mood:'pleased', say:`The Leviathan is on the bottom, Brimstone is in irons and both our ships came home.${kit}${bess}`, then:`The Brethren of the Black Flag are finished. The Lucky Thirteen scrub the black paint off the Margaret, slowly, because Hellcat insists on keeping a skull on her tail. And Augustin Hollis is waiting in the hangar with a thank-you: the Zephyr, an aeroplane with no propeller at all. The Zephyr jet is yours.`},
+      success:{mood:'pleased', say:`The Leviathan is gone and the Pirate King is in a cell.${kit}`, then:`The Brethren of the Black Flag are finished. The Lucky Thirteen scrub the black paint off the Margaret, and Augustin Hollis wheels out a thank-you: the Zephyr, an aeroplane with no propeller at all. The Zephyr jet is yours.`},
       fail:{mood:'angry', say:why === 'margaret' ? 'The Margaret is going into the Teeth. Everyone got out. The Leviathan sails on.' : 'You got out under a silk canopy, and the Leviathan sails on toward Port Halcyon.', then:'The Leviathan is loose. There\'s only one thing for it: go again.'}
     }[kind]), {finale2:kind});
   }
@@ -778,6 +778,16 @@ Object.assign(G.STORY, {
   c6m3:{n:3, ch:'c6', next:r => r.kind === 'fail' ? 'c6m3' : 'c6end'}
 });
 G.STORY.c3m3.next = r => r.kind === 'fail' ? 'c3m3' : 'c4m1';
+/* The award for finishing the whole story: Hollis's jet, the Zephyr. */
+const commit0 = G.storyCommit;
+G.storyCommit = r => {
+  commit0(r);
+  const S = G.save;
+  if (S.story && S.story.node === 'c6end' && !S.owned.includes('zephyr')) {
+    S.owned.push('zephyr'); if (!S.liveries.includes('blackthirteen')) S.liveries.push('blackthirteen'); G.persist();
+    if (G.HUD) G.HUD.toast('New airframe: the Hollis Zephyr jet');
+  }
+};
 // saves that finished Volume I before Volume II existed pick up where it starts
 if (G.save && G.save.story && G.save.story.node === 'c3end') { G.save.story.node = 'c4m1'; G.persist(); }
 })();

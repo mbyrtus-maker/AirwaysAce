@@ -95,9 +95,12 @@ G.Plane = class {
     }
     this.q.normalize(); this.axes();
     // speed: thrust toward throttle x top, gravity along the nose, hard-turn bleed
-    const thr = this.engineDead ? 0 : this.choke > 0 ? 0.08 : this.throttle;
+    let thr = this.engineDead ? 0 : this.choke > 0 ? 0.08 : this.throttle;
+    if (st.jet) {   // a turbojet: slow to spool up and down, and short of push until it's moving fast
+      this.spool = this.spool ?? thr; this.spool += (thr - this.spool)*Math.min(1, dt*(thr > this.spool ? 0.45 : 0.8)); thr = this.spool;
+    }
     if (this.choke > 0) this.choke -= dt;
-    let a = this.engineDead ? -0.00035*this.speed*this.speed : st.accel*(thr*1.04 - this.speed/st.top)*1.7;
+    let a = this.engineDead ? -0.00035*this.speed*this.speed : st.accel*(thr*1.04*(st.jet ? 0.55 + 0.45*Math.min(1, this.speed/(st.top*0.55)) : 1) - this.speed/st.top)*1.7;
     const sinC = this.fwd.y; a -= 9.81*sinC*(sinC > 0 ? 0.95/st.climb : 0.9);
     a -= st.bleed*Math.abs(p)*auth*this.speed*0.045;
     if (this.retract && this.gearT < 1) a -= st.accel*1.7*0.08*(1 - this.gearT)*this.speed/st.top;   // hanging gear costs ~7% top speed
@@ -188,6 +191,7 @@ G.Plane = class {
       if (this.isPlayer && dt && t0 !== this.gearT && (this.gearT === 0 || this.gearT === 1) && this.g.audio && this.g.audio.gear) this.g.audio.gear();
     }
     const spin = (14 + this.speed*0.5)*(this.engineDead ? 0.06 : this.choke > 0 ? 0.15 : 0.4 + this.throttle*0.6)*dt;
+    if (this.ud.jet) { const s = this.alive && !this.engineDead ? (this.spool ?? this.throttle) : 0, f = this.ud.jet.flame; this.ud.jet.hot.material.opacity = 0.25 + 0.7*s; f.material.opacity = (0.1 + 0.4*s)*(0.85 + Math.random()*0.3); f.scale.set(1, 0.5 + s + (this.nitro > 0 ? 0.8 : 0), 1); }
     for (const pr of this.ud.props || [this.ud.prop]) { if (!pr) continue; const u = pr.userData; pr.rotation.z += spin*(u.dir || 1)*(u.rate || 1); if (u.disc) u.disc.material.opacity = this.choke > 0 ? 0.05 : 0.22; }   // twins counter-rotate; an autogyro rotor turns slower
   }
 

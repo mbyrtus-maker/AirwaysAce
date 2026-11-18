@@ -918,7 +918,52 @@ function whirligig(paint){
   g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(2.2, -0.7, 1.0), new V3(-2.2, -0.7, 1.0)], radius:5.6, cockpit:new V3(0, 1.05, -0.2), exhaust:new V3(0, -0.3, 1.6), gear:1.82};
   return g;
 }
-const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig};
+/* ---------- Zephyr: Hollis's jet. A stubby shoulder-wing monoplane in the manner of the Heinkel He 178:
+   an open nose intake, a centrifugal turbojet in the belly, a single jet pipe under the tail, retractable mains
+   and a tailwheel. No propeller at all. Paint: main = fuselage; second = cheat line, wing panels; trim = intake lip, fin, tips. */
+function zephyr(paint){
+  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P, {metalness:0.35, roughness:0.35}), mS = G.mat(S), mT = G.mat(Tr), polish = G.mat(0xd8dde2, {metalness:0.6, roughness:0.25});
+  // a short, fat, round fuselage: the intake mouth at the nose, tapering to the jet pipe
+  const F = [[0.36, -3.55], [0.46, -3.0], [0.6, -2.1], [0.72, -1.0], [0.8, 0.2], [0.82, 1.4], [0.78, 2.6], [0.66, 3.3], [0.5, 3.55]];
+  k.add(lathe(cut(F, -3.55, 3.3), 12, 1, 1.05, false), mP);
+  k.add(lathe([[0.66, 3.3], [0.64, 3.48], [0.56, 3.62], [0.44, 3.66], [0.4, 3.6]], 14, 1, 1.05, false), mT);        // the intake lip, rolled in
+  k.add(lathe([[0.02, 2.75], [0.36, 2.8], [0.39, 3.2], [0.4, 3.6]], 14, 1, 1.05, false), INK());                    // down the throat
+  k.add(lathe([[0.03, 3.05], [0.17, 3.2], [0.2, 3.35], [0.08, 3.45]], 10), polish);                       // the starter bullet in the intake
+  for (const [z0, z1] of [[1.6, 1.75], [-0.4, -0.25]]) k.add(lathe(cut(F, z0, z1), 12, 1.01, 1.06, false), mS);   // cheat bands
+  k.add(lathe([[0.3, -3.95], [0.33, -3.75], [0.36, -3.55]], 12), DARK());                                   // the jet pipe
+  k.add(lathe([[0.3, -4.06], [0.34, -4.02], [0.3, -3.95]], 12), polish);
+  // cockpit forward of the wing, glazed and framed, with the pilot sitting up in front
+  canopy(k, [[2.4, 0.18, 0.62, 0.7], [1.9, 0.36, 0.66, 1.12], [1.25, 0.38, 0.68, 1.16], [0.7, 0.32, 0.7, 1.0], [0.2, 0.14, 0.72, 0.8]], STEEL());
+  seatAndPilot(g, k, 0, 1.02, 1.35);
+  // shoulder wing: straight, tapered, rounded tips, mounted high on the flanks
+  const mw = wingF(0.68, 4.0, 2.0, 1.0, 0.24, 1.2, 0.2, 0.42, 0.1); paintWing(k, mw, mP, mS, mT, 0.66, 0.76); navLamps(k, mw);
+  // tail: a tall fin and tailplane sitting above the jet pipe
+  const tp = wingF(0.25, 1.55, 1.1, 0.6, 0.12, -2.55, 0.12, 0.42, 0); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
+  const vf = t => [0.3 + 1.45*t, 1.4 - 0.6*t, 0.12, -2.4 - 0.4*t, 0];
+  paintFin(k, vf, UP(0, 0.38), mP, mT, mT, 0.55, 0.7);
+  // a little red-and-silver lightning bolt on the fin, and the Lucky 13
+  k.decal(onSide(0.08, 1.2, -3.0), [[poly([[-0.25, 0.3], [0.1, 0.05], [-0.05, 0.02], [0.25, -0.3], [-0.1, -0.05], [0.05, -0.02]]), mS]], true);
+  k.decal(onSide(0.951*rAt(F, 0.6) + 0.04, 0.05, 0.6, 0.0), [[disc(0.42, 16), BONE()], [ring(0.36, 0.42, 16), mT]], true);
+  // two cannon in the nose cheeks, rails under the wings
+  const mz = [new V3(0.62, -0.25, 3.05), new V3(-0.62, -0.25, 3.05)];
+  for (const z of mz) { k.add(lathe([[0.05, 2.1], [0.12, 2.5], [0.12, 2.9], [0.07, 3.0]], 6), mP, T(z.x*0.92, z.y, 0)); gun(k, z, 0.6, 0.05, 0.3); }
+  rails(k, 2.6, 0.15, 0.6);
+  // retractable mains folding into the belly, and a tailwheel
+  for (const sx of [1, -1]) gearLeg(k, [sx*0.95, -0.35, 1.1], [sx*1.15, -1.5, 1.2], 0.36, mT, mP, sx);
+  tailWheel(k, -3.0, -0.4, -0.82, 0.14);
+  hookMast(k, 0.2, 1.0);
+  k.build(g);
+  // the jet's glow: a hot ring in the pipe and a soft flame behind it, brighter with throttle (planes.js)
+  const hot = new THREE.Mesh(new THREE.CircleGeometry(0.28, 14), new THREE.MeshBasicMaterial({color:0xff9a3a, transparent:true, opacity:0.8, depthWrite:false}));
+  hot.position.set(0, 0, -4.0); hot.rotation.y = PI; g.add(hot);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.6, 12, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+  flame.rotation.x = -PI/2; flame.position.set(0, 0, -4.85); g.add(flame);
+  const prop = new THREE.Group(); prop.visible = false; g.add(prop);   // no propeller: an empty stand-in keeps the plane contract
+  g.userData = {prop, props:[], jet:{hot, flame}, muzzles:mz, rails:[new V3(2.6, -0.05, 1.1), new V3(-2.6, -0.05, 1.1)], radius:5.0, cockpit:new V3(0, 1.08, 1.45), exhaust:new V3(0, 0, -4.1), gear:1.86};
+  return g;
+}
+
+const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr};
 
 G.buildPlane = (chassis, paint) => {
   const f = AIRFRAMES[chassis] || gallant;

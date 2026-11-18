@@ -56,7 +56,7 @@ const A = G.audio = {
     if (!this.ctx) return; const t = this.ctx.currentTime, P = game.player;
     if (this.eng && P) {
       const on = P.alive && game.running && !P.engineDead;
-      const sp = P.speed/P.top, rate = 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);
+      const jet = P.st && P.st.jet, sp = P.speed/P.top, s = jet ? (P.spool ?? P.throttle) : P.throttle, rate = jet ? 1.35 + s*0.9 + sp*0.25 : 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);   // the jet: the same recording wound right up into a whine
       this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
     }
     if (this.eng2) {
