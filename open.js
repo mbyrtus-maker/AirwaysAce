@@ -886,10 +886,11 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       for (const p of g.planes) {
         if (!p.alive || p.frozen) continue;
         const l = T.worldToLocal(tA.copy(p.pos));
-        if (Math.abs(l.x) > half + 5 || Math.abs(l.z) > half + 5 || l.y > U.top + 30 || l.y < 0) continue;
+        if (Math.abs(l.x) > half + 5 || Math.abs(l.z) > half + 5 || l.y > (U.mast ? U.mast.top + 2 : U.top + 30) || l.y < 0) continue;
         const inGallery = l.y > gl.y0 + 2 && l.y < gl.y1 - 1.6 && Math.abs(l.x) < gl.ow/2 - 5;
         const inside = Math.abs(l.x) < half + 4 && Math.abs(l.z) < half + 1 && l.y < U.top + 22;
         if (inside && !inGallery) { if (p.isPlayer && g.done) continue; p.destroy(null, 'crash'); }
+        if (U.mast && l.y > U.mast.y0 && l.y < U.mast.top && Math.hypot(l.x, l.z) < U.mast.r + 1.5) { if (p.isPlayer && g.done) continue; p.destroy(null, 'crash'); }   // the mooring mast on top
       }
     }
   },
