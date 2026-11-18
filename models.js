@@ -918,106 +918,107 @@ function whirligig(paint){
   g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(2.2, -0.7, 1.0), new V3(-2.2, -0.7, 1.0)], radius:5.6, cockpit:new V3(0, 1.05, -0.2), exhaust:new V3(0, -0.3, 1.6), gear:1.82};
   return g;
 }
-/* ---------- Zephyr: Hollis's jet, in the manner of the Messerschmitt Me 262: a shark-nosed fuselage of triangular section
-   (broad flat belly, hard chine, narrow back), low swept wings with the trailing edge kinked at the engines,
-   two turbojets slung under the wings in long nacelles, a tricycle undercarriage and four cannon in the nose.
-   No propellers. Paint: main = fuselage and nacelles; second = wing panels, cheat line; trim = nose, intake lips, fin, tips. */
+/* ---------- Zephyr: Hollis's jet, in the manner of the Messerschmitt Me 262: a long, slim shark fuselage of rounded-triangle
+   section (broad flat belly, soft chines, narrow back) with a blunt rounded nose, thin low wings swept on the leading edge
+   and nearly straight behind, two long fat turbojets slung under them, a tall swept fin with the tailplane part-way up it,
+   a tricycle undercarriage and four cannon in the top of the nose. About 10.6 m long and 12.6 m in span.
+   No propellers. Paint: main = fuselage, nacelles and wing roots; second = wing panels, cheat line; trim = nose tip, intake lips, fin top, tips. */
 function zephyr(paint){
-  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P, {metalness:0.35, roughness:0.35}), mS = G.mat(S), mT = G.mat(Tr), polish = G.mat(0xd8dde2, {metalness:0.6, roughness:0.25});
-  // the shark body. Stations are [z, half width at the chine, belly y, back y, roundness]: triangular amidships, oval at nose and tail.
-  const ST = [[-4.9, 0.05, 0.14, 0.3, 1], [-4.3, 0.17, -0.1, 0.5, 0.7], [-3.0, 0.42, -0.48, 0.68, 0.3], [-1.4, 0.68, -0.78, 0.82, 0], [0.2, 0.82, -0.86, 0.88, 0], [1.4, 0.82, -0.86, 0.86, 0],
-              [2.6, 0.7, -0.8, 0.72, 0.15], [3.5, 0.47, -0.6, 0.46, 0.5], [4.2, 0.26, -0.38, 0.2, 0.85], [4.6, 0.12, -0.24, 0.04, 1], [4.78, 0.03, -0.14, -0.07, 1]];
-  const TRI = [[0.55, 0], [0.9, 0.07], [1, 0.22], [0.9, 0.6], [0.62, 0.86], [0.28, 1]], OVL = [[0.26, 0.017], [0.71, 0.146], [0.97, 0.37], [0.97, 0.63], [0.71, 0.854], [0.26, 0.983]];
-  const at = z => { let i = 0; while (i < ST.length - 2 && z > ST[i+1][1 - 1]) i++; const a = ST[i], b = ST[i+1], t = Math.min(1, Math.max(0, (z - a[0])/(b[0] - a[0]))); return a.map((v, j) => v + (b[j] - v)*t); };
+  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr);
+  // the shark body. Stations are [z, half width at the chine, belly y, back y, roundness]: triangular amidships, oval at the nose and tail.
+  const ST = [[-5.3, 0.03, 0.24, 0.36, 1], [-4.8, 0.09, 0.08, 0.47, 1], [-3.8, 0.21, -0.2, 0.55, 0.75], [-2.4, 0.38, -0.5, 0.62, 0.4], [-1.0, 0.55, -0.69, 0.66, 0.12], [0.2, 0.62, -0.74, 0.68, 0],
+              [1.4, 0.62, -0.74, 0.68, 0], [2.4, 0.6, -0.73, 0.64, 0.12], [3.4, 0.53, -0.69, 0.53, 0.4], [4.2, 0.42, -0.63, 0.37, 0.7], [4.7, 0.32, -0.56, 0.23, 0.9],
+              [5.05, 0.22, -0.46, 0.08, 1], [5.22, 0.13, -0.36, -0.04, 1], [5.3, 0.045, -0.26, -0.14, 1]];
+  const TRI = [[0.6, 0], [0.92, 0.06], [1, 0.2], [0.84, 0.6], [0.54, 0.87], [0.23, 1]], OVL = [[0.26, 0.017], [0.71, 0.146], [0.97, 0.37], [0.97, 0.63], [0.71, 0.854], [0.26, 0.983]];
+  const at = z => { let i = 0; while (i < ST.length - 2 && z > ST[i+1][0]) i++; const a = ST[i], b = ST[i+1], t = Math.min(1, Math.max(0, (z - a[0])/(b[0] - a[0]))); return a.map((v, j) => v + (b[j] - v)*t); };
   const half = z => { const [, w, yb, yt, e] = at(z); return TRI.map((p, j) => [w*(p[0] + (OVL[j][0] - p[0])*e), yb + (yt - yb)*(p[1] + (OVL[j][1] - p[1])*e), z]); };
   const sect = z => { const h = half(z); return [...h, ...h.slice().reverse().map(p => [-p[0], p[1], p[2]])]; };
-  const body = (z0, z1, c0 = true, c1 = true) => loft([z0, ...ST.map(s => s[0]).filter(z => z > z0 + 1e-6 && z < z1 - 1e-6), z1].map(sect), c0, c1);
+  const zsOf = (z0, z1) => [z0, ...ST.map(s => s[0]).filter(z => z > z0 + 1e-6 && z < z1 - 1e-6), z1];
+  const body = (z0, z1, c0 = true, c1 = true) => loft(zsOf(z0, z1).map(sect), c0, c1);
+  /* Height of the upper skin at (x, z). */
+  const skinY = (x, z) => { const h = half(z); x = Math.abs(x); for (let i = 5; i > 2; i--) if (x <= h[i-1][0]) { const a = h[i], b = h[i-1]; return x <= a[0] ? a[1] : a[1] + (b[1] - a[1])*(x - a[0])/(b[0] - a[0]); } return h[2][1]; };
   /* Paint strip on body facet i (2 = the flank above the chine), between fractions f0 and f1 of the facet, +X side. */
   const strip = (z0, z1, i, f0, f1, off = 0.014) => {
-    const o = [], zs = [z0, ...ST.map(s => s[0]).filter(z => z > z0 + 1e-6 && z < z1 - 1e-6), z1];
+    const o = [], zs = zsOf(z0, z1);
     const Pt = (z, f) => { const h = half(z), a = h[i], b = h[i+1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; return [a[0] + dx*f + off*dy/L, a[1] + dy*f - off*dx/L, z]; };
     for (let j = 0; j < zs.length - 1; j++) quad(o, Pt(zs[j], f0), Pt(zs[j], f1), Pt(zs[j+1], f1), Pt(zs[j+1], f0));
     return o;
   };
-  const deck = (z0, z1, u, off = 0.014) => { const o = [], zs = [z0, ...ST.map(s => s[0]).filter(z => z > z0 + 1e-6 && z < z1 - 1e-6), z1], Pt = (z, s) => { const h = half(z)[5]; return [s*u*h[0], h[1] + off, z]; };
-    for (let j = 0; j < zs.length - 1; j++) quad(o, Pt(zs[j], -1), Pt(zs[j+1], -1), Pt(zs[j+1], 1), Pt(zs[j], 1)); return o; };
-  k.add(body(-4.9, 3.3, true, false), mP); k.add(body(3.3, 3.42, false, false), mS); k.add(body(3.42, 4.78, false, true), mT);   // main, a collar, the painted nose
-  k.both(strip(-3.7, 3.3, 2, 0.52, 0.7), mS);                                                                // cheat line down the flank
-  k.add(deck(1.95, 3.3, 0.92), DARK());                                                                      // anti-glare panel
-  // blown three-piece canopy: raked windscreen, sliding hood, glazed tail; armour plate and headrest behind the pilot
-  const CS = [[2.0, 0.26, 0.68, 0.76], [1.5, 0.33, 0.66, 1.2], [0.9, 0.36, 0.66, 1.28], [0.3, 0.34, 0.66, 1.24], [-0.6, 0.18, 0.7, 0.9]];
+  k.add(body(-5.3, 4.86, true, false), mP); k.add(body(4.86, 5.3, false, true), mT);                           // main, and the rounded nose cap in trim
+  k.both(strip(-4.4, 4.5, 2, 0.3, 0.44), mS);                                                                // cheat line down the flank
+  /* Saddle of paint over the back between z0 and z1: the two shoulder facets and the deck between them. */
+  const saddle = (z0, z1, off = 0.014) => { const o = [], zs = zsOf(z0, z1), R = z => { const h = half(z), a = h[4], b = h[5]; return [[a[0] + off, a[1] + off*0.6, z], [b[0], b[1] + off, z], [-b[0], b[1] + off, z], [-a[0] - off, a[1] + off*0.6, z]]; };
+    for (let j = 0; j < zs.length - 1; j++) { const a = R(zs[j]), b = R(zs[j+1]); for (let i = 0; i < 3; i++) quad(o, a[i], a[i+1], b[i+1], b[i]); } return fix(o); };
+  k.add(saddle(2.3, 4.86), mS); k.add(saddle(-3.3, -1.3), mS);
+  // low framed canopy on the spine: raked windscreen, hood, glazed rear, then a solid fairing running down into the back
+  const CS = [[2.2, 0.22, 0.56, 0.68], [1.72, 0.3, 0.5, 1.07], [1.2, 0.32, 0.5, 1.12], [0.7, 0.32, 0.5, 1.11], [0.2, 0.29, 0.5, 1.03]];
   const hoop = ([z, w, yb, yt]) => [[-w, yb, z], [w, yb, z], [w*0.96, yb + (yt - yb)*0.55, z], [w*0.56, yt, z], [-w*0.56, yt, z], [-w*0.96, yb + (yt - yb)*0.55, z]];
   k.add(loft(CS.map(hoop)), GLASS());
-  { const fr = STEEL(), H = CS.map(hoop), rib = 0.045;
-    for (const i of [1, 3]) for (let j = 1; j < 5; j++) k.add(bar(H[i][j], H[i][j+1], rib), fr);                 // windscreen and hood hoops
-    for (let j = 2; j < 4; j++) k.add(bar(H[2][j === 2 ? 2 : 4], H[2][j === 2 ? 3 : 5], 0.03), fr);              // light mid frame on the hood sides
-    for (const j of [3, 4]) k.add(bar(H[0][j], H[1][j], rib), fr);                                               // windscreen posts
+  k.add(loft([hoop(CS[4]), hoop([-0.35, 0.2, 0.52, 0.86]), hoop([-0.95, 0.08, 0.56, 0.7])]), mP);                // spine fairing behind the glass
+  { const fr = mP, H = CS.map(hoop), rib = 0.045;
+    for (let i = 1; i < 5; i++) for (let j = 1; j < 5; j++) k.add(bar(H[i][j], H[i][j+1], i === 2 ? 0.032 : rib), fr);   // hoops: windscreen arch, hood frames, rear arch
+    for (const j of [2, 3, 4, 5]) k.add(bar(H[0][j === 2 ? 1 : j === 5 ? 0 : j], H[1][j], rib), fr);             // windscreen posts
     for (let i = 0; i < 4; i++) for (const j of [1, 0]) k.add(bar([H[i][j][0], H[i][j][1] + 0.02, H[i][j][2]], [H[i+1][j][0], H[i+1][j][1] + 0.02, H[i+1][j][2]], 0.04), fr);   // sills
-    k.add(bar([0, CS[3][3], CS[3][0]], [0, CS[4][3], CS[4][0]], 0.04), fr); }                                    // spine of the rear glazing
-  k.add(box(0.4, 0.5, 0.04), PLATE(), T(0, 0.92, 0.5)); k.add(box(0.2, 0.16, 0.07), LEATHER(), T(0, 1.1, 0.54));
-  k.add(box(0.5, 0.1, 0.3), DARK(), T(0, 0.82, 1.52)); k.add(box(0.07, 0.1, 0.07), GUNMETAL(), T(0, 0.92, 1.46));   // coaming and gunsight
-  seatAndPilot(g, k, 0, 1.08, 0.75);
-  // low swept wings: straight leading edge, trailing edge kinked at the nacelle, polished slats, flap and aileron seams
+    for (const j of [2, 5]) k.add(bar(H[1][j], H[4][j], 0.03), fr); }                                            // rails along the shoulder of the hood
+  k.add(box(0.4, 0.42, 0.04), PLATE(), T(0, 0.78, 0.82)); k.add(box(0.2, 0.14, 0.07), LEATHER(), T(0, 0.9, 0.86));   // armour plate and headrest
+  k.add(box(0.44, 0.08, 0.3), DARK(), T(0, 0.66, 1.78)); k.add(box(0.06, 0.08, 0.06), GUNMETAL(), T(0, 0.74, 1.7));   // coaming and gunsight
+  seatAndPilot(g, k, 0, 0.88, 1.1);
+  // thin low wings: leading edge swept 18.5 degrees, trailing edge nearly straight with a kink at the nacelle
   const KT = 0.29, WY = -0.5;
-  const mw = t => { const le = 2.6 - 1.95*t, te = t < KT ? -0.25 + 0.33*t/KT : 0.08 - 0.43*(t - KT)/(1 - KT); return [0.62 + 4.6*t, le - te, 0.26*(1 - 0.45*t), (le + te)/2, WY + 0.34*t]; };
-  k.both(pan(mw, 0, KT), mP); k.both(pan(mw, KT, 0.64), mP); k.both(pan(mw, 0.64, 0.74), mS); k.both(pan(mw, 0.74, 1), mT); k.both(tipOf(mw, 0.2, 0.55), mT); navLamps(k, mw);
-  { const r = mw(0), q = mw(0.15); k.both(loft([foil(0.45, r[1]*1.07, r[2]*2.1, r[3] - 0.03, r[4] - 0.03), foil(q[0], q[1]*1.02, q[2]*1.08, q[3], q[4])]), mP); }   // root fillet
-  const slat = (f, t0, t1, o = 0.012) => { const out = [], N = t => { const [x, c, th, zc, yc] = f(t); return [[x, yc - 0.18*th, zc + 0.5*c + o], [x, yc + 0.18*th, zc + 0.5*c + o], [x, yc + 0.33*th + o, zc + 0.36*c + o*0.5]]; }, a = N(t0), b = N(t1);
-    quad(out, a[0], b[0], b[1], a[1]); quad(out, a[1], b[1], b[2], a[2]); return out; };
-  k.both(slat(mw, 0.02, KT - 0.1), polish); k.both(slat(mw, KT + 0.1, 0.97), polish);
+  const mw = t => { const le = 1.98 - 1.91*t, te = t < KT ? -1.02 + 0.3*t/KT : -0.72 - 0.38*(t - KT)/(1 - KT); return [0.4 + 5.7*t, le - te, 0.2*(1 - 0.5*t), (le + te)/2, WY + 0.5*t]; };
+  k.both(pan(mw, 0, KT), mP); k.both(pan(mw, KT, 0.5), mS); k.both(pan(mw, 0.5, 0.72), mP); k.both(pan(mw, 0.72, 0.93), mS); k.both(pan(mw, 0.93, 1), mT); k.both(tipOf(mw, 0.2, 0.6), mT); navLamps(k, mw);
+  { const r = mw(0), q = mw(0.1); k.both(loft([foil(0.3, r[1]*1.05, r[2]*1.9, r[3] - 0.02, r[4] - 0.03), foil(q[0], q[1]*1.01, q[2]*1.06, q[3], q[4])]), mP); }   // root fillet
   /* Hinge seam along the 65% chord ridge of a wing function, upper and lower surface. */
-  const seam = (f, t0, t1, w = 0.035) => { const a = f(t0), b = f(t1), o = bar([a[0], a[4] + 0.46*a[2], a[3] - 0.15*a[1]], [b[0], b[4] + 0.46*b[2], b[3] - 0.15*b[1]], w, 0.02);
+  const seam = (f, t0, t1, w = 0.03) => { const a = f(t0), b = f(t1), o = bar([a[0], a[4] + 0.46*a[2], a[3] - 0.15*a[1]], [b[0], b[4] + 0.46*b[2], b[3] - 0.15*b[1]], w, 0.02);
     for (const v of bar([a[0], a[4] - 0.42*a[2], a[3] - 0.1*a[1]], [b[0], b[4] - 0.42*b[2], b[3] - 0.1*b[1]], w, 0.02)) o.push(v); return o; };
-  k.both(seam(mw, 0.03, 0.2), INK()); k.both(seam(mw, 0.4, 0.62), INK()); k.both(seam(mw, 0.66, 0.98), INK());
-  wingEmblem(k, mw, 0.52, [[disc(0.34, 16), BONE()], [ring(0.28, 0.34, 16), mT]]);
+  k.both(seam(mw, 0.05, 0.2), INK()); k.both(seam(mw, 0.39, 0.6), INK()); k.both(seam(mw, 0.62, 0.98), INK());
+  wingEmblem(k, mw, 0.61, [[disc(0.3, 16), BONE()], [ring(0.24, 0.3, 16), mT]]);
   { const s = mw(1); k.add(tube([s[0] - 0.1, s[4], s[3] + s[1]*0.4], [s[0] - 0.1, s[4], s[3] + s[1]*0.5 + 0.55], 0.02, 4), STEEL()); }   // pitot on the port tip
-  // the twin turbojets, hung straight under the wing: intake lip and starter bullet in front, bare hot section, nozzle and turbine cone behind
-  const jets = [], NX = 1.95, NY = WY + 0.34*KT - 0.44, ZX = -1.7;
-  const NA = [[0.2, ZX], [0.26, -1.42], [0.37, -0.85], [0.45, 0.0], [0.47, 0.9], [0.45, 1.7], [0.4, 2.3], [0.385, 2.46], [0.34, 2.55], [0.27, 2.52]];
+  // the twin turbojets: long fat cigars hung straight under the wing, reaching well ahead of it. Round intake lip and starter bullet
+  // in front, a tapering tail with the bare nozzle and its exhaust cone poking out behind the trailing edge.
+  const jets = [], NX = 2.05, NY = WY + 0.5*KT - 0.31, ZX = -1.05;
+  const NA = [[0.23, ZX], [0.27, -0.8], [0.35, -0.3], [0.42, 0.3], [0.46, 1.0], [0.465, 1.7], [0.445, 2.25], [0.41, 2.55], [0.365, 2.7], [0.31, 2.76], [0.26, 2.72]];
   for (const sx of [1, -1]) {
     const x = sx*NX, M = T(x, NY, 0);
-    k.add(lathe(cut(NA, ZX, -1.42), 12, 1, 1, false), DARK(), M);                                               // nozzle
-    k.add(lathe(cut(NA, -1.42, -1.0), 12, 1, 1, false), GUNMETAL(), M);                                         // bare hot section
-    k.add(lathe(cut(NA, -1.0, 2.14), 12, 1, 1, false), mP, M);
-    k.add(lathe(cut(NA, 2.14, 2.24), 12, 1, 1, false), mS, M);
-    k.add(lathe(cut(NA, 2.24, 2.52), 12, 1, 1, false), mT, M);                                                  // intake lip
-    k.add(disc(0.3, 12), INK(), T(x, NY, 2.42));                                                                // down the intake
-    k.add(lathe([[0.15, 2.4], [0.15, 2.5], [0.1, 2.62], [0.03, 2.68]], 8), polish, M);                          // starter bullet
-    k.add(disc(0.22, 12), INK(), mul(T(x, NY, ZX + 0.06), RY(PI)));                                             // up the pipe
-    k.add(lathe([[0.02, ZX - 0.2], [0.09, ZX - 0.05], [0.12, ZX + 0.08]], 8), GUNMETAL(), M);                   // turbine cone
-    k.add(loft([quadRing(1.9, -0.09, 0.09, 0.2, 0.52), quadRing(0.4, -0.11, 0.11, 0.3, 0.56), quadRing(-0.9, -0.05, 0.05, 0.2, 0.44)]), mP, M);   // fairing into the wing
+    k.add(lathe(cut(NA, ZX, -0.8), 12, 1, 1, false), DARK(), M);                                                // nozzle
+    k.add(lathe(cut(NA, -0.8, -0.55), 12, 1, 1, false), GUNMETAL(), M);                                         // bare hot section
+    k.add(lathe(cut(NA, -0.55, 2.3), 12, 1, 1, false), mP, M);
+    k.add(lathe(cut(NA, 2.3, 2.42), 12, 1, 1, false), mS, M);
+    k.add(lathe(cut(NA, 2.42, 2.72), 12, 1, 1, false), mT, M);                                                  // intake lip
+    k.add(disc(0.3, 12), INK(), T(x, NY, 2.6));                                                                 // down the intake
+    k.add(lathe([[0.14, 2.56], [0.14, 2.68], [0.09, 2.8], [0.025, 2.86]], 8), STEEL(), M);                      // starter bullet
+    k.add(disc(0.23, 12), INK(), mul(T(x, NY, ZX + 0.08), RY(PI)));                                             // up the pipe
+    k.add(lathe([[0.02, ZX - 0.3], [0.09, ZX - 0.1], [0.14, ZX + 0.1]], 8), GUNMETAL(), M);                     // exhaust cone
+    k.add(loft([quadRing(1.6, -0.1, 0.1, 0.2, 0.44), quadRing(0.3, -0.13, 0.13, 0.24, 0.42), quadRing(-0.75, -0.05, 0.05, 0.14, 0.3)]), mP, M);   // fairing over the wing
     jets.push(new V3(x, NY, ZX));
   }
-  // tail: tall swept fin with an upright trailing edge, tailplane set a third of the way up it
-  const vf = t => [0.2 + 1.65*t, 1.75 - 0.9*t, 0.13, -3.02 - 0.55*t, 0];
-  paintFin(k, vf, UP(0, 0.45), mP, mT, mT, 0.3, 0.7);
-  k.add(seam(vf, 0.08, 0.97), INK(), UP(0, 0.45));
-  k.add(loft([[[-0.05, 0.6, -2.3], [0.05, 0.6, -2.3], [0, 1.0, -2.45]], [[-0.02, 0.74, -1.3], [0.02, 0.74, -1.3], [0, 0.8, -1.3]]]), mP);   // dorsal strake
-  const tp = wingF(0.1, 1.8, 1.1, 0.52, 0.1, -3.25, 0.5, 1.02, 0.05); paintWing(k, tp, mP, mS, mT, 0.7, 0.8);
-  k.both(seam(tp, 0.1, 0.97, 0.03), INK());
-  k.decal(onSide(0.085, 1.72, -3.5), [[poly([[-0.25, 0.3], [0.1, 0.05], [-0.05, 0.02], [0.25, -0.3], [-0.1, -0.05], [0.05, -0.02]]), mS]], true);   // a lightning bolt on the fin
-  { const z = -1.75, h = half(z), a = h[2], b = h[3];                                                           // roundel on the flank, laid on the slope of the side
-    k.decal(mul(T((a[0] + b[0])/2 + 0.035, (a[1] + b[1])/2, z), RZ(Math.atan2(a[0] - b[0], b[1] - a[1])), RY(PI/2)), [[disc(0.3, 16), BONE()], [ring(0.24, 0.3, 16), mT]], true); }
-  // four heavy cannon staggered in the top of the nose, each in a blast trough; rocket rails outboard of the nacelles
-  const mz = [new V3(0.1, 0.25, 4.14), new V3(-0.1, 0.25, 4.14), new V3(0.25, 0.1, 3.97), new V3(-0.25, 0.1, 3.97)];
-  for (const m of mz) { k.add(lathe([[0.02, -0.95], [0.075, -0.6], [0.075, -0.12], [0.055, -0.06]], 6), DARK(), T(m.x, m.y, m.z)); gun(k, m, 0.5, 0.04, 0); }
-  rails(k, 3.2, -0.42, 0.3);
-  // tricycle undercarriage: a long nose leg folding back, mains folding inward into the belly
-  gearLeg(k, [0, -0.5, 2.72], [0, -1.62, 2.74], 0.3, mT, null, 0);
-  for (const sx of [1, -1]) gearLeg(k, [sx*1.2, -0.5, 0.35], [sx*1.3, -1.56, 0.4], 0.36, mT, mP, sx);
-  hookMast(k, -0.5, 0.86);
+  // tail: tall fin with a straight, sharply swept leading edge and a rounded top; thin tailplane set part-way up it
+  const FY = 0.34, vf = t => [1.55*t, 1.95 - 1.27*t, 0.11*(1 - 0.3*t), -4.3 - 0.65*t, 0];
+  paintFin(k, vf, UP(0, FY), mP, mS, mT, 0.64, 0.72);
+  k.add(seam(vf, 0.1, 0.97), INK(), UP(0, FY));
+  const tp = wingF(0.03, 1.8, 1.2, 0.62, 0.085, -4.5, 0.27, 0.98, 0.02); paintWing(k, tp, mP, mS, mT, 0.72, 0.82);
+  k.both(seam(tp, 0.1, 0.97, 0.025), INK());
+  k.decal(onSide(0.07, 1.36, -4.62), [[poly([[-0.22, 0.26], [0.09, 0.04], [-0.04, 0.02], [0.22, -0.26], [-0.09, -0.04], [0.04, -0.02]]), mS]], true);   // a lightning bolt on the fin
+  // four cannon in the top of the nose, the inner pair ahead of the outer, each firing from a blast trough; rocket rails outboard of the nacelles
+  const mz = [[0.085, 4.72], [-0.085, 4.72], [0.215, 4.4], [-0.215, 4.4]].map(([x, z]) => new V3(x, skinY(x, z) + 0.025, z));
+  for (const m of mz) { k.add(lathe([[0.02, -0.6], [0.058, -0.38], [0.058, -0.1], [0.045, -0.05]], 6), DARK(), T(m.x, m.y, m.z)); gun(k, m, 0.42, 0.038, 0); }
+  rails(k, 3.4, -0.37, 0.15);
+  // tricycle undercarriage: mains in the wing roots folding inward into the belly, nose leg folding back under the cockpit floor
+  gearLeg(k, [0, -0.4, 3.15], [0, -1.4, 3.18], 0.3, mT, null, 0);
+  for (const sx of [1, -1]) gearLeg(k, [sx*1.28, -0.36, 0.25], [sx*1.45, -1.3, 0.28], 0.4, mT, mP, sx);
+  hookMast(k, -0.62, 0.74);
   k.build(g);
-  // each jet glows: a hot ring in the pipe around the turbine cone and a soft flame behind it, brighter with throttle (planes.js)
+  // each jet glows: a hot ring in the pipe around the exhaust cone and a soft flame behind it, brighter with throttle (planes.js)
   const glow = [];
   for (const j of jets) {
-    const hot = new THREE.Mesh(new THREE.CircleGeometry(0.19, 12), new THREE.MeshBasicMaterial({color:0xff9a3a, transparent:true, opacity:0.8, depthWrite:false}));
+    const hot = new THREE.Mesh(new THREE.CircleGeometry(0.2, 12), new THREE.MeshBasicMaterial({color:0xff9a3a, transparent:true, opacity:0.8, depthWrite:false}));
     hot.position.copy(j).add(new V3(0, 0, 0.02)); hot.rotation.y = PI; g.add(hot);
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.2, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.18, 1.2, 10, 1, true), new THREE.MeshBasicMaterial({color:0xffb060, transparent:true, opacity:0.35, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
     flame.rotation.x = -PI/2; flame.position.copy(j).add(new V3(0, 0, -0.6)); g.add(flame);
     glow.push({hot, flame});
   }
   const prop = new THREE.Group(); prop.visible = false; g.add(prop);   // no propeller: an empty stand-in keeps the plane contract
-  g.userData = {prop, props:[], jet:glow, muzzles:mz, rails:[new V3(3.2, -0.62, 0.8), new V3(-3.2, -0.62, 0.8)], radius:5.6, cockpit:new V3(0, 1.14, 0.85), exhaust:jets[0].clone(), gear:1.92};
+  g.userData = {prop, props:[], jet:glow, muzzles:mz, rails:[new V3(3.4, -0.56, 0.65), new V3(-3.4, -0.56, 0.65)], radius:6.4, cockpit:new V3(0, 0.93, 1.22), exhaust:jets[0].clone(), gear:1.7};
   return g;
 }
 
