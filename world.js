@@ -130,7 +130,7 @@ G.World = class {
       r = (0.2 + 0.2*sc)*lum; g = (0.18 + 0.05*sc)*lum; b = (0.17 + 0.03*sc)*lum;
       r += (0.16*lum - r)*jungle; g += (0.4*lum - g)*jungle; b += (0.14*lum - b)*jungle;
       const ash = sm(200, 420, hh + v1*60); r += (0.55 - r)*ash*0.7; g += (0.53 - g)*ash*0.7; b += (0.5 - b)*ash*0.7;
-      if (this.terr === 'calavera') { const rc = Math.hypot(x, z - 3000); if (rc < 300 && hh < this.calderaFloor + 14) { const glow = 0.55 + 0.45*sm(-0.2, 0.4, n(x*0.02 + 3, z*0.02, 2)); return [0.95*glow + 0.15, 0.3*glow + 0.05, 0.05]; } if (rc < 560 && rc > 250) { const k2 = sm(560, 300, rc)*0.6; r += (0.12 - r)*k2; g += (0.1 - g)*k2; b += (0.09 - b)*k2; } }
+      if (this.terr === 'calavera') { const rc = Math.hypot(x, z - 3000); if (rc < 160 && hh < this.calderaFloor + 12) { const glow = 0.55 + 0.45*sm(-0.2, 0.4, n(x*0.02 + 3, z*0.02, 2)); return [0.95*glow + 0.15, 0.3*glow + 0.05, 0.05]; } if (rc < 290 && rc > 120) { const k2 = sm(290, 180, rc)*0.6; r += (0.12 - r)*k2; g += (0.1 - g)*k2; b += (0.09 - b)*k2; } }
       if (this.terr === 'calavera' && this.skullD(x, z).eyeR > 0) { const glow = 0.5 + 0.5*sm(-0.2, 0.4, n(x*0.006 + 3, z*0.006, 3)); return [0.95*glow + 0.15, 0.32*glow + 0.05, 0.06]; }
     } else {
       if (RT.cold) { r *= 0.86; g *= 0.94; b *= 1.05; }
@@ -263,12 +263,13 @@ G.World = class {
     for (const [e, H] of [[S.eyeL, 170], [S.eyeR, 250]]) { const o = -e; if (o > -80) h += H*Math.exp(-(((o - 140)/240)**2))*(d > -60 ? 1 : 0.4); }
     // volcanoes: Mount Cranium on the crown (with a summit crater) and two smaller cones on the cheekbones
     const cone = (cx, cz, H, R, cr, dip) => { const r = Math.hypot(x - cx, z - cz); if (r > R) return 0; let c = H*Math.pow(1 - r/R, 1.5); if (r < cr) c -= dip*(1 - r/cr)**2; return c; };
-    // Mount Cranium: a broad cone blown open at the top, a ragged rim round a deep caldera with a lava lake in the bottom
+    // Mount Cranium: the original cone, with its summit opened into a crater: a raised ragged rim and a lava pool sunk inside it
     const caldera = () => {
-      const r = Math.hypot(x, z - 3000), R = 2300, H = 700, rim = 540 + n(x*0.004, z*0.004 + 5, 2)*60; if (r > R) return 0;
-      const c = H*Math.pow(1 - Math.min(r, rim)/R, 1.5), lip = 26*Math.exp(-(((r - rim)/70)**2)) + n(x*0.015, z*0.015, 2)*16*sm(rim - 200, rim, r);
-      if (r >= rim) return c + lip;
-      const floor = c - 330; return floor + (c - floor)*sm(rim*0.5, rim, r)**1.6 + lip;
+      const r = Math.hypot(x, z - 3000), R = 2300, H = 640; if (r > R) return 0;
+      const rim = 250 + n(x*0.006, z*0.006 + 5, 2)*30, c = H*Math.pow(1 - Math.min(r, rim)/R, 1.5);
+      const lip = 22*Math.exp(-(((r - rim)/55)**2)) + n(x*0.02, z*0.02, 2)*10*Math.exp(-(((r - rim)/90)**2));
+      if (r >= rim) return H*Math.pow(1 - r/R, 1.5) + lip;
+      return c - 150*sm(rim, rim*0.45, r) + lip;   // steep inner walls down to a flat floor
     };
     if (d > -200) h += caldera() + cone(-3050, -1150, 330, 1150, 120, 75) + cone(3050, -1150, 360, 1150, 120, 75);
     h += n(x*0.007, z*0.007, 2)*4 + n(x*0.03, z*0.03, 2)*0.8;   // rough basalt

@@ -155,7 +155,7 @@ const REG = G.REGIONS = {
     ],
     marks:[
       {id:'keep', kind:'keep', name:'Brimstone Keep', at:{want:'land', x:0, z:2200, r:500}, flat:58},
-      {id:'cranium', kind:'volcano', name:'Mount Cranium', at:{x:0, z:3000}, plume:2.2, caldera:290},
+      {id:'cranium', kind:'volcano', name:'Mount Cranium', at:{x:0, z:3000}, plume:2.2, caldera:125},
       {id:'burning', kind:'lava', name:'the Burning Eye', at:{x:1750, z:-600}, r:900},
       {id:'cheekw', kind:'volcano', name:'the west cheekbone', at:{want:'high', x:-3050, z:-1150, r:400}, plume:0.9},
       {id:'cheeke', kind:'volcano', name:'the east cheekbone', at:{want:'high', x:3050, z:-1150, r:400}, plume:1.1},
@@ -169,7 +169,7 @@ const REG = G.REGIONS = {
     ],
     treasures:[
       {id:'v1', name:'The Santa Muerte\'s silver', at:'galleon', off:[30, -20], hint:'A Spanish galleon ran onto the east coast of the Calavera with a hold full of silver. Fly low over the wreck.', reward:{cash:4000}},
-      {id:'v2', name:'Crater gold', at:'cranium', off:[60, -548], hint:'Old Brimstone\'s first crew hid their gold on the rim of Mount Cranium. Nobody goes up there. It\'s on fire.', reward:{livery:'brimstone', cash:2500}},
+      {id:'v2', name:'Crater gold', at:'cranium', off:[40, -262], hint:'Old Brimstone\'s first crew hid their gold on the rim of Mount Cranium. Nobody goes up there. It\'s on fire.', reward:{livery:'brimstone', cash:2500}},
       {id:'v3', name:'The Teeth Run', at:[0, -4000], race:{circuit:{at:[0, -4000], r:1600, n:10, agl:26}, low:true}, hint:'Pirates race through the channels between the Teeth. Wave-top height, and mind the fangs.', reward:{cash:4500}},
       {id:'v4', name:'Pike\'s rum cache', at:'cinder', off:[260, 180], hint:'"Bilge" Pike buried a cache of navy rum somewhere east of Cinder Cove and drank the map.', reward:{cash:3000}},
       {id:'v5', name:'The Gullet chest', at:'gullet', ledge:7, hint:'There\'s a chest on a ledge inside the Devil\'s Gullet, a lava tube under the crown. Fly in slow and look right.', reward:{mod:'drums', cash:2000}}
