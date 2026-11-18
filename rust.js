@@ -870,6 +870,56 @@ function policeTick(c, g, dt){
 }
 G.policeHeat = (c, g, n, why) => { if (!c || c.noPolice) return; c.heat = Math.min(150, (c.heat || 0) + n); c.heatQuiet = 0; if (why) G.HUD.toast(why); };
 
+/* ---------- after dark: river fog lying low in the valley, and searchlights sweeping the sky over the city ---------- */
+function fogTexture(){
+  if (fogTexture.t || typeof document === 'undefined' || !document.createElement) return fogTexture.t || null;
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext && c.getContext('2d'); if (!x) return null;
+  const R = G.rng(77); x.clearRect(0, 0, 256, 256);
+  for (let i = 0; i < 70; i++) { const px = R()*256, py = R()*256, r = 20 + R()*60, gr = x.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(255,255,255,${0.25 + R()*0.35})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    for (const [ox, oy] of [[0, 0], [256, 0], [-256, 0], [0, 256], [0, -256]]) { x.save(); x.translate(ox, oy); x.fillStyle = gr; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.restore(); } }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(9, 20); return (fogTexture.t = t);
+}
+function afterDark(c, g){
+  const time = g.world.time, night = time === 'night', dusk = time === 'evening'; if (!night && !dusk) return;
+  // three thin sheets of mist at rooftop height and below, drifting slowly downriver; the hills stand up out of it
+  const tex = fogTexture(), sheets = [];
+  [[9, night ? 0.42 : 0.2], [19, night ? 0.3 : 0.14], [33, night ? 0.16 : 0.07]].forEach(([y, op], i) => {
+    const m = new THREE.MeshBasicMaterial({color:night ? 0x8a96a8 : 0xc8b8a8, map:tex, transparent:true, opacity:tex ? op : op*0.5, depthWrite:false, side:THREE.DoubleSide});
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(6200, 12500), m); sh.rotation.x = -PI/2; sh.position.set(rx(0), y, -400); sh.renderOrder = 2 + i; g.scene.add(sh); sheets.push(sh);
+  });
+  c.anim.push(dt => { sheets.forEach((sh, i) => { if (sh.material.map) { sh.material.map.offset.y -= dt*0.0009*(1 + i*0.4); sh.material.map.offset.x += dt*0.0003*(i - 1); } }); });
+  // searchlights: round downtown, on the docks, at the gasworks, the steelworks, the dam and on the Liberty Span's towers
+  if (!G.buildSearchlight) return;
+  const spots = [];
+  const add = (x, z, y0) => { const y = y0 !== undefined ? y0 : Math.max(0, g.world.height(x, z, true)); const m = G.buildSearchlight(2600, 75, night ? 0.055 : 0.03); m.position.set(x, y - (y0 !== undefined ? 15 : 0), z); g.scene.add(m);
+    const S = {m, head:m.userData.head, base:Math.random()*PI*2, ph:Math.random()*6, lock:0, pos:new V3(x, y + 1, z)}; spots.push(S); };
+  for (let i = 0; i < 5; i++) { const a = i/5*PI*2 + 0.3; add(bankX(-900, 1, 300) + Math.sin(a)*320, -900 + Math.cos(a)*320); }
+  for (const z of [-4100, -3700, -3300]) add(bankX(z, 1, 40), z);
+  if (c.P.gasworks) { add(c.P.gasworks.x + 120, c.P.gasworks.z - 100); add(c.P.gasworks.x - 140, c.P.gasworks.z + 90); }
+  for (const z of [2900, 3700]) add(bankX(z, 1, 240), z);
+  add(rx(RU.DAM) - 250, RU.DAM - 60); add(rx(RU.DAM) + 250, RU.DAM - 60);
+  { const F = bridgeFrame(-700), tu = rw(-700)/2 + 12; for (const sgn of [1, -1]) add(F.c.x + Math.cos(F.yaw)*sgn*tu, F.c.z - Math.sin(F.yaw)*sgn*tu, 34 + 84); }
+  const dir = new V3();
+  c.anim.push(dt => {
+    const t = g.t, P = g.player;
+    for (const S of spots) {
+      let yaw = S.base + Math.sin(t*0.2 + S.ph)*1.1, el = 1.0 + 0.3*Math.sin(t*0.29 + S.ph);
+      if (P && P.alive) {
+        const dx = P.pos.x - S.pos.x, dy = P.pos.y - S.pos.y, dz = P.pos.z - S.pos.z, hd = Math.hypot(dx, dz), d = Math.hypot(hd, dy);
+        if (S.lock > 0) { S.lock -= dt; yaw = Math.atan2(dx, dz); el = Math.atan2(dy, hd); }
+        else {
+          // a beam that sweeps across the player catches them and holds on for a few seconds
+          const cy = Math.cos(el); dir.set(Math.sin(yaw)*cy, Math.sin(el), Math.cos(yaw)*cy);
+          const along = dx*dir.x + dy*dir.y + dz*dir.z, off = Math.sqrt(Math.max(0, d*d - along*along));
+          if (along > 60 && along < 2500 && off < 6 + along*0.055) { S.lock = 4 + Math.random()*3; if (!c.caughtT || t - c.caughtT > 25) { c.caughtT = t; G.HUD.toast('Caught in a searchlight!'); } }
+        }
+      }
+      const dyaw = ((yaw - S.head.rotation.y + PI*3) % (PI*2)) - PI; S.head.rotation.y += dyaw*Math.min(1, dt*(S.lock > 0 ? 6 : 2)); S.head.rotation.x += (-el - S.head.rotation.x)*Math.min(1, dt*(S.lock > 0 ? 6 : 2));
+    }
+  });
+  c.searchlights = spots;
+}
+
 /* ---------- the region comes together: city, railway, its train, the frame ---------- */
 G.REGION_BUILD = G.REGION_BUILD || {};
 G.REGION_BUILD.rustwater = (c, g) => {
@@ -878,7 +928,7 @@ G.REGION_BUILD.rustwater = (c, g) => {
   buildEl(c, g);
   buildCity(c, g);
   if (G.Train && c.rail) c.train = new G.Train(g, c.rail, ['loco', 'box', 'pay', 'box'], {speed:13, s:30});
-  if (c.skyBeams && c.night) c.skyBeams(g, {x:bankX(-900, 1, 300), z:-900}, 4, 240);
+  afterDark(c, g);
   c.rtick = (gg, dt) => rtick(c, gg, dt);
 };
 

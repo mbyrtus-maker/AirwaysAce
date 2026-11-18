@@ -589,6 +589,7 @@ function buildSearchlight(len = 1100, rad = 42, op = 0.09){
   head.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0xfff0c8, transparent:true, opacity:op, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false})));
   g.userData.head = head; return g;
 }
+G.buildSearchlight = buildSearchlight;
 /* Sea caves. Each tunnel follows a centreline: straight, a single bend, or an S. Every slice along it is a lumpy rock arch
    round a smooth Roman-arch bore; the shell bulges in the middle and tapers at the mouths. Straight caves get a sea stack
    just past the exit, so you have to break hard as you come out. */
