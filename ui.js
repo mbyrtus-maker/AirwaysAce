@@ -144,7 +144,7 @@ const UI = G.UI = {
   },
   continueStory(){ const r = this.lastResult; if (r && this.lastMission && this.lastMission.story && G.save.story && G.save.story.node === this.lastMission.id) G.storyCommit(r); this.lastResult = null; G.save.mission = 'story'; G.persist(); this.menu(); },
   retry(){ this.fly(); },
-  quit(){ const g = G.game; if (g && G.Net) G.Net.onQuit(g); if (g) { g.dispose(); G.game = null; } if (document.pointerLockElement) document.exitPointerLock(); },
+  quit(){ const g = G.game; if (G.weatherSound) G.weatherSound.silence(); if (g && G.Net) G.Net.onQuit(g); if (g) { g.dispose(); G.game = null; } if (document.pointerLockElement) document.exitPointerLock(); },
   pause(on){
     const g = G.game; if (!g || g.done || UI.inContact || UI.inDev) return; g.paused = on; this.screen(on ? 'pause' : null);
     const op = !!g.mission.open; $('pOpen').hidden = !op; $('pStd').hidden = op; if (op) $('pAbandon').hidden = !g.mission.job;

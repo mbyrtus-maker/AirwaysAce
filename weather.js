@@ -59,6 +59,26 @@ const W = G.weather = {
   known(region){ return Object.keys(CLIMATE[region] || {}).filter(k => k !== 'clear').map(k => KINDS[k].label.toLowerCase()).join(', '); }
 };
 
+/* ---------- weather sound: recorded loops (sounds/), faded to suit the spell ---------- */
+const AMB = {rain:'sounds/rain.mp3', storm:'sounds/storm.mp3', wind:'sounds/wind.mp3', blizzard:'sounds/blizzard.mp3'};
+const MIX = {rain:{rain:0.5}, squall:{rain:0.55, wind:0.25}, storm:{storm:0.65, wind:0.2}, tropical:{storm:0.65, wind:0.45}, dust:{wind:0.6}, drystorm:{wind:0.35},
+  snow:{blizzard:0.16}, blizzard:{blizzard:0.65}, ash:{wind:0.12}, overcast:{wind:0.07}, haze:{wind:0.05}, smog:{wind:0.05}};
+const Amb = G.weatherSound = {
+  buf:{}, loops:{}, loading:false,
+  load(){
+    const A = G.audio; if (!A || !A.ctx || this.loading || typeof fetch !== 'function') return; this.loading = true;
+    for (const [k, u] of Object.entries(AMB)) fetch(u).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = A.ctx.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(buf => { this.buf[k] = buf; }).catch(() => {});
+  },
+  set(k, gain){
+    const A = G.audio; if (!A || !A.ctx) return;
+    let L = this.loops[k];
+    if (!L) { if (!this.buf[k] || gain < 0.01) return; const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = this.buf[k]; src.loop = true; g.gain.value = 0; src.connect(g).connect(A.sfxBus); src.start(0, Math.random()*this.buf[k].duration*0.8); L = this.loops[k] = {src, g}; }
+    L.g.gain.setTargetAtTime(gain, A.ctx.currentTime, 0.8);
+  },
+  mix(levels){ for (const k of Object.keys(AMB)) this.set(k, levels[k] || 0); },
+  silence(){ this.mix({}); }
+};
+
 /* ---------- the effect in a game ---------- */
 class Sky {
   constructor(g, region, o = {}){
@@ -126,6 +146,9 @@ class Sky {
     const ws = this.mix('wind')*(0.75 + 0.35*Math.sin(this.gust) + 0.15*Math.sin(this.gust*2.7));
     this.wind.set(Math.sin(this.windDir)*ws, 0, Math.cos(this.windDir)*ws);
     this.precip(dt, cam);
+    // sound: blend the outgoing spell's mix into the incoming one; quiet when the sortie's over
+    if (G.audio && G.audio.ctx) { Amb.load(); const a = MIX[this.from] || {}, b = MIX[this.id] || {}, L = {}, on = this.g.done ? 0 : 1;
+      for (const k of Object.keys(AMB)) L[k] = ((a[k] || 0)*(1 - this.blend) + (b[k] || 0)*this.blend)*on; Amb.mix(L); }
     // lightning
     const L = this.mix('lightning');
     if (L > 0.2 && dt > 0) { this.boltT -= dt*L; if (this.boltT <= 0) { this.boltT = 5 + Math.random()*12; this.strike(cam); } }
@@ -193,7 +216,7 @@ class Sky {
 G.WeatherSky = Sky;
 
 /* story episodes: a mission can set weather:'rain' (and weatherScript:[[seconds, id, radio line]]) for a fixed sky */
-G.weatherFor = g => { const M = g.mission; if (g.weather || !M || !M.weather) return; g.weather = new Sky(g, M.region || 'halcyon', {id:M.weather, script:(M.weatherScript || []).map(x => x.slice())}); };
+G.weatherFor = g => { Amb.silence(); const M = g.mission; if (g.weather || !M || !M.weather) return; g.weather = new Sky(g, M.region || 'halcyon', {id:M.weather, script:(M.weatherScript || []).map(x => x.slice())}); };
 /* ---------- hooks: open skies gets weather; the chart shows it; waiting or sailing brings new weather ---------- */
 const O = G.MISSIONS.open, setup0 = O.setup;
 O.setup = function(g){ setup0.call(this, g); g.weather = new Sky(g, this.R.id); };
