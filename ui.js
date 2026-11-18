@@ -192,7 +192,7 @@ const preview = {
       this.r = new THREE.WebGLRenderer({antialias:true, alpha:true}); this.scene = new THREE.Scene();
       this.cam = new THREE.PerspectiveCamera(30, 16/10, 0.5, 200);
       this.scene.add(new THREE.HemisphereLight(0xf4efe6, 0x3a3226, 0.9)); const d = new THREE.DirectionalLight(0xfff0d6, 1.1); d.position.set(6, 10, 8); this.scene.add(d);
-      const loop = () => { if (!this.m || !this.canvas || this.canvas.offsetParent === null) { this.idle = true; return; } requestAnimationFrame(loop); this.m.rotation.y += 0.006; const pr = this.m.userData.prop; if (pr) pr.rotation.z += 0.5; this.draw(); };
+      const loop = () => { if (!this.m || !this.canvas || this.canvas.offsetParent === null) { this.idle = true; return; } requestAnimationFrame(loop); this.m.rotation.y += 0.006; for (const pr of this.m.userData.props || [this.m.userData.prop]) if (pr) pr.rotation.z += 0.5*(pr.userData.dir || 1)*(pr.userData.rate || 1); this.draw(); };
       this.loopFn = loop; loop();
     }
     this.canvas = canvas;

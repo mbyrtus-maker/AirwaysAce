@@ -95,7 +95,7 @@ G.Traffic = class {
         p.t += p.sp*dt/p.a.distanceTo(p.b); const k = p.t % 2, f = k < 1 ? k : 2 - k, from = k < 1 ? p.a : p.b, to = k < 1 ? p.b : p.a;
         p.m.position.lerpVectors(p.a, p.b, f); p.m.rotation.set(0, Math.atan2(to.x - from.x, to.z - from.z), 0);
       }
-      const pr = p.m.userData.prop; if (pr) { pr.rotation.z += dt*30; if (pr.userData.disc) pr.userData.disc.material.opacity = 0.22; }
+      for (const pr of p.m.userData.props || [p.m.userData.prop]) if (pr) { pr.rotation.z += dt*30*(pr.userData.dir || 1)*(pr.userData.rate || 1); if (pr.userData.disc) pr.userData.disc.material.opacity = 0.22; }
     }
     for (const b of this.blimps) {
       if (b.kind === 'line') { b.s = (b.s + b.sp*dt) % b.L; b.m.position.copy(b.from).addScaledVector(b.dir, b.s).setY(b.y); b.m.rotation.y = Math.atan2(b.dir.x, b.dir.z); for (const pr of b.m.userData.props || []) pr.rotation.z += dt*8; continue; }
