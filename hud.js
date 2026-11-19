@@ -72,6 +72,7 @@ const H = G.HUD = {
       return `<div class="ar ${cls}"><span>${gn.def.name} <em>${gn.ammo.short}</em></span><b>${gn.rounds}</b><i class="am"><i style="width:${f*100}%"></i></i></div>`;
     });
     rows.push(`<div class="ar ${P.rockets ? '' : 'out'}"><span>${P.rocketDef.name} rockets</span><b>${P.rockets}</b><i class="am"><i style="width:${P.L.hp ? P.rockets/(P.L.hp*3)*100 : 0}%"></i></i></div>`);
+    if ((G.CHASSIS[P.L.chassis] || {}).torps && (P.L.torps || 0) > 0) rows.push(`<div class="ar ${P.torpLeft > 0 ? '' : 'out'}"><span>Torpedoes <kbd>T</kbd></span><b>${P.torpLeft || 0}</b></div>`);
     if (P.st.drone) rows.push(`<div class="ar ${g.droneUsed ? 'out' : ''}"><span>Drone <kbd>X</kbd></span><b>${g.droneUsed ? (g.drone && g.drone.alive ? 'up' : '—') : 'ready'}</b></div>`);
     if (P.L.nitro || P.st.rocket) rows.push(`<div class="ar ${P.nitroLeft ? '' : 'out'}"><span>${P.st.rocket ? 'Rocket' : 'Nitro'} <kbd>Shift</kbd></span><b>${P.nitroLeft}</b></div>`);
     $('hArms').innerHTML = rows.join('');

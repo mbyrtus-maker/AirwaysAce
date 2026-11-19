@@ -70,7 +70,7 @@ G.Game = class {
     if (this.running && (code === 'KeyR' || code === 'KeyZ')) this.stunt(code === 'KeyR' ? 'immel' : 'splits');   // left-hand keys, one press
     if (code === 'KeyC') { this.view = this.view === 'chase' ? 'cockpit' : 'chase'; G.save.view = this.view; G.persist(); }
     if (code === 'KeyX' && this.running && G.launchDrone) G.launchDrone(this);
-    if (code === 'KeyT' && this.running) this.toggleHover();
+    if (code === 'KeyT' && this.running) { const P = this.player; if (P && P.torpLeft !== undefined && (G.CHASSIS[P.L.chassis] || {}).torps) this.fireTorpedo(P); else this.toggleHover(); }
     if (code === 'KeyP' && this.running) { this.snapPhoto = true; G.HUD.shutter(); if (this.audio && this.audio.one) try { this.audio.one('hitshort', 0.25, 2.4); } catch (e) {} }   // the camera: missions read snapPhoto this frame
     if (G.ORDERS[code] && this.wingmen && this.wingmen.length) this.order(G.ORDERS[code]);
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
@@ -142,6 +142,13 @@ G.Game = class {
   }
   onTouchdown(P, hard){ if (!P.isPlayer) return; this.aimPitch = -0.03; G.HUD.toast(hard ? 'Hard landing!' : 'Touchdown!'); if (this.mission.onTouchdown) this.mission.onTouchdown(this, hard); }
   onLiftoff(P){ if (!P.isPlayer) return; this.aimPitch = 0.12; if (this.mission.onLiftoff) this.mission.onLiftoff(this); }
+  /* T on a bomber: drop an air torpedo */
+  fireTorpedo(P){
+    if (!P.alive || P.onGround || P.frozen) return;
+    if (!(P.torpLeft > 0)) { G.HUD.toast('Torpedo rack empty'); return; }
+    if ((this.torpCd || 0) > this.t) return; this.torpCd = this.t + 1.2;
+    P.torpLeft--; this.spawnAirTorpedo(P); G.HUD.toast(`Torpedo away! ${P.torpLeft} left`);
+  }
   /* T: the Whirligig's hover. From the ground she lifts straight up; in the air she comes to a hover; T again tips her into flight */
   toggleHover(){
     const P = this.player; if (!P || !P.alive || P.L.chassis !== 'whirligig') { if (P && P.alive) G.HUD.toast('Only the Whirligig can hover'); return; }
@@ -300,7 +307,7 @@ G.MISSIONS.ambush = {
       hp:4000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8), new V3(0, 23, -20)]});
     const L = Object.assign({}, o.load || G.save.load, {mods:(G.save.mods || []).slice()});
     const P = g.player = g.addPlane({loadout:L, team:0, player:true, name:G.save.callsign || 'Ace', callsign:G.save.callsign || 'Ace', speed:0, throttle:0.9});
-    P.nitroLeft = G.CHASSIS[L.chassis] && G.CHASSIS[L.chassis].rocketBoost ? 6 : L.nitro ? 3 : 0; P.frozen = true;
+    P.nitroLeft = G.CHASSIS[L.chassis] && G.CHASSIS[L.chassis].rocketBoost ? 6 : L.nitro ? 3 : 0; P.torpLeft = Math.min(L.torps || 0, (G.CHASSIS[L.chassis] || {}).torps || 0); P.frozen = true;
     this.trap = ship.obj.userData.trapeze;
     this.hang();
     g.running = false;

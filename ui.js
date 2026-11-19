@@ -86,6 +86,9 @@ const UI = G.UI = {
     h += `</div></section><section><h4>Rockets <em>3 per hardpoint · ${G.HP_W} lb each</em></h4>
       <div class="arm"><span>Hardpoints</span><button onclick="UI.setHp(-1)">−</button><b>${L.hp}</b><button onclick="UI.setHp(1)">+</button><em>${L.hp*3} rockets · max ${c.hpMax}</em></div>
       ${pick(G.ROCKET_ORDER, L.rocket, 'UI.setRk', x => G.ROCKETS[x].short)}<p class="desc">${esc(G.ROCKETS[L.rocket].desc)}</p></section>`;
+    if (c.torps) h += `<section><h4>Air torpedoes <em>${G.TORP_W} lb each · fired with T</em></h4>
+      <div class="arm"><span>Torpedoes</span><button onclick="UI.setTorp(-1)">−</button><b>${Math.min(L.torps || 0, c.torps)}</b><button onclick="UI.setTorp(1)">+</button><em>max ${c.torps}</em></div>
+      <p class="desc">A slow, heavy fish that drops off the belly, lights its motor and steers itself at the airship (or ground target) nearest your nose. Wrecks a zeppelin; a fighter can shoot it down.</p></section>`;
     const livs = ['stock', ...(G.save.liveries || [])];
     h += `<section><h4>Paint</h4><div class="liv">${livs.map(id => { const p = id === 'stock' ? G.stockLoadout(L.chassis).paint : G.LIVERIES[id].paint; return `<button onclick="UI.setLivery('${id}')">${p.map(c => `<i style="background:#${c.toString(16).padStart(6, '0')}"></i>`).join('')}${id === 'stock' ? 'Factory' : esc(G.LIVERIES[id].name)}</button>`; }).join('')}</div>
       ${Object.keys(G.LIVERIES).length > livs.length - 1 ? `<p class="desc" style="margin-left:0">${Object.keys(G.LIVERIES).length - livs.length + 1} more paint jobs to find or win.</p>` : ''}<div class="paint" style="margin-top:8px">${L.paint.map((p, i) => `<label><input type="color" value="#${p.toString(16).padStart(6, '0')}" oninput="UI.setPaint(${i},this.value)"><span>${['Main', 'Second', 'Trim'][i]}</span></label>`).join('')}</div></section>`;
@@ -106,6 +109,7 @@ const UI = G.UI = {
   setGun(i, x){ UI.L.guns[i].cal = x === 'none' ? null : x; UI.renderHangar(); },
   setAmmo(i, x){ UI.L.guns[i].ammo = x; UI.renderHangar(); },
   setArm(i, d){ UI.L.arm[i] = Math.max(0, Math.min(G.ARMOR_MAX, UI.L.arm[i] + d)); UI.renderHangar(); },
+  setTorp(d){ const c = G.CHASSIS[UI.L.chassis]; UI.L.torps = Math.max(0, Math.min(c.torps || 0, (UI.L.torps || 0) + d)); UI.renderHangar(); },
   setHp(d){ const c = G.CHASSIS[UI.L.chassis]; UI.L.hp = Math.max(0, Math.min(c.hpMax, UI.L.hp + d)); UI.renderHangar(); },
   setRk(x){ UI.L.rocket = x; UI.renderHangar(); },
   setPaint(i, v){ UI.L.paint[i] = parseInt(v.slice(1), 16); preview.show($('hgPrev'), UI.L); },

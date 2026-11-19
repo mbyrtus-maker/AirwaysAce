@@ -43,6 +43,7 @@ G.ROCKET_ORDER = ['he', 'flak', 'ap', 'choke', 'conc'];
 G.HP_W = 250; G.ROCKET_W = 70; G.ARMOR_W = 4; G.ARMOR_HP = 4; G.ARMOR_MAX = 50;
 G.ENGINE = [{id:0, name:'Low', mph:-20, w:-400}, {id:1, name:'Stock', mph:0, w:0}, {id:2, name:'High', mph:20, w:400}];
 G.NITRO_W = 300;
+G.TORP_W = 600;   // an air torpedo, each: the bombers carry them on a belly rack, on top of their rockets
 
 /* ---------- Mods: bought from contacts, found in treasure, or earned with stunt points. Player only. ---------- */
 G.MODS = {
@@ -127,6 +128,8 @@ G.CHASSIS = {
   whirligig:  C({id:'whirligig', name:'Whirligig', role:'Autogyro', cs:'Hoplite', cls:'light', speed:'Average', agility:'Excellent', armorR:'Fair', offense:'Poor',
                  max:4160, arm:[15,15,15,15], guns:['30'], slots:1, turrets:[], hp:2, hpMax:2})
 };
+// the bombers' torpedo racks: how many air torpedoes each can carry
+G.CHASSIS.grackle.torps = 1; G.CHASSIS.ironclad.torps = 2; G.CHASSIS.thunderbuss.torps = 2;
 G.INTERNAL = {light:80, medium:120, heavy:240};
 const gunsW = list => list.reduce((s, g) => s + (g ? G.GUNS[g].w : 0), 0);
 for (const k in G.CHASSIS) {
@@ -183,7 +186,7 @@ G.loadWeight = (L, spent) => {
   w += L.arm.reduce((a, b) => a + b, 0)*G.ARMOR_W;
   const rk = spent ? spent.rockets : L.hp*3;
   w += L.hp*(G.HP_W - 3*G.ROCKET_W) + rk*G.ROCKET_W;
-  w += G.ENGINE[L.engine].w + (L.nitro ? G.NITRO_W : 0);
+  w += G.ENGINE[L.engine].w + (L.nitro ? G.NITRO_W : 0) + Math.min(L.torps || 0, (G.CHASSIS[L.chassis] || {}).torps || 0)*G.TORP_W;
   return w;
 };
 

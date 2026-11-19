@@ -292,14 +292,52 @@ G.Combat = {
     if (ship.team !== 0) G.HUD.radio(G.RADIO.short, G.pick(['Torpedo away from the Nightjar! Shoot it down before it reaches us!', 'Another fish headed our way! Somebody stop it!']));
     else G.HUD.feed('The Margaret fired a torpedo', false);
   },
+  /* an air torpedo from a bomber: drops off the belly, lights after half a second, runs up to 140 m/s and steers (gently) at
+     the enemy airship or ground target nearest the nose when it was dropped; it bursts on that, on any enemy airship it meets,
+     on a plane that comes within 8 m, or on the ground */
+  spawnAirTorpedo(P){
+    const p = P.pos.clone().addScaledVector(P.up, -2.4), F = P.fwd;
+    let target = null, best = -1;
+    const look = (o, pos, team) => { if (!o.alive || team === P.team) return; const d = pos.clone().sub(p), L = d.length(); if (L > 3500) return; const c = d.normalize().dot(F); if (c > 0.64 && c - L/9000 > best) { best = c - L/9000; target = o; } };
+    for (const s of this.ships) look(s, s.pos, s.team);
+    if (this.targets) for (const t of this.targets) look(t, t.pos, t.team);
+    const m = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 4.6, 10).rotateX(Math.PI/2), G.mat(0x4a4f46, {metalness:0.35}));
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1, 10).rotateX(Math.PI/2), G.mat(0xc8a24a, {metalness:0.5})); nose.position.z = 2.8;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.25, 10).rotateX(Math.PI/2), G.mat(0x8e231c)); band.position.z = 1.4;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.07, 0.6), G.mat(0x26221f)); fin.position.z = -2.2; const fin2 = fin.clone(); fin2.rotation.z = Math.PI/2;
+    m.add(body, nose, band, fin, fin2); m.position.copy(p); this.scene.add(m);
+    (this.torps || (this.torps = [])).push({air:true, pos:p, prev:p.clone(), vel:P.vel.clone().addScaledVector(P.up, -4), m, owner:P, team:P.team, target, hp:40, life:24, age:0});
+    if (this.audio) this.audio.rocket && this.audio.rocket(p);
+    if (target) G.HUD.feed(`Torpedo running at ${target.name || target.label || 'the target'}`, false);
+  },
   updateTorpedoes(dt){
     const T = this.torps; if (!T) return;
     for (let i = T.length - 1; i >= 0; i--) {
-      const t = T[i]; t.prev.copy(t.pos); t.pos.addScaledVector(t.vel, dt); t.life -= dt;
+      const t = T[i];
+      if (t.air) {   // the bomber's fish: falls, lights, runs and steers
+        t.age += dt;
+        if (t.age < 0.5) t.vel.y -= 9.81*dt;
+        else {
+          const sp = Math.min(140, t.vel.length() + 70*dt), dir = t.vel.clone().normalize();
+          if (t.target && t.target.alive) { const want = t.target.pos.clone().addScaledVector(t.target.vel || tA.set(0, 0, 0), Math.min(4, t.target.pos.distanceTo(t.pos)/sp)).sub(t.pos).normalize(); const a = Math.min(1, dt*0.9); dir.lerp(want, a).normalize(); }
+          t.vel.copy(dir).multiplyScalar(sp);
+        }
+      }
+      t.prev.copy(t.pos); t.pos.addScaledVector(t.vel, dt); t.life -= dt;
       t.m.position.copy(t.pos); t.m.lookAt(tA.copy(t.pos).add(t.vel));
       if (Math.random() < dt*20) this.fx.trail(t.pos, 1.1);
       let boom = t.hp <= 0 || t.life <= 0 || t.pos.y < Math.max(this.world.height(t.pos.x, t.pos.z), 0.4);
       const S = t.target;
+      if (t.air && !boom) {   // what an air torpedo bursts on
+        let hit = null; for (const s of this.ships) if (s.alive && s.team !== t.team && s.inside(t.pos, 2)) { hit = s; break; }
+        if (hit) { boom = true; this.fx.explosion(t.pos, 2.8); if (this.audio) this.audio.boom(t.pos, true); if (hit.comps) hit.blast(t.pos, 650, 34, t.owner, true); else hit.damage(700, t.owner); G.HUD.feed(`${t.owner && t.owner.isPlayer ? 'Your torpedo' : 'A torpedo'} hit ${hit.name || 'the airship'}!`, true); }
+        if (!boom && this.targets) for (const g of this.targets) if (g.alive && g.team !== t.team && g.pos.distanceTo(t.pos) < (g.r || 10) + 4) { boom = true; this.fx.explosion(t.pos, 2.6); if (this.audio) this.audio.boom(t.pos, true); this.hitTarget(g, 400, t.owner); break; }
+        if (!boom) for (const p of this.planes) if (p.alive && p.team !== t.team && p.pos.distanceTo(t.pos) < 8) { boom = true; this.fx.explosion(t.pos, 2); if (this.audio) this.audio.boom(t.pos, true); p.damage(160, p.facingOf(t.pos), G.AMMO.slug, t.owner); break; }
+        if (boom || t.hp <= 0 || t.life <= 0 || t.pos.y < Math.max(this.world.height(t.pos.x, t.pos.z), 0.4)) { if (!boom) { this.fx.explosion(t.pos, 1.6); if (this.audio) this.audio.boom(t.pos, false); } this.scene.remove(t.m); T.splice(i, 1); }
+        else { t.m.position.copy(t.pos); t.m.lookAt(tA.copy(t.pos).add(t.vel)); if (t.age > 0.5 && Math.random() < dt*20) this.fx.trail(t.pos, 1.1); }
+        continue;
+      }
       if (!boom && S.alive && S.inside(t.pos, 2)) {
         boom = true; this.fx.explosion(t.pos, 2.6); if (this.audio) this.audio.boom(t.pos, true);
         if (S.comps) S.blast(t.pos, 320, 16, t.owner, true); else S.damage(380, t.owner);
