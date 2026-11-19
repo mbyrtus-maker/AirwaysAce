@@ -896,6 +896,36 @@ function buildEl(c, g){
   const at = (d, out) => { d = Math.max(0, Math.min(s, d)); let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const m2 = (lo + hi) >> 1; if (pts[m2].s < d) lo = m2; else hi = m2; } const a = pts[lo], b = pts[hi], t = (d - a.s)/Math.max(0.01, b.s - a.s); return out.set(a.x + (b.x - a.x)*t, a.y + (b.y - a.y)*t, a.z + (b.z - a.z)*t); };
   c.rail = {pts, len:s, at};
   g.scene.add(G.buildTrack(pts));
+  // a terminal at each end: a covered platform either side, a stair tower down to the street and buffer stops, so the line ends somewhere
+  const k = new Kit(), plat = M(0x6a625a), roof = M(0x3a4a42, {roughness:0.6, metalness:0.3}), trim = M(0xc8b898), red = RED(), iron = IRON(), lampM = lamp(0xffd27a);
+  const tA = new V3(), tB = new V3();
+  for (const end of [0, 1]) {
+    const d0 = end ? s - 4 : 4, dir = end ? -1 : 1, e = at(d0, tA).clone(), f = at(d0 + dir*10, tB).clone(), yaw = Math.atan2(f.x - e.x, f.z - e.z), ux = Math.sin(yaw), uz = Math.cos(yaw), lx = uz, lz = -ux;
+    const PL = 72, mid = e.clone().add(new V3(ux*PL/2, 0, uz*PL/2)), y = e.y, gy = Math.max(0, w.height(mid.x, mid.z, true));
+    const At = (a, o, h) => T(e.x + ux*a + lx*o, y + h, e.z + uz*a + lz*o);
+    for (const sd of [1, -1]) {
+      k.add(box(5, 0.9, PL), plat, mul(At(PL/2, sd*5.2, 0.15), RY(yaw)));                                           // the platform deck
+      k.add(box(0.3, 0.25, PL), trim, mul(At(PL/2, sd*2.8, 0.7), RY(yaw)));                                          // its edge, painted
+      for (let a = 4; a < PL; a += 9) { k.add(box(0.35, 4.2, 0.35), iron, At(a, sd*6.8, 2.7)); k.add(ball(0.32, 6, 3), lampM, At(a, sd*4.4, 4.2)); }
+      k.add(box(6.4, 0.3, PL + 2), roof, mul(At(PL/2, sd*5, 4.95), mul(RY(yaw), RZ(-sd*0.08))));                       // the canopy, tipped to shed rain
+      k.add(box(0.25, 2.6, PL), M(0x6a3a2a), mul(At(PL/2, sd*7.6, 1.9), RY(yaw)));                                   // the back wall, in brick
+      for (let a = 6; a < PL; a += 12) k.add(box(0.1, 1.2, 3.4), M(0xe8e0cc), mul(At(a, sd*7.45, 2.2), RY(yaw)));    // posters on it
+      // the stair tower down to the street, and the girders holding the platforms up
+      const tx = e.x + ux*(PL - 8) + lx*sd*11, tz = e.z + uz*(PL - 8) + lz*sd*11, ty = Math.max(0, w.height(tx, tz, true));
+      if (y - ty > 3) { k.add(box(7, y - ty + 6, 7), M(0x7a3a2a), T(tx, (y + ty)/2 + 1.5, tz)); k.add(box(7.6, 0.6, 7.6), trim, T(tx, y + 4.8, tz)); w.addBlocker({x:tx, z:tz, hw:4, hd:4, top:y + 5}); }
+      for (let a = 6; a < PL; a += 16) { const px = e.x + ux*a + lx*sd*5, pz = e.z + uz*a + lz*sd*5, py = Math.max(0, w.height(px, pz, true)); if (y - py > 1.5) k.add(box(0.7, y - py, 0.7), iron, T(px, (y + py)/2 - 0.3, pz)); }
+    }
+    // the buffer stop at the very end, and a sign over the tracks
+    k.add(box(3.4, 1.4, 0.8), red, mul(At(-1.5, 0, 1.1), RY(yaw))); for (const sd of [1, -1]) k.add(box(0.35, 0.35, 1.6), iron, mul(At(-0.6, sd*1, 1.2), RY(yaw)));
+    k.add(box(0.5, 0.5, 0.5), lamp(0xff3b30), At(-1.5, 0, 2.1));
+    const name = end ? 'MILL ROW' : 'HARBOUR ST';
+    k.add(box(12, 1.8, 0.3), M(0x2a3a4a), mul(At(PL*0.35, 0, 6.6), RY(yaw))); for (const sd of [1, -1]) k.add(box(0.3, 2.2, 0.3), iron, At(PL*0.35, sd*5.5, 5.4));
+    w.addBlocker({x:mid.x, z:mid.z, hw:Math.abs(ux)*PL/2 + Math.abs(lx)*8.5, hd:Math.abs(uz)*PL/2 + Math.abs(lz)*8.5, top:y + 5.2});
+    (c.elStations || (c.elStations = [])).push({name, pos:mid.clone(), yaw});
+  }
+  const grp = new THREE.Group(); k.build(grp); g.scene.add(grp);
+  // a reversed copy of the line, so the train can run back the way it came
+  c.railBack = {pts, len:s, at:(d, out) => at(s - d, out)};
 }
 
 /* ---------- the frame: collisions with decks and cables, updrafts, smoke, the El train, and the Air Police ---------- */
@@ -923,7 +953,9 @@ function rtick(c, g, dt){
     for (const ch of c.nearStacks || []) if (Math.random() < dt*6) g.fx.smoke.emit(ch.x, ch.top + 2, ch.z, (Math.random() - 0.5)*2, 5 + ch.hot*3, 1.5, 4 + ch.hot*2, 2.2, 0.22, 0.2, 0.19, 0.5, 9, 0.5, 2);
   }
   // the El train runs up and down the line all day
-  if (c.train) { c.train.update(dt); if (c.train.done) { c.trainWait = (c.trainWait || 0) + dt; if (c.trainWait > 25) { c.trainWait = 0; c.train.done = false; c.train.s = 20; } } }
+  if (c.train) { c.train.update(dt); if (c.train.done) { c.trainWait = (c.trainWait || 0) + dt;
+    // a dwell at the terminal, then back the way it came: the last car's spot becomes the front, so nothing jumps
+    if (c.trainWait > 20) { const T0 = c.train, last = T0.cars[T0.cars.length - 1].off, back = T0.rail === c.rail ? c.railBack : c.rail; c.trainWait = 0; T0.done = false; T0.s = T0.rail.len - (T0.s + last); T0.rail = back; T0.cars.reverse(); let off = 0; for (const cr of T0.cars) { cr.off = off; off -= cr.kind === 'loco' ? 13.5 : cr.kind === 'tender' ? 9.5 : 15; } } } }
   policeTick(c, g, dt);
 }
 
