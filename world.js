@@ -96,6 +96,7 @@ G.World = class {
       this.h0[iz*W + ix] = h;
       const cf = this.cuts.length ? this.cutFloor(x, z, 0) : null;
       this.h[iz*W + ix] = cf === null ? h : Math.min(h, cf);
+      if (cf !== null && this.cutHit.open && cf < h) (this.hopen || (this.hopen = new Set())).add(iz*W + ix);   // the floor of an open canyon, not of a roofed bore
     }
 
     const geo = new THREE.PlaneGeometry(S, S, N, N); geo.rotateX(-Math.PI/2);
@@ -107,7 +108,8 @@ G.World = class {
       const hz1 = this.h[Math.min(iz + 1, N)*W + ix], hz0 = this.h[Math.max(iz - 1, 0)*W + ix];
       const slope = Math.hypot(hx1 - hx0, hz1 - hz0)/(2*st);
       let r, g, b;
-      if (hh < this.h0[i] - 0.5) { const k = sm(1, 10, this.h0[i] - hh); [r, g, b] = this.colorAt(x, z, k > 0.5 ? this.h0[i] : hh, k > 0.5 ? 0.9 : slope); const d = 1 - 0.45*k; r *= d; g *= d*0.98; b *= d*0.97; }   // carved floor: darker the deeper the cut
+      if (this.hopen && this.hopen.has(i)) { [r, g, b] = this.colorAt(x, z, hh, 0.1); const d = 1 - 0.16*sm(20, 120, this.h0[i] - hh); r *= d; g *= d*0.97; b *= d*0.95; }   // a canyon floor open to the sky: a sandy wash, a little shaded
+      else if (hh < this.h0[i] - 0.5) { const k = sm(1, 10, this.h0[i] - hh); [r, g, b] = this.colorAt(x, z, k > 0.5 ? this.h0[i] : hh, k > 0.5 ? 0.9 : slope); const d = 1 - 0.45*k; r *= d; g *= d*0.98; b *= d*0.97; }   // carved floor: darker the deeper the cut
       else [r, g, b] = this.colorAt(x, z, hh, slope);
       cols[i*3] = r; cols[i*3 + 1] = g; cols[i*3 + 2] = b;
     }
@@ -173,12 +175,13 @@ G.World = class {
   cutFloor(x, z, m = 0){
     for (const c of this.cuts) {
       if (c.ell) { const e = c.ell, dx = x - e.x, dz = z - e.z, lx = dx*e.ax[0] + dz*e.ax[1], lz = -dx*e.ax[1] + dz*e.ax[0];   // ax: the major axis
-        if ((lx/(e.rx + m))**2 + (lz/(e.rz + m))**2 <= 1) return c.floor; continue; }
+        if ((lx/(e.rx + m))**2 + (lz/(e.rz + m))**2 <= 1) { this.cutHit = c; return c.floor; } continue; }
       const bb = c.bb, r = c.hw + m; if (x < bb[0] - r || x > bb[1] + r || z < bb[2] - r || z > bb[3] + r) continue;
       for (let i = 0; i < c.pts.length - 1; i++) {
         const a = c.pts[i], b = c.pts[i + 1], ex = b.x - a.x, ez = b.z - a.z, L2 = ex*ex + ez*ez || 1, t0 = ((x - a.x)*ex + (z - a.z)*ez)/L2, t = Math.max(0, Math.min(1, t0));
         if (c.flat && ((i === 0 && t0 < 0) || (i === c.pts.length - 2 && t0 > 1))) continue;   // square ends: stop at the mouth, don't bulge past it
-        const px = a.x + ex*t - x, pz = a.z + ez*t - z; if (px*px + pz*pz <= r*r) return c.floor;
+        const px = a.x + ex*t - x, pz = a.z + ez*t - z, rr = a.hw === undefined ? r : a.hw + (b.hw - a.hw)*t + m;   // points with their own half-width: a slot that flares
+        if (px*px + pz*pz <= rr*rr) { this.cutHit = c; return c.floor; }
       }
     }
     return null;
