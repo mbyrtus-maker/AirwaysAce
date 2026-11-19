@@ -60,7 +60,7 @@ const A = G.audio = {
   engKey(P){ const k = P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
   startEngines(){
     if (!this.eng && this.buf.engine) { this.eng = this.loop('engine', 0); if (this.eng) this.eng.key = 'engine'; }
-    if (!this.eng2 && this.buf.engine) { this.eng2 = this.loop('engine', 0); if (this.eng2) this.eng2.src.detune.value = 260; }
+    if (!this.eng2 && this.buf.engine) { this.eng2 = this.loop('engine', 0); if (this.eng2) { this.eng2.src.detune.value = 260; this.eng2.key = 'engine'; } }
     if (!this.shipEng && this.buf.engine2) {
       // the airship: the twin-engine recording slowed right down and muffled into a soft, low thrum
       this.shipEng = this.loop('engine2', 0);
@@ -107,8 +107,12 @@ const A = G.audio = {
     if (this.eng2) {
       let best = null, bd = 900; for (const p of game.planes) if (p.alive && !p.isPlayer) { const d = p.pos.distanceTo(game.camera.position); if (d < bd) { bd = d; best = p; } }
       const a = best ? (1 - bd/900)**1.8 : 0;
-      if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700), t, 0.08); }
-      this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32 : 0, t, 0.1);
+      // the nearest plane is heard with its own engine: a V12 Mantis, a radial Highwayman, a Zephyr's turbine
+      const want = best ? (best.st && best.st.jet && this.buf.turbine ? 'turbine' : this.engKey(best)) : this.eng2.key || 'engine';
+      if (this.eng2.key !== want && this.buf[want]) { const old = this.eng2; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} const n = this.loop(want, 0); if (n) { this.eng2 = n; if (want === 'engine') n.src.detune.value = 260; } this.eng2.key = want; }
+      const k2 = this.eng2.key, vr = k2 === 'turbine' ? 0.95 : this.VRATE[k2] || 1, vg = k2 === 'turbine' ? 1.1 : this.VGAIN[k2] || 1;
+      if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr, t, 0.08); }
+      this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32*vg : 0, t, 0.1);
     }
     // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
     // steamship thrums low as she passes
