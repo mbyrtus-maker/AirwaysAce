@@ -112,8 +112,10 @@ const A = G.audio = {
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
   /* caliber sets the voice: the .30 a quick high crack, the .70 a slow deep thump */
-  calPitch(def){ return Math.pow(def.pitch || 1, 1.7); },
-  playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def); this.one('gunshot', 0.32 + 0.1*(1/p - 0.8), p*(0.97 + Math.random()*0.06)); },
+  calPitch(def){ return 0.8*Math.pow(def.pitch || 1, 1.7); },
+  // every shot gets its crack and its own boom ringing out after it, the heavier the caliber the more boom, so a .70 sounds whole in a long burst too
+  playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def), heavy = Math.max(0, Math.min(1, (1.0 - p)/0.55));
+    this.one('gunshot', 0.34 + 0.12*heavy, p*(0.97 + Math.random()*0.06)); this.one('guntail', 0.06 + 0.3*heavy, p*(0.96 + Math.random()*0.08)); },
   shot(pos, pitch){ const a = this.att(pos, 1200); if (a < 0.02 || this.thr('shot', 55)) return; this.one('gunshot', a*0.5, pitch*(0.95 + Math.random()*0.1)); },
   rocket(a = 1){ this.one('rocket', 0.6*a, 0.95 + Math.random()*0.1); },
   boom(pos, big){ const a = this.att(pos, big ? 3500 : 2200); if (a < 0.02 || this.thr(big ? 'boomB' : 'boomS', 60)) return; this.one(big ? 'boom' : 'boomsmall', (big ? 1 : 0.8)*a + 0.08, big ? 0.9 + Math.random()*0.15 : 1.05 + Math.random()*0.2); },
