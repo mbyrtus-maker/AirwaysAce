@@ -49,6 +49,25 @@ const A = G.audio = {
     src.loopStart = tr.s; src.loopEnd = tr.e; g.gain.value = gain; src.connect(g).connect(this.sfxBus); src.start(0, tr.s);
     return {src, g};
   },
+  /* a sound that never loops: overlapping grains of the recording, each faded in and out on an equal-power half-sine and
+     started at a random point, scheduled a little ahead on the audio clock. There is no wrap point, so nothing can click. */
+  grains(k, len = 0.8){
+    const c = this.ctx, b = this.buf[k]; if (!c || !b) return null;
+    const g = c.createGain(); g.gain.value = 0; g.connect(this.sfxBus);
+    const N = 64, curve = new Float32Array(N); for (let i = 0; i < N; i++) curve[i] = Math.sin(Math.PI*i/(N - 1));
+    const V = {g, rate:1, next:c.currentTime + 0.05, live:[], lt:0,
+      tick(){
+        const now = c.currentTime; V.live = V.live.filter(q => q.end > now);
+        for (const q of V.live) q.src.playbackRate.setTargetAtTime(V.rate, now, 0.08);
+        while (V.next < now + 0.25) {
+          const r = V.rate, D = len/r, t0 = Math.max(V.next, now), src = c.createBufferSource(), e = c.createGain();
+          src.buffer = b; src.playbackRate.value = r; e.gain.value = 0; e.gain.setValueCurveAtTime(curve, t0, D);
+          src.connect(e).connect(g); src.start(t0, Math.random()*Math.max(0.01, b.duration - len*1.8 - 0.05));   // room for the pitch to rise while she plays src.stop(t0 + D + 0.02);
+          V.live.push({src, end:t0 + D}); V.next = t0 + D/2;
+        }
+      }};
+    return V;
+  },
   startEngines(){
     if (!this.eng && this.buf.engine) this.eng = this.loop('engine', 0);
     if (!this.eng2 && this.buf.engine) { this.eng2 = this.loop('engine', 0); if (this.eng2) this.eng2.src.detune.value = 260; }
@@ -73,10 +92,10 @@ const A = G.audio = {
     if (this.eng && P) {
       const on = P.alive && game.running && !P.engineDead;
       const jet = P.st && P.st.jet, sp = P.speed/P.top, s = jet ? (P.spool ?? P.throttle) : P.throttle, rate = jet ? 1.35 + s*0.9 + sp*0.25 : 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);   // the jet: the same recording wound right up into a whine
-      if (jet && !this.turb && this.buf.turbine) this.turb = this.loop('turbine', 0);
+      if (jet && !this.turb && this.buf.turbine) this.turb = this.grains('turbine');
       const realJet = jet && this.turb;   // with the turbine recording in hand the piston loop falls silent
       this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
-      if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
+      if (this.turb) { this.turb.rate += (0.78 + s*0.42 + sp*0.12 - this.turb.rate)*Math.min(1, (t - (this.turb.lt || t))/0.25); this.turb.lt = t; this.turb.tick(); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
     if (this.eng2) {
       let best = null, bd = 900; for (const p of game.planes) if (p.alive && !p.isPlayer) { const d = p.pos.distanceTo(game.camera.position); if (d < bd) { bd = d; best = p; } }
