@@ -117,9 +117,9 @@ const A = G.audio = {
   heavyBus(){
     if (this._heavy) return this._heavy; const c = this.ctx;
     const eq = c.createBiquadFilter(); eq.type = 'peaking'; eq.frequency.value = 170; eq.Q.value = 0.8; eq.gain.value = 11;
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 0.5;
-    const ws = c.createWaveShaper(), N = 1024, cv = new Float32Array(N); for (let i = 0; i < N; i++) { const x = i/(N - 1)*2 - 1; cv[i] = Math.tanh(x*2.6)/Math.tanh(2.6); } ws.curve = cv; ws.oversample = '2x';
-    const out = c.createGain(); out.gain.value = 0.7;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; lp.Q.value = 0.5;
+    const ws = c.createWaveShaper(), N = 1024, cv = new Float32Array(N); for (let i = 0; i < N; i++) { const x = i/(N - 1)*2 - 1; cv[i] = Math.tanh(x*1.15)/Math.tanh(1.15); } ws.curve = cv; ws.oversample = '4x';   // a gentle drive: enough overtones to carry, not enough to fizz
+    const out = c.createGain(); out.gain.value = 0.85;
     eq.connect(ws).connect(lp).connect(out).connect(this.sfxBus); return (this._heavy = eq);
   },
   calPitch(def){ return 0.5 + ((def.pitch || 1) - 0.75)*1.5; },   // .70 0.5, .60 0.73, .50 0.88, .40 0.97, .30 1.1
