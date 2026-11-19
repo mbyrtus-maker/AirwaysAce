@@ -786,7 +786,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       if (md.caldera) { const lake = buildLava(md.caldera, this.night, true); lake.position.set(0, 2.5, 0); o.add(lake); this.anim.push(lake.userData.tick); }
     }
     if (md.kind === 'lava') { p.y = 3.4; o = buildLava(md.r || 800, this.night); this.anim.push(o.userData.tick); }
-    if (md.kind === 'cave') { p.y = 0.4; const C = Object.assign({}, md.cave), yaw = G.rng(md.id.length*97)()*Math.PI; C.P = cavePath(C); o = buildCave(C); o.rotation.y = yaw; const cv = {obj:o, C, name:md.name, t:-99, yaw, seen:null}; this.caves.push(cv); if (this.night) this.anim.push(() => { if (Math.random() < 0.6) { const e = Math.random() < 0.5 ? C.P[0] : C.P[C.P.length - 1], sd = Math.random() < 0.5 ? 1 : -1, l = new V3(e.x + e.lx*sd*(C.bw/2 - 1.5), C.bh*0.55, e.z + e.lz*sd*(C.bw/2 - 1.5)).applyAxisAngle(UP, yaw).add(p); this.g.fx.fire.emit(l.x, l.y, l.z, 0, 0.6, 0, 2.2, 0.35, 1, 0.75, 0.35, 0.9, 0, 1, 0); } }); }
+    if (md.kind === 'cave') { p.y = 0.4; const C = Object.assign({}, md.cave), yaw = G.rng(md.id.length*97)()*Math.PI; C.P = cavePath(C); o = buildCave(C); o.rotation.y = yaw; const cv = {obj:o, C, id:md.id, name:md.name, t:-99, yaw, seen:null}; this.caves.push(cv); if (this.night) this.anim.push(() => { if (Math.random() < 0.6) { const e = Math.random() < 0.5 ? C.P[0] : C.P[C.P.length - 1], sd = Math.random() < 0.5 ? 1 : -1, l = new V3(e.x + e.lx*sd*(C.bw/2 - 1.5), C.bh*0.55, e.z + e.lz*sd*(C.bw/2 - 1.5)).applyAxisAngle(UP, yaw).add(p); this.g.fx.fire.emit(l.x, l.y, l.z, 0, 0.6, 0, 2.2, 0.35, 1, 0.75, 0.35, 0.9, 0, 1, 0); } }); }
     if (md.kind === 'viaduct') {
       const S = this.L.marks[md.id]; if (S && S.len) return this.buildSpan(g, md, p, S);
       const len = 300, n = 5, hs = []; for (let i = 0; i <= n; i++) hs.push(Math.max(w.height(p.x - len/2 + i*len/n, p.z), 2));
@@ -996,11 +996,16 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     G.HUD.objective(obj);
     this.hudSides(g);
   },
+  /* every tunnel and sea cave flown clean through, end to end, is ticked off in the save, region by region */
+  passages(){ return this.tunnels.filter(t => !t.T.into).map(t => t.T.td.id).concat(this.caves.map(c => c.id)).filter(Boolean); },
+  flown(id){ if (!id) return; const S = G.save.open, F = S.flown || (S.flown = {}), k = this.R.id + ':' + id; if (F[k]) return; F[k] = 1; G.persist(); const n = this.passages().filter(i => F[this.R.id + ':' + i]).length, all = this.passages().length; G.HUD.toast(`Tunnel flown: ${n} of ${all} in ${this.R.name}`); },
   hudSides(g){
-    const S = G.save.open, R = this.R, found = R.treasures.filter(t => S.found[t.id]).length;
+    const S = G.save.open, R = this.R, found = R.treasures.filter(t => S.found[t.id]).length, ps = this.passages(), F = S.flown || {}, fl = ps.filter(i => F[R.id + ':' + i]).length;
+    if (ps.length && (S.passTotal || (S.passTotal = {}))[R.id] !== ps.length) S.passTotal[R.id] = ps.length;
     const list = this.job && this.job.sides ? this.job.sides() : [];
     if (g.sea && g.sea.wanted >= 1) list.push({text:'Wanted for firing on shipping', st:'fail', val:'★'.repeat(Math.min(3, Math.ceil(g.sea.wanted/40)))});
     list.push({text:'Treasures found', st:found >= R.treasures.length ? 'ok' : 'live', val:`${found}/${R.treasures.length}`});
+    if (ps.length) list.push({text:'Tunnels flown', st:fl >= ps.length ? 'ok' : 'live', val:`${fl}/${ps.length}`});
     list.push({text:this.night ? 'Stunt points tonight' : 'Stunt points today', st:'live', val:Math.round(this.sc.session + this.sc.chain).toLocaleString()});
     G.HUD.sides(list);
     const el = document.getElementById('hStunt');
@@ -1035,7 +1040,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
         if (p.isPlayer) {
           // score a full pass: in at one mouth, out at the other
           if (inBore) { cv.seen = cv.seen || {lo:1e9, hi:-1e9}; cv.seen.lo = Math.min(cv.seen.lo, at.s); cv.seen.hi = Math.max(cv.seen.hi, at.s); }
-          else if (cv.seen && !at) { if (cv.seen.lo < L*0.2 && cv.seen.hi > L*0.8 && g.t - cv.t > 4) { cv.t = g.t; this.award(D.bonus || (D.path ? 2000 : 1500), D.path ? 'THROUGH THE WINDING CAVE' : 'THROUGH THE CAVE'); if (g.audio) g.audio.ding(); } cv.seen = null; }
+          else if (cv.seen && !at) { if (cv.seen.lo < L*0.2 && cv.seen.hi > L*0.8 && g.t - cv.t > 4) { cv.t = g.t; this.flown(cv.id); this.award(D.bonus || (D.path ? 2000 : 1500), D.path ? 'THROUGH THE WINDING CAVE' : 'THROUGH THE CAVE'); if (g.audio) g.audio.ding(); } cv.seen = null; }
           if (hit && !g.done) p.destroy(null, 'crash');
         } else if (hit) p.pos.y = Math.max(p.pos.y, C.position.y + (at ? caveShape.outerTop(D, at.x, at.s) : st.h) + 4);
       }
@@ -1103,7 +1108,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   tunnelPass(tn){
     const T = tn.T, s0 = T.pts[T.i0].s, s1 = T.pts[T.i1].s, L = s1 - s0, sn = tn.seen; tn.seen = null;
     if (T.into || !(sn.lo < s0 + L*0.2 && sn.hi > s1 - L*0.2) || this.g.t - tn.t < 4) return;
-    tn.t = this.g.t; this.award(T.td.bonus || (T.td.shape === 'none' ? 1500 : 2000), T.td.sea ? 'THROUGH THE SEA CAVE' : 'THROUGH THE MOUNTAIN'); if (this.g.audio) this.g.audio.ding();
+    tn.t = this.g.t; this.flown(T.td.id); this.award(T.td.bonus || (T.td.shape === 'none' ? 1500 : 2000), T.td.sea ? 'THROUGH THE SEA CAVE' : 'THROUGH THE MOUNTAIN'); if (this.g.audio) this.g.audio.ding();
   },
   /* Cíbola's cavern: the mesa top stays where it was (rebuilt over the hollow), a domed sandstone ceiling inside,
      a rim wall with the entrance cut through it, hanging lanterns, and solid rock everywhere you can't see daylight. */
@@ -1417,18 +1422,11 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const P = g.player, sc = this.sc; if (!P.alive || P.onGround || P.frozen) { sc.cont = 0; return; }
     const agl = P.pos.y - this.ground(P.pos.x, P.pos.z), mph = P.speed/MPH;
     sc.cont -= dt;
-    // knife-edge has to be earned: wings within ~20° of vertical, nose roughly level, low and fast, held for 3 s before it scores
-    const KE = 3, edge = Math.abs(P.right.y) > 0.94 && Math.abs(P.fwd.y) < 0.3 && agl < 150 && mph > 90 && !P.man;
-    if (edge) {
-      const was = sc.ke || 0; sc.ke = was + dt;
-      if (sc.ke < KE && Math.floor(sc.ke*2) !== Math.floor(was*2)) G.HUD.toast(`Knife-edge… hold it ${(KE - sc.ke).toFixed(1)} s`);
-      if (was < KE && sc.ke >= KE) { this.award(300, 'KNIFE-EDGE', true); if (g.audio) g.audio.ding(); sc.keT = 0; }
-    } else sc.ke = 0;
     if (sc.cont <= 0) {
       sc.cont = 0;
       if (agl < 18 && mph > 125 && !g.runwayAt(P.pos)) { this.award(55, 'HEDGE-HOPPING', true); sc.cont = 0.5; }
       else if (P.up.y < -0.65 && !P.man) { this.award(40, 'INVERTED', true); sc.cont = 0.5; }
-      else if (sc.ke >= KE) { this.award(40, `KNIFE-EDGE ${Math.floor(sc.ke)}s`, true); sc.cont = 0.5; }
+      else if (Math.abs(P.right.y) > 0.85 && agl < 150 && !P.man) { this.award(15, 'KNIFE-EDGE', true); sc.cont = 0.5; }   // as it first was, worth less than inverted
     }
     // under a bridge
     for (const A of this.arches) {
