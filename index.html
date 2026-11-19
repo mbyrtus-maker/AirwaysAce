@@ -262,6 +262,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 
 <div class="screen" id="pause" hidden><div class="card"><div class="kicker">Paused</div><h2 class="deco" style="font-size:48px;margin:6px 0 12px">Holding pattern</h2>
   <div class="controls"><kbd>Mouse</kbd><span>Aim</span><kbd>Left / right click</kbd><span>Guns / rockets</span><kbd>W / S</kbd><span>Throttle</span><kbd>C</kbd><span>View</span></div>
+  <div class="settings" style="margin:14px 0 4px;max-width:420px"><label for="pVol">Effects</label><input id="pVol" type="range" min="0" max="1" step="0.05"><label for="pAmb">Ambient</label><input id="pAmb" type="range" min="0" max="1" step="0.05"><label for="pMus">Music</label><input id="pMus" type="range" min="0" max="1" step="0.05"></div>
   <div class="row" id="pStd"><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" onclick="UI.restart()">Restart</button><button class="btn ghost" onclick="G.pad.open('pause')">Controls</button><button class="btn ghost" onclick="UI.menu()">Quit to menu</button></div>
   <div class="row" id="pOpen" hidden><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" id="pAbandon" onclick="UI.abandonJob()">Abandon job</button><button class="btn ghost" onclick="UI.returnHome()">Back to the Margaret</button><button class="btn ghost" onclick="G.pad.open('pause')">Controls</button></div></div></div>
 

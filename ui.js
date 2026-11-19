@@ -149,6 +149,7 @@ const UI = G.UI = {
     const g = G.game; if (!g || g.done || UI.inContact || UI.inDev) return; g.paused = on; this.screen(on ? 'pause' : null);
     const op = !!g.mission.open; $('pOpen').hidden = !op; $('pStd').hidden = op; if (op) $('pAbandon').hidden = !g.mission.job;
     if (G.audio.ctx) { if (on) G.audio.ctx.suspend(); else G.audio.ctx.resume(); }
+    if (on) { const S = G.save; $('pVol').value = S.vol ?? 0.7; $('pAmb').value = S.amb ?? 0.8; $('pMus').value = G.music.vol(); }
   },
   resume(){ this.pause(false); lock(); },
   restart(){ this.pause(false); this.fly(); },
@@ -251,6 +252,9 @@ addEventListener('blur', () => { const g = G.game; if (g) for (const k in g.keys
 $('mVol').addEventListener('input', e => G.audio.setVolume(+e.target.value));
 $('mMus').addEventListener('input', e => G.music.setVolume(+e.target.value));
 $('mAmb').addEventListener('input', e => G.audio.setAmbient(+e.target.value));
+// the same three sliders on the pause screen, kept in step with the menu's
+for (const [p, m, set] of [['pVol', 'mVol', v => G.audio.setVolume(v)], ['pAmb', 'mAmb', v => G.audio.setAmbient(v)], ['pMus', 'mMus', v => G.music.setVolume(v)]])
+  $(p).addEventListener('input', e => { set(+e.target.value); $(m).value = e.target.value; });
 addEventListener('pointerdown', () => G.music.kick(), true); addEventListener('keydown', () => G.music.kick(), true);
 $('mSens').addEventListener('input', e => { G.save.mouseSens = +e.target.value; G.persist(); });
 $('mInv').addEventListener('change', e => { G.save.invert = e.target.checked; G.persist(); });
