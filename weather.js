@@ -11,6 +11,27 @@ const V3 = THREE.Vector3;
 const lerp = (a, b, t) => a + (b - a)*t;
 
 /* fog: multiplier on how far you can see · light: on the sun · sky: how much the sky is covered · wind m/s · turb: bumps */
+/* sprites for the weather's motes, painted once: a six-armed snowflake with a soft halo, a grain of blown sand, a curl of ash, and a soft cloud */
+const PTEX = {};
+function precipTex(kind){
+  if (PTEX[kind] !== undefined) return PTEX[kind];
+  if (typeof document === 'undefined' || !document.createElement) return (PTEX[kind] = null);
+  const N = kind === 'puff' ? 128 : 64, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext && c.getContext('2d'); if (!x) return (PTEX[kind] = null);
+  const h = N/2, glow = (r, a) => { const gr = x.createRadialGradient(h, h, 0, h, h, r); gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.beginPath(); x.arc(h, h, r, 0, 7); x.fill(); };
+  if (kind === 'snow') {
+    glow(h, 0.55); x.strokeStyle = 'rgba(255,255,255,0.95)'; x.lineCap = 'round';
+    for (let k = 0; k < 6; k++) { const a = k*Math.PI/3, ca = Math.cos(a), sa = Math.sin(a), L = h*0.78; x.lineWidth = 3; x.beginPath(); x.moveTo(h, h); x.lineTo(h + ca*L, h + sa*L); x.stroke();
+      x.lineWidth = 2; for (const f of [0.45, 0.7]) { const bx = h + ca*L*f, by = h + sa*L*f, l = L*0.22; for (const s of [-1, 1]) { const b = a + s*0.8; x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + Math.cos(b)*l, by + Math.sin(b)*l); x.stroke(); } } }
+    glow(h*0.28, 1);
+  } else if (kind === 'ash') {
+    x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); for (let k = 0; k < 9; k++) { const a = k/9*Math.PI*2, r = h*(0.35 + 0.35*((k*37) % 7)/7); x.lineTo(h + Math.cos(a)*r, h + Math.sin(a)*r*0.7); } x.closePath(); x.fill(); glow(h*0.9, 0.25);
+  } else if (kind === 'dust') {
+    glow(h, 0.35); for (let k = 0; k < 7; k++) { const a = k*2.4, r = h*0.25*((k*13) % 5)/5; x.fillStyle = 'rgba(255,255,255,0.85)'; x.beginPath(); x.arc(h + Math.cos(a)*r, h + Math.sin(a)*r, h*(0.12 + 0.06*(k % 3)), 0, 7); x.fill(); }
+  } else {   // a soft cloud: a few overlapping blobs, faded at the edge
+    for (let k = 0; k < 9; k++) { const a = k*0.7, r = h*0.32*(k % 3)/2, gx = h + Math.cos(a)*r, gy = h + Math.sin(a)*r*0.7, gr = x.createRadialGradient(gx, gy, 0, gx, gy, h*0.55); gr.addColorStop(0, 'rgba(255,255,255,0.32)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, N, N); }
+  }
+  return (PTEX[kind] = new THREE.CanvasTexture(c));
+}
 const KINDS = {
   clear:    {label:'Clear skies', fog:1, light:1, sky:0, wind:2, turb:0, min:4, max:8, say:'Clear skies. Enjoy it while it lasts.'},
   haze:     {label:'Hazy', fog:0.6, light:0.85, sky:0.25, skyCol:0xd8c8a8, fogCol:0xd8c8a8, wind:3, turb:0.1, min:3, max:6, say:'Haze coming up off the ground. Visibility\'s dropping.'},
@@ -113,6 +134,11 @@ class Sky {
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
     this.flakes = new THREE.Points(pg, new THREE.PointsMaterial({color:0xffffff, size:1.6, transparent:true, opacity:0, depthWrite:false}));
     this.flakes.frustumCulled = false; sc.add(this.flakes);
+    // drifting clouds of it on top of the motes: blowing sand, gusts of snow, a pall of ash
+    this.NP = 70; const qp = new Float32Array(this.NP*3); for (let i = 0; i < this.NP*3; i++) qp[i] = (Math.random() - 0.5)*300;
+    const qg = new THREE.BufferGeometry(); qg.setAttribute('position', new THREE.BufferAttribute(qp, 3));
+    this.puffs = new THREE.Points(qg, new THREE.PointsMaterial({color:0xffffff, size:46, transparent:true, opacity:0, depthWrite:false, map:precipTex('puff')}));
+    this.puffs.frustumCulled = false; sc.add(this.puffs);
     this.bolt = null; this.apply(0);
     if (!this.fixed && (!G.Net || G.Net.role !== 'guest')) this.anounce(true);
   }
@@ -180,7 +206,9 @@ class Sky {
     const kind = KINDS[this.id].precip || (this.blend < 1 ? KINDS[this.from].precip : null), rate = this.mix('rate') || 1;
     const fade = KINDS[this.id].precip ? this.blend : 1 - this.blend;
     const isRain = kind === 'rain', on = kind ? Math.min(1, fade)*Math.min(1, rate) : 0, hw = this.box;
-    this.rain.material.opacity = isRain ? on*0.5 : 0; this.flakes.material.opacity = !isRain && kind ? on*0.85 : 0;
+    this.rain.material.opacity = isRain ? on*0.5 : 0; this.flakes.material.opacity = !isRain && kind ? on*0.9 : 0;
+    const puffK = kind === 'dust' ? 0.2 : kind === 'ash' ? 0.13 : kind === 'snow' && rate > 1.5 ? 0.16 : 0;
+    this.puffs.material.opacity = on*puffK;
     if (!kind || dt <= 0) return;
     const wind = this.wind, n = Math.round(this.N*Math.min(1, 0.45 + rate*0.35));
     if (isRain) {
@@ -196,8 +224,17 @@ class Sky {
     } else {
       const a = this.flakes.geometry.attributes.position.array, M = this.flakes.material, T = this.g.t;
       const fall = kind === 'snow' ? 4 : kind === 'ash' ? 2.2 : 0.6, side = kind === 'dust' ? 1.8 : 1;
-      M.size = kind === 'snow' ? 1.9 : kind === 'ash' ? 1.5 : 1.2;
-      M.color.setHex(kind === 'snow' ? 0xffffff : kind === 'ash' ? 0x3a3634 : 0xc8985a);
+      M.size = kind === 'snow' ? 2.6 : kind === 'ash' ? 2.2 : 1.7;
+      M.color.setHex(kind === 'snow' ? 0xffffff : kind === 'ash' ? 0x4a4542 : 0xd2a46a);
+      if (M.userData.kind !== kind) { M.userData.kind = kind; M.map = precipTex(kind); M.alphaTest = 0.04; M.needsUpdate = true; }
+      // the drifting clouds: big soft billboards tinted to the weather, blown along faster than the motes and rolling as they go
+      if (this.puffs.material.opacity > 0) { const q = this.puffs.geometry.attributes.position.array, PM = this.puffs.material, sp = kind === 'dust' ? 2.4 : kind === 'snow' ? 2 : 0.8;
+        PM.color.setHex(kind === 'dust' ? 0xc49260 : kind === 'ash' ? 0x55504c : 0xf2f4f8); PM.size = kind === 'dust' ? 52 : 40;
+        for (let i = 0; i < this.NP; i++) { const o = i*3; let x = q[o] + wind.x*sp*dt, y = q[o + 1] + Math.sin(T*0.3 + i)*0.6*dt, z = q[o + 2] + wind.z*sp*dt;
+          if (x - cam.x > hw[0]) x -= hw[0]*2; if (x - cam.x < -hw[0]) x += hw[0]*2; if (z - cam.z > hw[2]) z -= hw[2]*2; if (z - cam.z < -hw[2]) z += hw[2]*2;
+          if (y - cam.y < -hw[1]*0.8 || y - cam.y > hw[1]*0.6) y = cam.y + (Math.random() - 0.6)*hw[1];
+          q[o] = x; q[o + 1] = y; q[o + 2] = z; }
+        this.puffs.geometry.attributes.position.needsUpdate = true; }
       for (let i = 0; i < this.N; i++) {
         const o = i*3; if (i >= n) { a[o + 1] = -1e5; continue; }
         let x = a[o] + (wind.x*side + Math.sin(T*0.8 + i)*1.2)*dt, y = a[o + 1] - fall*dt, z = a[o + 2] + (wind.z*side + Math.cos(T*0.7 + i)*1.2)*dt;
@@ -233,7 +270,7 @@ class Sky {
       }
     }
   }
-  dispose(){ const sc = this.g.scene; sc.remove(this.dome); sc.remove(this.rain); sc.remove(this.flakes); if (this.bolt) sc.remove(this.bolt.m); }
+  dispose(){ const sc = this.g.scene; sc.remove(this.dome); sc.remove(this.rain); sc.remove(this.flakes); sc.remove(this.puffs); if (this.bolt) sc.remove(this.bolt.m); }
 }
 G.WeatherSky = Sky;
 
