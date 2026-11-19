@@ -42,7 +42,7 @@ const UI = G.UI = {
     $('mCall').value = S.callsign || '';
     $('mCash').textContent = '$' + S.cash.toLocaleString();
     $('mRecord').textContent = `${S.sorties} sorties · ${S.wins} wins · ${S.kills} kills`;
-    $('mVol').value = S.vol; $('mMus').value = G.music.vol(); $('mSens').value = S.mouseSens; $('mInv').checked = !!S.invert; $('mAssist').checked = !!S.aimAssist;
+    $('mVol').value = S.vol ?? 0.7; $('mAmb').value = S.amb ?? 0.8; $('mMus').value = G.music.vol(); $('mSens').value = S.mouseSens; $('mInv').checked = !!S.invert; $('mAssist').checked = !!S.aimAssist;
     preview.show($('mPrev'), S.load);
   },
   restartChapter(){ G.save.story = G.newStory(); G.save.mission = 'story'; G.persist(); UI.menu(); },
@@ -250,6 +250,7 @@ addEventListener('blur', () => { const g = G.game; if (g) for (const k in g.keys
 /* settings */
 $('mVol').addEventListener('input', e => G.audio.setVolume(+e.target.value));
 $('mMus').addEventListener('input', e => G.music.setVolume(+e.target.value));
+$('mAmb').addEventListener('input', e => G.audio.setAmbient(+e.target.value));
 addEventListener('pointerdown', () => G.music.kick(), true); addEventListener('keydown', () => G.music.kick(), true);
 $('mSens').addEventListener('input', e => { G.save.mouseSens = +e.target.value; G.persist(); });
 $('mInv').addEventListener('change', e => { G.save.invert = e.target.checked; G.persist(); });

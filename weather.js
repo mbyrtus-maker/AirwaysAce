@@ -77,7 +77,7 @@ const Amb = G.weatherSound = {
   set(k, gain){
     const A = G.audio; if (!A || !A.ctx) return;
     let L = this.loops[k];
-    if (!L) { if (!this.buf[k] || gain < 0.01) return; const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = this.buf[k]; src.loop = true; g.gain.value = 0; src.connect(g).connect(A.sfxBus); src.start(0, Math.random()*this.buf[k].duration*0.8); L = this.loops[k] = {src, g}; }
+    if (!L) { if (!this.buf[k] || gain < 0.01) return; const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = this.buf[k]; src.loop = true; g.gain.value = 0; src.connect(g).connect(A.ambBus || A.sfxBus); src.start(0, Math.random()*this.buf[k].duration*0.8); L = this.loops[k] = {src, g}; }
     L.g.gain.setTargetAtTime(gain, A.ctx.currentTime, 0.8);
   },
   /* a one-off: a thunderclap or a foghorn, from a point in the recording, faded out at the end */
@@ -85,7 +85,7 @@ const Amb = G.weatherSound = {
     const A = G.audio, b = this.buf[k]; if (!A || !A.ctx || !b) return false;
     const src = A.ctx.createBufferSource(), g = A.ctx.createGain(), t = A.ctx.currentTime, len = Math.min(dur || b.duration, b.duration - off);
     src.buffer = b; src.playbackRate.value = rate; g.gain.setValueAtTime(gain, t); g.gain.setValueAtTime(gain, t + Math.max(0, len/rate - 1.2)); g.gain.linearRampToValueAtTime(0, t + len/rate);
-    src.connect(g).connect(A.sfxBus); src.start(t, off, len); return true;
+    src.connect(g).connect(A.ambBus || A.sfxBus); src.start(t, off, len); return true;
   },
   mix(levels){ for (const k of Object.keys(AMB)) this.set(k, levels[k] || 0); },
   silence(){ this.mix({}); }

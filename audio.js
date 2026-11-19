@@ -10,7 +10,8 @@ const A = G.audio = {
     try {
       const c = this.ctx = new AC();
       this.master = c.createGain(); this.master.gain.value = this.vol(); this.master.connect(c.destination);
-      this.sfxBus = c.createGain(); this.sfxBus.connect(this.master);
+      this.sfxBus = c.createGain(); this.sfxBus.gain.value = this.sfxVol(); this.sfxBus.connect(this.master);
+      this.ambBus = c.createGain(); this.ambBus.gain.value = this.ambVol(); this.ambBus.connect(this.master);   // weather, wind, waves: the world's own noise, on its own slider
       for (const k in G.SFX) {
         const bin = atob(G.SFX[k]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
         const ok = b => { if (!this.buf[k]) { this.buf[k] = b; this.edges(k, b); if (k === 'engine' || k === 'engine2') this.startEngines(); } };
@@ -20,8 +21,11 @@ const A = G.audio = {
       if (typeof fetch === 'function') fetch('sounds/turbine.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.turbine = b; this.edges('turbine', b); }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
-  vol(){ return this.muted ? 0 : (G.save ? G.save.vol : 0.7); },
-  setVolume(v){ if (G.save) { G.save.vol = v; G.persist(); } if (this.master) this.master.gain.setTargetAtTime(this.vol(), this.ctx.currentTime, 0.05); },
+  vol(){ return this.muted ? 0 : 1; },
+  sfxVol(){ return G.save ? G.save.vol ?? 0.7 : 0.7; },
+  ambVol(){ return G.save ? G.save.amb ?? 0.8 : 0.8; },
+  setVolume(v){ if (G.save) { G.save.vol = v; G.persist(); } if (this.sfxBus) this.sfxBus.gain.setTargetAtTime(this.sfxVol(), this.ctx.currentTime, 0.05); },
+  setAmbient(v){ if (G.save) { G.save.amb = v; G.persist(); } if (this.ambBus) this.ambBus.gain.setTargetAtTime(this.ambVol(), this.ctx.currentTime, 0.05); },
   toggleMute(){ this.muted = !this.muted; if (this.master) this.master.gain.setTargetAtTime(this.vol(), this.ctx.currentTime, 0.05); if (G.music && G.music.el) G.music.el.volume = this.muted ? 0 : G.music.vol(); return this.muted; },
   /* find where the encoder padding ends and starts again */
   edges(k, b){
