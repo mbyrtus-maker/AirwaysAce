@@ -754,7 +754,7 @@ function buildCity(c, g){
 
   let n = 0;
   const STEP = 66;
-  for (let z = -4400; z < 4200; z += STEP) for (let x = rx(z) - 1800; x < rx(z) + 1800; x += STEP) {
+  for (let z = -4400; z < 4200; z += STEP) for (let x0 = Math.round((rx(z) - 1800)/STEP)*STEP, x = x0; x < x0 + 3600; x += STEP) {   // blocks on one grid, so the streets between them run straight
     const bx = x + STEP/2, bz = z + STEP/2, b = RU.bank(bx, bz);
     if (!RU.city(bx, bz) || b < 30 || steel(bx, bz) || w.flatW(bx, bz) > 0.01 || RU.isle(bx, bz)) continue;
     const edge = RU.fp(bz) - b, down = bz > -1800 && bz < 400 && b < 700, docks = bz < -3000, mills = bz > 300 && bz < 2500 && b < 520;
@@ -794,6 +794,93 @@ function buildCity(c, g){
   c.cityCount = n;
 }
 
+/* ---------- the streets: asphalt in every gap of the block grid, following the ground, with cars and (after dark) lamps ---------- */
+const SG = 66, SZ0 = -4400, SW = 12;
+function streetTexture(){
+  if (streetTexture.t !== undefined) return streetTexture.t;
+  if (typeof document === 'undefined' || !document.createElement) return (streetTexture.t = null);
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 128; const x = cv.getContext && cv.getContext('2d'); if (!x) return (streetTexture.t = null);
+  const R = G.rng(313); x.fillStyle = '#47433e'; x.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 500; i++) { const v = 55 + Math.floor(R()*30); x.fillStyle = `rgb(${v},${v - 3},${v - 7})`; x.fillRect(R()*64, R()*128, 1 + R()*2, 1 + R()*2); }   // patching and wear
+  x.fillStyle = '#8d8676'; x.fillRect(0, 0, 5, 128); x.fillRect(59, 0, 5, 128);                                       // the pavements
+  x.fillStyle = '#5a554c'; x.fillRect(5, 0, 1, 128); x.fillRect(58, 0, 1, 128);                                       // the kerbs
+  x.fillStyle = '#cfc4a0'; x.fillRect(31, 10, 2, 46);                                                                 // the centre dash
+  x.fillStyle = 'rgba(30,28,26,0.35)'; x.fillRect(18, 0, 5, 128); x.fillRect(41, 0, 5, 128);                         // the wheel ruts, darkened with oil
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return (streetTexture.t = t);
+}
+function buildStreets(c, g){
+  const w = g.world, STEP = 11, runs = [], gasP = c.P.gasworks;
+  const steel = (x, z) => z > 2550 && z < 4250 && x > rx(z);
+  const hooks = c.sites.filter(s => s.kind === 'hook').map(s => s.point);
+  const ok = (x, z) => RU.city(x, z) && RU.bank(x, z) > 24 && !steel(x, z) && !RU.isle(x, z) && w.flatW(x, z) <= 0.01
+    && !(gasP && Math.hypot(x - gasP.x, z - gasP.z) < 250) && !hooks.some(h => Math.hypot(x - h.x, z - h.z) < 40);
+  // east-west streets on the row lines; north-south ones on the column lines
+  const lines = [];
+  for (let z = SZ0; z <= 4200; z += SG) { let x0 = Infinity, x1 = -Infinity; for (let zz = z - 400; zz <= z + 400; zz += 100) { x0 = Math.min(x0, rx(zz) - 1300); x1 = Math.max(x1, rx(zz) + 1300); } lines.push({ax:'x', c:z, a:Math.floor(x0/SG)*SG, b:Math.ceil(x1/SG)*SG}); }
+  let xa = Infinity, xb = -Infinity; for (let z = -4600; z <= 4300; z += 100) { xa = Math.min(xa, rx(z) - 1300); xb = Math.max(xb, rx(z) + 1300); }
+  for (let x = Math.floor(xa/SG)*SG; x <= xb; x += SG) lines.push({ax:'z', c:x, a:-4600, b:4300});
+  for (const Ln of lines) {
+    let cur = null;
+    for (let d = Ln.a; d <= Ln.b; d += STEP) {
+      const x = Ln.ax === 'x' ? d : Ln.c, z = Ln.ax === 'x' ? Ln.c : d;
+      if (ok(x, z)) { if (!cur) cur = {ax:Ln.ax, pts:[]}; cur.pts.push(new V3(x, w.height(x, z, true) + 0.3, z)); }
+      else if (cur) { if (cur.pts.length > 3) runs.push(cur); cur = null; }
+    }
+    if (cur && cur.pts.length > 3) runs.push(cur);
+  }
+  // one ribbon per run, all in a handful of meshes; v runs along the street so the dashes repeat every 12 m
+  const tex = streetTexture(), mat = new THREE.MeshStandardMaterial({color:tex ? 0xffffff : 0x47433e, map:tex || null, roughness:0.95, metalness:0, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2});
+  const bins = new Map();
+  for (const R of runs) {
+    const key = Math.floor(R.pts[0].x/1500) + ',' + Math.floor(R.pts[0].z/1500) + R.ax; if (!bins.has(key)) bins.set(key, {p:[], uv:[], ix:[]});
+    const B = bins.get(key), hw = SW/2, nx = R.ax === 'x' ? 0 : 1, nz = R.ax === 'x' ? 1 : 0;
+    // east-west streets sit a hair above the others so the crossings don't flicker
+    const lift = R.ax === 'x' ? 0.04 : 0;
+    R.pts.forEach((q, i) => { const base = B.p.length/3, v = (R.ax === 'x' ? q.x : q.z)/12;
+      B.p.push(q.x - nx*hw, q.y + lift, q.z - nz*hw, q.x + nx*hw, q.y + lift, q.z + nz*hw); B.uv.push(0, v, 1, v);
+      if (i) B.ix.push(base - 2, base, base - 1, base - 1, base, base + 1); });
+    R.len = (R.pts.length - 1)*STEP;
+  }
+  for (const B of bins.values()) {
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); geo.setIndex(B.ix); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; g.scene.add(m);
+  }
+  // streetlamps after dark, every 44 m on alternate sides
+  if (c.night || c.time === 'evening') {
+    const spots = []; for (const R of runs) for (let i = 2; i < R.pts.length - 1; i += 4) { const q = R.pts[i], sd = (i >> 2) % 2 ? 1 : -1; spots.push(R.ax === 'x' ? [q.x, q.y, q.z + sd*(SW/2 + 0.6)] : [q.x + sd*(SW/2 + 0.6), q.y, q.z]); }
+    if (spots.length) {
+      const lampM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 6, 4), new THREE.MeshBasicMaterial({color:0xffcf78}), spots.length), poleM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.11, 0.15, 5, 4), G.mat(0x2a2622), spots.length), mx = new THREE.Matrix4();
+      spots.forEach(([x, y, z], i) => { lampM.setMatrixAt(i, mx.makeTranslation(x, y + 5.1, z)); poleM.setMatrixAt(i, mx.makeTranslation(x, y + 2.4, z)); });
+      lampM.frustumCulled = poleM.frustumCulled = false; g.scene.add(lampM); g.scene.add(poleM);
+    }
+  }
+  c.streets = runs; c.streetKm = runs.reduce((a, R) => a + R.len, 0)/1000;
+  // traffic: a pool of cars and lorries kept on the streets round the player, recycled as they fall behind
+  const cols = [0x1f2a44, 0x6b1f1f, 0x2f4a30, 0x222222, 0x5a4632, 0x3a3f6a, 0x4a4440, 0x2a2826, 0x7a6a4a], rr = G.rng(4410), N = c.night ? 22 : 40;
+  c.cars = []; for (let i = 0; i < N; i++) { const m = G.buildCar(cols[i % cols.length], i % 4 === 3); m.visible = false; g.scene.add(m); c.cars.push({m, R:null, s:0, dir:1, sp:9 + rr()*6}); }
+}
+const carAt = (car, out) => {
+  const R = car.R, f = Math.max(0, Math.min(R.pts.length - 1.001, car.s/11)), i = Math.floor(f), t = f - i, a = R.pts[i], b = R.pts[i + 1];
+  out.lerpVectors(a, b, t); const lane = car.dir*3; if (R.ax === 'x') out.z += lane; else out.x -= lane;   // keep right
+  return Math.atan2(b.y - a.y, 11);
+};
+function streetTick(c, g, dt){
+  const P = g.player, cam = (g.camera && g.camera.position) || (P && P.pos); if (!cam || !c.streets || !c.streets.length) return;
+  const far = 1500, near = 1000;
+  for (const car of c.cars) {
+    if (!car.R || Math.hypot(car.m.position.x - cam.x, car.m.position.z - cam.z) > far) {
+      // put it on a street somewhere near the camera, out to the edge of what we keep
+      car.R = null; for (let tries = 0; tries < 12 && !car.R; tries++) { const R = c.streets[Math.floor(Math.random()*c.streets.length)], q = R.pts[Math.floor(Math.random()*R.pts.length)];
+        if (Math.hypot(q.x - cam.x, q.z - cam.z) < near) { car.R = R; car.s = R.pts.indexOf(q)*11; car.dir = Math.random() < 0.5 ? 1 : -1; } }
+      car.m.visible = !!car.R; if (!car.R) continue;
+    }
+    car.s += car.dir*car.sp*dt;
+    if (car.s < 0 || car.s > car.R.len) { car.dir = -car.dir; car.s = Math.max(0, Math.min(car.R.len, car.s)); }   // the end of the street: turn round
+    const pitch = carAt(car, car.m.position);
+    car.m.rotation.set(0, car.R.ax === 'x' ? (car.dir > 0 ? PI/2 : -PI/2) : (car.dir > 0 ? 0 : PI), 0); car.m.rotateX(-pitch*car.dir);
+  }
+}
+
 /* ---------- the El: an elevated railway up the east bank and over the river at the El crossing ---------- */
 function buildEl(c, g){
   const w = g.world, zEl = 3500, F = bridgeFrame(zEl), ctrl = [];
@@ -814,6 +901,7 @@ function buildEl(c, g){
 /* ---------- the frame: collisions with decks and cables, updrafts, smoke, the El train, and the Air Police ---------- */
 function rtick(c, g, dt){
   const L = lists(c), P = g.player;
+  streetTick(c, g, dt);
   // bridge decks, roofs and cables
   for (const p of g.planes) {
     if (!p.alive || p.frozen || p.onGround) continue;
@@ -951,6 +1039,7 @@ G.REGION_BUILD.rustwater = (c, g) => {
   c.heat = 0; c.police = []; c.heatAdd = (gg, n, why) => G.policeHeat(c, gg, n, why);
   buildEl(c, g);
   buildCity(c, g);
+  buildStreets(c, g);
   if (G.Train && c.rail) c.train = new G.Train(g, c.rail, ['loco', 'box', 'pay', 'box'], {speed:13, s:30});
   afterDark(c, g);
   c.rtick = (gg, dt) => rtick(c, gg, dt);
