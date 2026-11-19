@@ -433,7 +433,7 @@ G.Combat = {
 
   /* ---------- Docking: slow down, line up with the ship, fly through a side ring; the hook catches you ---------- */
   updateRearm(dt){
-    const P = this.player, s = this.ships[0]; if (!P || !s || !this.running) return;
+    const P = this.player, s = this.ships.find(x => x.team === 0 && x.obj.userData.docks) || this.ships[0]; if (!P || !s || !this.running) return;   // the Margaret, wherever she sits in the list (an escort mission puts its charge first)
     const docks = s.obj.userData.docks; if (!docks) return;
     const F = tC.set(Math.sin(s.heading), 0, Math.cos(s.heading));
     this.dockInfo = [];

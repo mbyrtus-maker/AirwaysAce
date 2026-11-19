@@ -233,7 +233,7 @@ const H = G.HUD = {
       if (major) { c.fillStyle = card ? (n === 0 ? '#ff8c78' : '#f2c14e') : 'rgba(239,227,200,.85)'; c.font = card ? '700 15px "Barlow Condensed", sans-serif' : '600 11px "Barlow Condensed", sans-serif'; c.fillText(card ? ['N', 'E', 'S', 'W'][n/90] : String(n).padStart(3, '0'), x, y + 1); }
     }
     // the Margaret on the tape
-    const s = g.ships[0];
+    const s = g.ships.find(x => x.team === 0 && x.obj.userData.docks) || g.ships[0];
     if (s && s.alive && s.team === 0) { let b = (Math.atan2(s.pos.x - P.pos.x, s.pos.z - P.pos.z)*180/Math.PI + 360) % 360, dd = ((b - hd + 540) % 360) - 180;
       const x = cx + Math.max(-half + 6, Math.min(half - 6, dd*px)); c.fillStyle = '#8fe3a8'; c.beginPath(); c.moveTo(x, y + 14); c.lineTo(x - 5, y + 20); c.lineTo(x + 5, y + 20); c.closePath(); c.fill(); }
     c.restore();
