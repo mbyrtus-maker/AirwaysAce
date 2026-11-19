@@ -114,6 +114,11 @@ G.World = class {
       cols[i*3] = r; cols[i*3 + 1] = g; cols[i*3 + 2] = b;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    if (this.cuts.some(c => c.ell)) {   // a cavern's lid needs the normals the uncut ground would have had, so it lights exactly like the mesa round it
+      for (let i = 0; i < pos.count; i++) pos.setY(i, this.h0[i]);
+      geo.computeVertexNormals(); const na = geo.attributes.normal && geo.attributes.normal.array; this.n0 = na && na.length ? Float32Array.from(na) : null;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, this.h[i]);
+    }
     geo.computeVertexNormals();
     this.terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({vertexColors:true, map:detailTex(), roughness:0.97, metalness:0}));
     this.terrain.receiveShadow = true; scene.add(this.terrain);

@@ -1136,17 +1136,21 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const gx = (hC(ix + 1, iz) - h) + (h - hC(ix - 1, iz)) + (hC(ix, iz + 1) - hC(ix - 1, iz + 1)) + (hC(ix + 1, iz - 1) - hC(ix, iz - 1)) + (hC(ix + 1, iz) - h) + (h - hC(ix - 1, iz));
       const gz = (hC(ix, iz + 1) - h) + (hC(ix - 1, iz + 1) - hC(ix - 1, iz)) + (hC(ix, iz + 1) - h) + (h - hC(ix, iz - 1)) + (hC(ix + 1, iz) - hC(ix + 1, iz - 1)) + (h - hC(ix, iz - 1)), nl = Math.hypot(gx, 6*st, gz);
       const col = w.colorAt(x, z, y, Math.hypot(hC(ix + 1, iz) - hC(ix - 1, iz), hC(ix, iz + 1) - hC(ix, iz - 1))/(2*st));
-      v = {a:[x, y, z, col[0], col[1], col[2], -gx/nl, 6*st/nl, -gz/nl], cut, roof:cut && roofed(x, z)}; vc.set(key, v); return v; };
-    const lp = [], lc = [], ln = [], lu = [], sd = a => (a[0] - g0.x)*g0.dx + (a[2] - g0.z)*g0.dz;
+      const n0 = w.n0, nx = n0 ? n0[key*3] : -gx/nl, ny = n0 ? n0[key*3 + 1] : 6*st/nl, nz = n0 ? n0[key*3 + 2] : -gz/nl;
+      v = {a:[x, y, z, col[0], col[1], col[2], nx, ny, nz], cut, roof:cut && roofed(x, z), key}; vc.set(key, v); return v; };
+    const seam = new Set(), lp = [], lc = [], ln = [], lu = [], sd = a => (a[0] - g0.x)*g0.dx + (a[2] - g0.z)*g0.dz;
     const emit = (poly) => { for (let k = 1; k < poly.length - 1; k++) for (const a of [poly[0], poly[k], poly[k + 1]]) { lp.push(a[0], a[1], a[2]); lc.push(a[3], a[4], a[5]); ln.push(a[6], a[7], a[8]); lu.push((a[0] + S0/2)/S0, 1 - (a[2] + S0/2)/S0); } };
     const clip = poly => { const out = []; for (let k = 0; k < poly.length; k++) { const a = poly[k], b = poly[(k + 1) % poly.length], da = sd(a), db = sd(b); if (da >= 0) out.push(a); if ((da >= 0) !== (db >= 0)) { const t = da/(da - db); out.push(a.map((v, i) => v + (b[i] - v)*t)); } } return out; };
     const RR = Math.max(rx, rz) + e + gL + 120, i0 = Math.max(0, Math.floor((C.x - RR + S0/2)/st)), i1 = Math.min(N - 1, Math.ceil((C.x + RR + S0/2)/st)), k0 = Math.max(0, Math.floor((C.z - RR + S0/2)/st)), k1 = Math.min(N - 1, Math.ceil((C.z + RR + S0/2)/st));
     for (let iz = k0; iz <= k1; iz++) for (let ix = i0; ix <= i1; ix++) { const a = vtx(ix, iz), d = vtx(ix + 1, iz), b = vtx(ix, iz + 1), c = vtx(ix + 1, iz + 1), q = [a, b, c, d];
       if (!q.some(v => v.roof)) continue; const open = td.canyon && q.some(v => v.cut && !v.roof);
+      if (!open) for (const v of q) if (!v.cut) seam.add(v);   // the ground round the lid: light and colour it as if nothing were cut
       for (const t of [[a, b, d], [c, d, b]]) { if (!t.some(v => v.cut)) continue;   // an untouched triangle is still there in the terrain
         const poly = open ? clip(t.map(v => v.a)) : t.map(v => v.a); if (poly.length >= 3) emit(poly); } }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(ln, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(lu, 2));
     const lid = new THREE.Mesh(geo, w.terrain.material); lid.receiveShadow = true; g.scene.add(lid); C.tris += lp.length/9;
+    { const tg = w.terrain.geometry, TN = tg.attributes.normal, TC = tg.attributes.color;
+      if (TN && TC && TN.setXYZ) { for (const v of seam) { const a = v.a; TN.setXYZ(v.key, a[6], a[7], a[8]); TC.setXYZ(v.key, a[3], a[4], a[5]); } TN.needsUpdate = TC.needsUpdate = true; } }
   },
   /* The Gate of Cíbola: a slot canyon (the terrain cut, open to the sky) ending at the mesa wall in a mission front
      carved round a big arched portal, with a timber gantry, lanterns and the name over the door. Only the portal is
