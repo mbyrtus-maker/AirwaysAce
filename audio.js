@@ -56,7 +56,7 @@ const A = G.audio = {
   // a rough little rattler for the light brawlers, and the original for the rest. gain evens out how hot each recording is
   VOICE:{sparrowhawk:'v12', mantis:'v12', jackal:'v12', comet:'v12', banshee:'v12', hornet:'v12',
     highwayman:'heavy', ironclad:'heavy', thunderbuss:'heavy', bulldog:'heavy', vandal:'rough', grackle:'rough'},
-  VGAIN:{engine:1, v12:0.65, heavy:0.66, rough:0.66}, VRATE:{engine:1, v12:1, heavy:0.88, rough:1.04},
+  VGAIN:{engine:1, v12:0.65, heavy:0.66, rough:0.66}, VRATE:{engine:1, v12:1.14, heavy:0.82, rough:1.06},
   engKey(P){ const k = P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
   startEngines(){
     if (!this.eng && this.buf.engine) { this.eng = this.loop('engine', 0); if (this.eng) this.eng.key = 'engine'; }
