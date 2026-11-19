@@ -29,7 +29,8 @@ const A = G.audio = {
   toggleMute(){ this.muted = !this.muted; if (this.master) this.master.gain.setTargetAtTime(this.vol(), this.ctx.currentTime, 0.05); if (G.music && G.music.el) G.music.el.volume = this.muted ? 0 : G.music.vol(); return this.muted; },
   /* a loop with no seam: the recording's tail crossfaded (equal power) into its head, so nothing clicks or chirps each time round */
   seamless(b, tr, fade){
-    const sr = b.sampleRate, s0 = Math.round(tr.s*sr), s1 = Math.round(tr.e*sr), F = Math.min(Math.round(fade*sr), Math.floor((s1 - s0)/3)), n = s1 - s0 - F;
+    const sr = b.sampleRate, m = Math.round(0.03*sr), s0 = Math.round(tr.s*sr) + m, s1 = Math.round(tr.e*sr) - m,   // 30 ms in from each end: the decoder's resampling smears the very edges, and that smear clicks every lap
+       F = Math.min(Math.round(fade*sr), Math.floor((s1 - s0)/3)), n = s1 - s0 - F;
     const out = this.ctx.createBuffer(b.numberOfChannels, n, sr);
     for (let ch = 0; ch < b.numberOfChannels; ch++) { const d = b.getChannelData(ch), o = out.getChannelData(ch);
       for (let i = 0; i < n; i++) o[i] = d[s0 + F + i];
