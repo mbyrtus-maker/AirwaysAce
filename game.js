@@ -70,6 +70,7 @@ G.Game = class {
     if (this.running && (code === 'KeyR' || code === 'KeyZ')) this.stunt(code === 'KeyR' ? 'immel' : 'splits');   // left-hand keys, one press
     if (code === 'KeyC') { this.view = this.view === 'chase' ? 'cockpit' : 'chase'; G.save.view = this.view; G.persist(); }
     if (code === 'KeyX' && this.running && G.launchDrone) G.launchDrone(this);
+    if (code === 'KeyT' && this.running) this.toggleHover();
     if (code === 'KeyP' && this.running) { this.snapPhoto = true; G.HUD.shutter(); if (this.audio && this.audio.one) try { this.audio.one('hitshort', 0.25, 2.4); } catch (e) {} }   // the camera: missions read snapPhoto this frame
     if (G.ORDERS[code] && this.wingmen && this.wingmen.length) this.order(G.ORDERS[code]);
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
@@ -141,8 +142,26 @@ G.Game = class {
   }
   onTouchdown(P, hard){ if (!P.isPlayer) return; this.aimPitch = -0.03; G.HUD.toast(hard ? 'Hard landing!' : 'Touchdown!'); if (this.mission.onTouchdown) this.mission.onTouchdown(this, hard); }
   onLiftoff(P){ if (!P.isPlayer) return; this.aimPitch = 0.12; if (this.mission.onLiftoff) this.mission.onLiftoff(this); }
+  /* T: the Whirligig's hover. From the ground she lifts straight up; in the air she comes to a hover; T again tips her into flight */
+  toggleHover(){
+    const P = this.player; if (!P || !P.alive || P.L.chassis !== 'whirligig') { if (P && P.alive) G.HUD.toast('Only the Whirligig can hover'); return; }
+    if (P.engineDead && !P.hover) return;
+    if (!P.hover) {
+      if (P.onGround) { P.onGround = false; P.pos.y += 1.6; P.vel.set(0, 2, 0); if (this.onLiftoff) this.onLiftoff(P); }
+      P.hover = true; P.hvel = P.vel.clone(); P.flaps = false; G.HUD.toast('Hover · mouse: nose and heading · W/S climb · A/D slide · T to fly');
+    } else {
+      P.hover = false; const f = P.fwd, h = Math.hypot(f.x, f.z) || 1; P.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(f.x, f.z)); P.axes();
+      P.speed = Math.max(P.speed, P.stallSpeed()*1.12); P.throttle = 1; G.HUD.toast('Flying');
+    }
+  }
   playerControl(dt){
     const P = this.player, k = this.keys; if (!P || !P.alive) return;
+    if (P.hover && !P.onGround) {
+      const cp = Math.cos(this.aimPitch); this.aimDir.set(Math.sin(this.aimYaw)*cp, Math.sin(this.aimPitch), Math.cos(this.aimYaw)*cp);
+      const turn = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0); if (turn) this.aimYaw -= turn*1.3*dt;
+      P.hoverIn = {yaw:this.aimYaw, pitch:this.aimPitch, climb:(k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), side:(k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)};
+      P.fire = !!(k.Mouse0); P.fireRk = !!(k.Mouse2 || k.Space); return;
+    }
     if (P.onGround) {
       if (k.KeyW && !P.engineDead) P.throttle = Math.min(1, P.throttle + dt*0.6);
       if (k.KeyS) P.throttle = Math.max(0, P.throttle - dt*0.9);

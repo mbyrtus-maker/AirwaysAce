@@ -64,22 +64,7 @@ const A = G.audio = {
     if (!this.shipEng && this.buf.engine2) {
       // the airship: the twin-engine recording slowed right down and muffled into a soft, low thrum
       this.shipEng = this.loop('engine2', 0);
-      // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
-    // steamship thrums low as she passes
-    if (this.buf.steam && this.ambBus) {
-      const cam = game.camera && game.camera.position; let best = null, bd = 1e9;
-      if (cam) for (const T of game.trains || []) { if (!T.alive || !T.cars || !T.cars[0]) continue; const d = T.cars[0].grp.position.distanceTo(cam); if (d < bd) { bd = d; best = T; } }
-      if (best && bd < 900 && !this.steamL) { this.steamL = this.loop('steam', 0); if (this.steamL) { this.steamL.g.disconnect(); this.steamL.g.connect(this.ambBus); } }
-      if (this.steamL) { const a = best ? Math.max(0, 1 - bd/900)**1.5 : 0, sp = best && !best.done ? best.speed : 0;
-        this.steamL.src.playbackRate.setTargetAtTime(0.55 + Math.min(1, sp/30)*0.6, t, 0.4); this.steamL.g.gain.setTargetAtTime(game.running ? a*(sp > 1 ? 0.5 : 0.18) : 0, t, 0.3); }
-    }
-    if (this.buf.heavy && this.ambBus && game.sea) {
-      const cam = game.camera && game.camera.position; let bd = 1e9;
-      if (cam) for (const S of game.sea.ships) { if (!S.alive || !S.obj || !/freighter|steamer|tug|gunboat|yacht|trawler/.test(S.kind)) continue; const d = S.obj.position.distanceTo(cam); if (d < bd) bd = d; }
-      if (bd < 600 && !this.seaL) { this.seaL = this.loop('heavy', 0); if (this.seaL) { this.seaL.g.disconnect(); this.seaL.g.connect(this.ambBus); this.seaL.src.playbackRate.value = 0.42; } }
-      if (this.seaL) this.seaL.g.gain.setTargetAtTime(game.running ? Math.max(0, 1 - bd/600)**1.6*0.22 : 0, t, 0.4);
-    }
-    if (this.shipEng) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
+      if (this.shipEng) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
         this.shipEng.g.disconnect(); this.shipEng.g.connect(lp).connect(this.sfxBus); this.shipEng.src.playbackRate.value = 0.36; }
     }
   },
@@ -99,7 +84,7 @@ const A = G.audio = {
       if (this.eng.key !== want) { const old = this.eng; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} this.eng = this.loop(want, 0) || old; this.eng.key = want; }
       const gyro = P.L && P.L.chassis === 'whirligig' && this.buf.rotor;
       if (gyro && !this.rotor) this.rotor = this.loop('rotor', 0);
-      if (this.rotor) { this.rotor.src.playbackRate.setTargetAtTime(0.8 + Math.min(1, P.speed/P.top)*0.35, t, 0.3); this.rotor.g.gain.setTargetAtTime(gyro && P.alive && game.running ? 0.16 + Math.min(1, P.speed/P.top)*0.1 : 0, t, 0.25); }
+      if (this.rotor) { this.rotor.src.playbackRate.setTargetAtTime((P.hover ? 1.0 : 0.8) + Math.min(1, P.speed/P.top)*0.3, t, 0.3); this.rotor.g.gain.setTargetAtTime(gyro && P.alive && game.running ? 0.34 + Math.min(1, P.speed/P.top)*0.12 + (P.hover ? 0.1 : 0) : 0, t, 0.25); }   // the rotor is the big noise, louder still when she's hanging on it
       const on = P.alive && game.running && !P.engineDead;
       const jet = P.st && P.st.jet, sp = P.speed/P.top, s = jet ? (P.spool ?? P.throttle) : P.throttle, rate = jet ? 1.35 + s*0.9 + sp*0.25 : 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);   // the jet: the same recording wound right up into a whine
       if (jet && !this.turb && this.buf.turbine) this.turb = this.loop('turbine', 0);
@@ -124,6 +109,21 @@ const A = G.audio = {
       const a = best ? (1 - bd/900)**1.8 : 0;
       if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700), t, 0.08); }
       this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32 : 0, t, 0.1);
+    }
+    // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
+    // steamship thrums low as she passes
+    if (this.buf.steam && this.ambBus) {
+      const cam = game.camera && game.camera.position; let best = null, bd = 1e9;
+      if (cam) for (const T of game.trains || []) { if (!T.alive || !T.cars || !T.cars[0]) continue; const d = T.cars[0].grp.position.distanceTo(cam); if (d < bd) { bd = d; best = T; } }
+      if (best && bd < 900 && !this.steamL) { this.steamL = this.loop('steam', 0); if (this.steamL) { this.steamL.g.disconnect(); this.steamL.g.connect(this.ambBus); } }
+      if (this.steamL) { const a = best ? Math.max(0, 1 - bd/900)**1.5 : 0, sp = best && !best.done ? best.speed : 0;
+        this.steamL.src.playbackRate.setTargetAtTime(0.55 + Math.min(1, sp/30)*0.6, t, 0.4); this.steamL.g.gain.setTargetAtTime(game.running ? a*(sp > 1 ? 0.5 : 0.18) : 0, t, 0.3); }
+    }
+    if (this.buf.heavy && this.ambBus && game.sea) {
+      const cam = game.camera && game.camera.position; let bd = 1e9;
+      if (cam) for (const S of game.sea.ships) { if (!S.alive || !S.obj || !/freighter|steamer|tug|gunboat|yacht|trawler/.test(S.kind)) continue; const d = S.obj.position.distanceTo(cam); if (d < bd) bd = d; }
+      if (bd < 600 && !this.seaL) { this.seaL = this.loop('heavy', 0); if (this.seaL) { this.seaL.g.disconnect(); this.seaL.g.connect(this.ambBus); this.seaL.src.playbackRate.value = 0.42; } }
+      if (this.seaL) this.seaL.g.gain.setTargetAtTime(game.running ? Math.max(0, 1 - bd/600)**1.6*0.22 : 0, t, 0.4);
     }
     if (this.shipEng) {
       const s = game.ships[0]; const a = s && s.alive ? Math.max(0, 1 - s.pos.distanceTo(game.camera.position)/900)**1.2 : 0;

@@ -15,7 +15,7 @@ const ACTIONS = [
   {id:'KeyC', label:'Chase / cockpit view'}, {id:'KeyV', label:'Look back (hold)'},
   {id:'Digit1', label:'Wingmen: attack'}, {id:'Digit2', label:'Wingmen: cover me'}, {id:'Digit3', label:'Wingmen: the zeppelin'},
   {id:'Digit4', label:'Wingmen: form up'}, {id:'Digit5', label:'Wingmen: go home'},
-  {id:'KeyP', label:'Camera (photograph objectives)'}, {id:'KeyX', label:'Launch ghost drone (Banshee)'},
+  {id:'KeyP', label:'Camera (photograph objectives)'}, {id:'KeyX', label:'Launch ghost drone (Banshee)'}, {id:'KeyT', label:'Hover (Whirligig)'},
   {id:'KeyM', label:'Sound on / off'}, {id:'KeyH', label:'Flight help'}
 ];
 const CANON = new Set(ACTIONS.map(a => a.id));
@@ -66,7 +66,7 @@ const KM = G.keymap = {
       [`Double-tap ${two('KeyA', 'KeyD')}`, 'Barrel roll (dodges fire)'], [two('KeyR', 'KeyZ'), 'Immelmann / Split-S'],
       [k('KeyF'), 'Flaps (land, dock, skyhook)'], [k('KeyG'), 'Landing gear (retractable planes)'], [`Double-tap ${two('KeyQ', 'KeyE')}`, 'Snap turn'],
       [['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].map(k).join(' '), 'Wingmen: attack, cover, zeppelin, form, go home'],
-      [k('ShiftLeft'), 'Nitro'], [k('KeyP'), 'Camera (photo objectives)'], [k('KeyC'), 'Chase / cockpit'], [k('KeyV'), 'Look back'], [k('KeyM'), 'Sound'], [k('KeyH'), 'This help'], ['Esc', 'Pause']
+      [k('ShiftLeft'), 'Nitro'], [k('KeyT'), 'Hover (Whirligig)'], [k('KeyP'), 'Camera (photo objectives)'], [k('KeyC'), 'Chase / cockpit'], [k('KeyV'), 'Look back'], [k('KeyM'), 'Sound'], [k('KeyH'), 'This help'], ['Esc', 'Pause']
     ];
     const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;'}[c]));
     box.innerHTML = rows.map(([a, b]) => `<kbd>${esc(a)}</kbd><span>${esc(b)}</span>`).join('');

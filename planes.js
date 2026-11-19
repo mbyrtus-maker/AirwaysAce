@@ -65,6 +65,7 @@ G.Plane = class {
     this.age += dt; this.stT -= dt;
     if (this.stT <= 0) { this.stT = 0.5; this.st = G.flightStats(this.L, this.spent); }
     const st = this.st; this.axes();
+    if (this.hover) this.hoverStep(dt); else {
     const stall = this.stallSpeed(), auth = clamp((this.speed - stall*0.55)/(stall*0.9), 0.22, 1)*(this.speed > st.top*1.15 ? 0.8 : 1);
     const wingHurt = (this.armor[3] <= 0 ? 1 : 0) - (this.armor[2] <= 0 ? 1 : 0), tailHurt = this.armor[1] <= 0 ? 0.75 : 1;
     // control surfaces ease toward the stick instead of snapping, which keeps the mouse-aim autopilot from twitching
@@ -111,6 +112,7 @@ G.Plane = class {
     const sink = this.speed < stall ? (stall - this.speed)*0.9 : 0;
     this.vel.copy(this.fwd).multiplyScalar(this.speed); this.vel.y -= sink;
     this.pos.addScaledVector(this.vel, dt);
+    }
     // collisions
     const w = this.g.world, gh = Math.max(w.height(this.pos.x, this.pos.z), 0.4);
     // touchdown: on a runway, gently, wings level, nose not buried
@@ -121,7 +123,10 @@ G.Plane = class {
       const ok = this.vel.y > -6.5 && Math.abs(this.right.y) < 0.22 && this.fwd.y > -0.26 && this.speed < this.st.top*0.82;
       if (ok) { this.land(gh + gear); return; }
     }
-    this.grace = Math.max(0, this.grace - dt);
+    if (this.hover && this.isPlayer && this.pos.y < gh + gear + 0.4 && gh > 0.6) {   // a hovering autogyro sets down anywhere dry, if she comes down gently
+      if (this.vel.y > -4.5 && Math.hypot(this.vel.x, this.vel.z) < 8) { this.hover = false; this.land(gh + gear); return; }
+    }
+        this.grace = Math.max(0, this.grace - dt);
     if (this.grace > 0 && this.pos.y < gh + 30) { this.pos.y = gh + 30; }   // fresh off the trapeze: can't crash yet
     if (this.pos.y < gh + 1.2) { this.pos.y = gh + 1.2; if (this.isPlayer && this.g.done) { if (this.fwd.y < 0) this.q.premultiply(qB.setFromAxisAngle(this.right, 0.5*dt)); } else { this.destroy(null, 'crash'); return; } }
     if (this.pos.y > 4200) { this.pos.y = 4200; if (this.fwd.y > 0) this.speed -= 30*dt; }
@@ -153,6 +158,22 @@ G.Plane = class {
   }
   stallSpeed(){ return this.st.stall*(this.flaps ? 0.6 : 1); }
   flapMax(){ return this.st.top*0.55; }
+  /* the Whirligig's hover: the rotor holds her up at any speed. The nose follows the aim's heading; tipping it down drives her
+     forward and lifting it backs her up, like a helicopter; W/S climb and sink, A/D slide sideways. hoverIn comes from game.js */
+  hoverStep(dt){
+    const I = this.hoverIn || {}, f = this.fwd, hv = this.hvel || (this.hvel = this.vel.clone());
+    const yaw0 = Math.atan2(f.x, f.z), pitch0 = Math.asin(clamp(f.y, -1, 1));
+    let dy = (I.yaw ?? yaw0) - yaw0; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    const yaw = yaw0 + clamp(dy, -1.7*dt, 1.7*dt), pitch = pitch0 + clamp(clamp(I.pitch ?? 0, -0.55, 0.45) - pitch0, -1.4*dt, 1.4*dt);
+    const fwdK = clamp(-pitch*2.6, -0.45, 1), side = I.side || 0, dead = this.engineDead;
+    const tx = Math.sin(yaw)*fwdK*30 + Math.cos(yaw)*side*-11, tz = Math.cos(yaw)*fwdK*30 - Math.sin(yaw)*side*-11, ty0 = dead ? -9 : (I.climb || 0)*7, agl = this.pos.y - Math.max(this.g.world.height(this.pos.x, this.pos.z), 0.4), ty = ty0 < 0 && !dead ? Math.max(ty0, -2.2 - Math.max(0, agl - 4)*0.18) : ty0;   // ground cushion: she sinks slower the lower she gets
+    const kh = Math.min(1, dt*1.1), kv = Math.min(1, dt*2.2);
+    hv.x += (tx - hv.x)*kh; hv.z += (tz - hv.z)*kh; hv.y += (ty - hv.y)*kv;
+    this.roll = (this.roll || 0) + ((-side*0.28) - (this.roll || 0))*Math.min(1, dt*3);
+    this.q.setFromEuler(new THREE.Euler(-pitch, yaw, this.roll, 'YXZ')); this.axes();
+    this.vel.copy(hv); this.speed = Math.max(0, Math.hypot(hv.x, hv.z)); this.pos.addScaledVector(hv, dt);
+    this.throttle = dead ? 0 : 0.55 + 0.35*Math.abs(I.climb || 0);
+  }
   land(y){
     const hard = this.vel.y < -3.5;
     this.onGround = true; this.pos.y = y; this.groundYaw = Math.atan2(this.fwd.x, this.fwd.z); this.man = null;
