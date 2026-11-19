@@ -18,7 +18,7 @@ const A = G.audio = {
         const pr = c.decodeAudioData(u8.buffer, ok, () => {}); if (pr && pr.then) pr.then(ok).catch(() => {});
       }
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
-      if (typeof fetch === 'function') fetch('sounds/turbine.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.turbine = b; this.edges('turbine', b); }).catch(() => {});
+      if (typeof fetch === 'function') fetch('sounds/turbine.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : 1; },
@@ -27,6 +27,15 @@ const A = G.audio = {
   setVolume(v){ if (G.save) { G.save.vol = v; G.persist(); } if (this.sfxBus) this.sfxBus.gain.setTargetAtTime(this.sfxVol(), this.ctx.currentTime, 0.05); },
   setAmbient(v){ if (G.save) { G.save.amb = v; G.persist(); } if (this.ambBus) this.ambBus.gain.setTargetAtTime(this.ambVol(), this.ctx.currentTime, 0.05); },
   toggleMute(){ this.muted = !this.muted; if (this.master) this.master.gain.setTargetAtTime(this.vol(), this.ctx.currentTime, 0.05); if (G.music && G.music.el) G.music.el.volume = this.muted ? 0 : G.music.vol(); return this.muted; },
+  /* a loop with no seam: the recording's tail crossfaded (equal power) into its head, so nothing clicks or chirps each time round */
+  seamless(b, tr, fade){
+    const sr = b.sampleRate, s0 = Math.round(tr.s*sr), s1 = Math.round(tr.e*sr), F = Math.min(Math.round(fade*sr), Math.floor((s1 - s0)/3)), n = s1 - s0 - F;
+    const out = this.ctx.createBuffer(b.numberOfChannels, n, sr);
+    for (let ch = 0; ch < b.numberOfChannels; ch++) { const d = b.getChannelData(ch), o = out.getChannelData(ch);
+      for (let i = 0; i < n; i++) o[i] = d[s0 + F + i];
+      for (let i = 0; i < F; i++) { const t = i/F; o[n - F + i] = d[s1 - F + i]*Math.cos(t*Math.PI/2) + d[s0 + i]*Math.sin(t*Math.PI/2); } }
+    return out;
+  },
   /* find where the encoder padding ends and starts again */
   edges(k, b){
     const d = b.getChannelData(0), th = 0.004; let s = 0, e = d.length - 1;
