@@ -261,6 +261,7 @@ Object.assign(UI, {
   chartSel:null,
   travelCost(a, b){ const d = Math.hypot(a.chart[0] - b.chart[0], a.chart[1] - b.chart[1]); return {hours:Math.max(3, Math.round(d/55)), cash:Math.round(d*2/50)*50 + 100}; },
   chart(){
+    for (const id in UI.CHART_AT) if (G.REGIONS[id]) G.REGIONS[id].chart = UI.CHART_AT[id];
     UI.quit(); this.screen('chart'); G.HUD.show(false); G.music.play('sidewalk');
     const S = G.save; S.mission = 'open'; UI.chartSel = null; G.persist();
     UI.renderChart();
@@ -268,6 +269,8 @@ Object.assign(UI, {
     if (!UI._chartFont && document.fonts && document.fonts.load) { UI._chartFont = true; document.fonts.load('700 38px "Old Standard TT"').then(() => { UI._chartArt = null; UI._chartBuilt = false; if (!$('chart').hidden) UI.renderChart(); }).catch(() => {}); }
   },
   pickRegion(id){ UI.chartSel = id; UI.renderChart(); },
+  /* Where each region sits on the 600 x 440 chart: laid out here, all six together, so the labels and the title cartouche don't collide */
+  CHART_AT:{rustwater:[104, 152], frostback:[305, 92], halcyon:[112, 322], calavera:[292, 296], badlands:[482, 205], keys:[470, 352]},
   /* Region outlines on the 600 x 440 chart, around each region's chart position. */
   CHART_SHAPES:{
     halcyon:'M-62 -8 C-60 -44 -14 -54 24 -42 C60 -30 72 6 54 30 C32 56 -24 56 -46 36 C-62 22 -64 8 -62 -8Z',
@@ -321,12 +324,12 @@ Object.assign(UI, {
     for (let i = 0; i < 8; i++) { const a = i*Math.PI/4 - Math.PI/2, L = i % 2 ? 34 : 54; x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(a - 0.22)*10, Math.sin(a - 0.22)*10); x.lineTo(Math.cos(a)*L, Math.sin(a)*L); x.closePath(); x.fillStyle = ink + '.9)'; x.fill(); x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(a + 0.22)*10, Math.sin(a + 0.22)*10); x.lineTo(Math.cos(a)*L, Math.sin(a)*L); x.closePath(); x.fillStyle = paper; x.fill(); x.stroke(); }
     x.fillStyle = ink + '1)'; x.font = '700 26px "Old Standard TT", Georgia, serif'; x.textAlign = 'center'; x.fillText('N', 0, -70); x.restore();
     // scale bar
-    x.save(); x.translate(60, H - 60); for (let i = 0; i < 4; i++) { x.fillStyle = i % 2 ? paper : ink + '.9)'; x.fillRect(i*50, 0, 50, 9); } x.strokeStyle = ink + '.9)'; x.lineWidth = 1.4; x.strokeRect(0, 0, 200, 9);
+    x.save(); x.translate(W - 220, 268); for (let i = 0; i < 4; i++) { x.fillStyle = i % 2 ? paper : ink + '.9)'; x.fillRect(i*50, 0, 50, 9); } x.strokeStyle = ink + '.9)'; x.lineWidth = 1.4; x.strokeRect(0, 0, 200, 9);
     x.fillStyle = ink + '1)'; x.font = '600 17px "Old Standard TT", Georgia, serif'; x.textAlign = 'center'; ['0', '50', '100', '150', '200'].forEach((t, i) => x.fillText(t, i*50, -8)); x.fillText('MILES BY AIRSHIP', 100, 32); x.restore();
     // title cartouche
     x.save(); x.translate(40, 34); x.fillStyle = 'rgba(239,228,198,.92)'; x.fillRect(0, 0, 430, 112); x.strokeStyle = ink + '.95)'; x.lineWidth = 3; x.strokeRect(0, 0, 430, 112); x.lineWidth = 1; x.strokeRect(7, 7, 416, 98);
     x.fillStyle = ink + '1)'; x.textAlign = 'center'; x.font = '700 15px "Old Standard TT", Georgia, serif'; x.fillText('THE  HALCYON  GAZETTE  ·  AVIATION  SUPPLEMENT', 215, 32);
-    x.font = '700 38px "Old Standard TT", Georgia, serif'; x.fillText('CHART of the SIERRA COAST', 215, 72); x.font = 'italic 16px "Old Standard TT", Georgia, serif'; x.fillText('with the principal airfields, skyhooks & sea-lanes · 1937', 215, 96); x.restore();
+    { let fs = 38; const T = 'CHART of the SIERRA COAST'; do { x.font = `700 ${fs}px "Old Standard TT", Georgia, serif`; } while (x.measureText(T).width > 396 && --fs > 18); x.fillText(T, 215, 72); } { let fs = 16; const T = 'with the principal airfields, skyhooks & sea-lanes · 1937'; do { x.font = `italic ${fs}px "Old Standard TT", Georgia, serif`; } while (x.measureText(T).width > 400 && --fs > 10); } x.fillText('with the principal airfields, skyhooks & sea-lanes · 1937', 215, 96); x.restore();
     // fold creases and a coffee ring, for wear
     x.strokeStyle = 'rgba(80,60,30,.12)'; x.lineWidth = 2; x.beginPath(); x.moveTo(W/2, 0); x.lineTo(W/2, H); x.moveTo(0, H/2); x.lineTo(W, H/2); x.stroke();
     x.strokeStyle = 'rgba(120,80,30,.10)'; x.lineWidth = 9; x.beginPath(); x.arc(W - 230, H - 150, 62, 0.3, 5.6); x.stroke();
@@ -334,12 +337,13 @@ Object.assign(UI, {
     return (UI._chartArt = c.toDataURL('image/jpeg', 0.86));
   },
   renderChart(){
+    for (const id in UI.CHART_AT) if (G.REGIONS[id]) G.REGIONS[id].chart = UI.CHART_AT[id];
     const S = G.save, O = S.open, here = G.REGIONS[O.region], sel = G.REGIONS[UI.chartSel] || here;
     if (!UI._chartBuilt) {
       // the static layer: the painted art plus one hit-path and label per region (built once)
       $('cImg').src = UI.chartArt(); let svg = '';   // the painted art is a plain image under a light SVG layer
       for (const R of Object.values(G.REGIONS)) {
-        const ly = R.id === 'frostback' ? 60 : 74;
+        const ly = {frostback:56, keys:54, calavera:58, halcyon:70, rustwater:66, badlands:70}[R.id] || 72;
         svg += `<g class="rg" data-id="${R.id}" transform="translate(${R.chart[0]} ${R.chart[1]})" onclick="UI.pickRegion('${R.id}')"><path class="hit" d="${UI.CHART_SHAPES[R.id]}"/>
           <text class="rn" y="${ly}" text-anchor="middle">${esc(R.name.toUpperCase())}</text><text class="rs" y="${ly + 14}" text-anchor="middle">${esc(R.nation)}</text><text class="rt" y="${ly + 27}" text-anchor="middle"></text></g>`;
       }
@@ -348,7 +352,7 @@ Object.assign(UI, {
     }
     // the moving parts: selection, the Margaret, treasure tallies
     for (const g of $('cMap').querySelectorAll('.rg')) { const R = G.REGIONS[g.dataset.id]; g.classList.toggle('sel', R === sel); g.classList.toggle('here', R === here); g.querySelector('.rt').textContent = `treasure ${R.treasures.filter(t => O.found[t.id]).length}/${R.treasures.length}`; }
-    $('cShip').setAttribute('transform', `translate(${here.chart[0] + 36} ${here.chart[1] - 48})`);
+    $('cShip').setAttribute('transform', `translate(${here.chart[0] + 66} ${here.chart[1] - 26})`);
     const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid);
     const night = G.timeOfDay() === 'night', move = sel !== here ? UI.travelCost(here, sel) : null;
     const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS', calavera:'PIRATE BRETHREN DENY "KING" RUMOURS; VOLCANO RUMBLES', rustwater:'GHOST PLANES OVER GANTRY? CITY HALL SAYS NONSENSE'}[sel.id];
