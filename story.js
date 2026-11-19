@@ -918,9 +918,9 @@ G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
     this.g = g; this.phase = 0; this.pt = 0; this.ended = false; this.boss = null; this.bossOut = false; this.launched = 0; this.hangT = 35;
     cityscape(g, null, {air:{circlers:2, blimp:false}, cars:30});
     this.launch(g, `Hook's live, ${G.save.callsign || 'Ace'}. There she is. The Wraith. Give 'em hell, and come home.`, {pos:new V3(CITY.x - 400, 760, CITY.z - 1500), heading:0, turn:0.02});
-    const s = this.ship; s.hp = s.hpMax = 5000;
+    const s = this.ship; s.hp = s.hpMax = 6500;
     const wp = new V3(CITY.x + 300, 820, CITY.z + 1700), widow = new V3(CITY.x + 1100, 760, CITY.z + 1500);
-    this.wraith = g.addShip({team:1, kind:'raider', name:'Wraith', label:'WRAITH', paint:{hull:0x1d1b1c, band:0x7a1414, trim:0xb88a2a, scale:1.4, hpMul:F.depotBurned ? 1.5 : 1.8}, pos:wp, heading:Math.PI, speed:6, turn:0.012, noRun:true, gunCd:0.24});
+    this.wraith = g.addShip({team:1, kind:'raider', name:'Wraith', label:'WRAITH', paint:{hull:0x1d1b1c, band:0x7a1414, trim:0xb88a2a, scale:1.4, hpMul:F.depotBurned ? 1.25 : 1.45}, pos:wp, heading:Math.PI, speed:6, turn:0.012, noRun:true, gunCd:0.32});
     this.widow = g.addShip({team:1, kind:'raider', name:'Black Widow', label:'BLACK WIDOW', paint:{hull:0x2b2626, band:0x5a1a3a, trim:0x8a8f94}, pos:widow, heading:Math.PI, speed:7, turn:0.015, noRun:true});
     g.targetShip = this.wraith;
     s.foe = this.wraith; this.wraith.foe = s; this.widow.foe = s; s.standoff = 800; this.wraith.standoff = 650; this.widow.standoff = 900; s.turn0 = 0.02;
@@ -934,18 +934,18 @@ G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
     }
     towerCrash(g);
     if (this.phase !== 1 || this.ended) { G.HUD.sides(this.sideState(g)); return; }
-    if (this.pt > 3 && !this.screen) { this.screen = 1; pirates(g, W.worldPoint(new V3(0, 40, 300), new V3()), 5, {gang:'lantern', skill:0.55}); G.HUD.radio(G.RADIO.short, 'Fighter screen coming off the Wraith! Five of them!'); }
+    if (this.pt > 3 && !this.screen) { this.screen = 1; pirates(g, W.worldPoint(new V3(0, 40, 300), new V3()), 4, {gang:'lantern', skill:0.5}); G.HUD.radio(G.RADIO.short, 'Fighter screen coming off the Wraith! Four of them!'); }
     // both raiders launch from their bellies while their hangars stand
     this.hangT -= dt;
-    if (this.hangT <= 0 && this.launched < 8) { this.hangT = 40;
-      for (const R of [W, this.widow]) if (R.alive && R.alivePart('hangar').length && this.launched < 8) { this.launched += 2; pirates(g, R.worldPoint(new V3(0, -60, -20), new V3()), 2, {gang:'lantern', skill:0.5}); }
+    if (this.hangT <= 0 && this.launched < 6) { this.hangT = 50;
+      for (const R of [W, this.widow]) if (R.alive && R.alivePart('hangar').length && this.launched < 6) { this.launched += 2; pirates(g, R.worldPoint(new V3(0, -60, -20), new V3()), 2, {gang:'lantern', skill:0.45}); }
     }
     // the Lamplighter comes out once his ship is hurting
     const engLost = W.count('engine') - W.alivePart('engine').length, cellsLost = W.count('cell') - W.alivePart('cell').length;
     if (!this.bossOut && (engLost >= 2 || cellsLost >= 2)) {
       if (g.weather) g.weather.change('storm', 'And here comes the storm that\'s been sitting over the bay all afternoon. Lovely timing.');
-      this.bossOut = true; const L = G.stockLoadout('vandal'); L.paint = [0x111111, 0xd9b44a, 0x7a1414]; L.guns = [{cal:'60', ammo:'ex'}, {cal:'50', ammo:'ap'}]; L.arm = [40, 40, 35, 35]; L.rocket = 'flak';
-      this.boss = g.addPlane({loadout:L, team:1, name:'Commodore Ezra Kessler', callsign:'The Lamplighter', pos:W.worldPoint(new V3(0, -60, 30), new V3()), q:W.q, speed:80, ai:{role:'fighter', skill:0.95}, internalMul:2.6});
+      this.bossOut = true; const L = G.stockLoadout('vandal'); L.paint = [0x111111, 0xd9b44a, 0x7a1414]; L.guns = [{cal:'60', ammo:'ex'}, {cal:'50', ammo:'slug'}]; L.arm = [32, 30, 30, 30]; L.rocket = 'flak';
+      this.boss = g.addPlane({loadout:L, team:1, name:'Commodore Ezra Kessler', callsign:'The Lamplighter', pos:W.worldPoint(new V3(0, -60, 30), new V3()), q:W.q, speed:80, ai:{role:'fighter', skill:0.85}, internalMul:1.9});
       this.boss.ace = true; const pl = g.pilots[g.pilots.length - 1]; pl.target = P; pl.retT = 8;
       G.HUD.radio('The Lamplighter', `So you're the one who's been lighting fires in my house, ${G.save.callsign || 'flyboy'}. Let's settle it, you and me.`);
       setTimeout(() => G.HUD.radio(G.RADIO.short, 'That black-and-gold fighter out of the Wraith\'s belly, that\'s HIM. That\'s the Lamplighter!'), 3000);
