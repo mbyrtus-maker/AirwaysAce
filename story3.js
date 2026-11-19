@@ -120,13 +120,36 @@ function strafe(g, p, at, dt, onHit){
 
 /* ---------- the Copperton Line: a railway through the Badlands, and a train that runs on it ---------- */
 function railway(m, g){
-  const P = m.P, A = m.scene.arches[0], L = A ? A.len : 300, B = A ? A.pos : P.trestle, deck = A ? A.deck : ground(g, B.x, B.z) + 40;
-  const E1 = new V3(B.x + L/2 + 8, 0, B.z), E2 = new V3(B.x + L/2 + 420, 0, B.z), W1 = new V3(B.x - L/2 - 8, 0, B.z), W2 = new V3(B.x - L/2 - 420, 0, B.z);
+  // the trestle crosses its river at whatever angle the layout found: the line runs straight over the deck and its approaches, at rail height
+  const P = m.P, A = m.scene.arches.find(a => a.id === 'trestle') || m.scene.arches[0], L = A ? A.len : 300, B = A ? A.pos : P.trestle, deck = A ? (A.rail ?? A.deck) + 0.3 : ground(g, B.x, B.z) + 40;
+  const yaw = A && A.yaw || 0, ux = Math.cos(yaw), uz = -Math.sin(yaw), ext = A && A.ext || [-L/2, L/2], on = t => new V3(B.x + ux*t, 0, B.z + uz*t);
   const C = P.copperton.clone(), D = P.dustdevil.clone();
-  // the bend between Copperton and the trestle goes round the high ground, whichever side is lower
-  const mid = C.clone().add(E2).multiplyScalar(0.5), side = new V3(E2.z - C.z, 0, -(E2.x - C.x)).normalize();
-  let best = null, bh = 1e9; for (const k of [-1600, -900, 0, 900, 1600]) { const q = mid.clone().addScaledVector(side, k); let h = 0; for (let t = 0; t <= 1; t += 0.05) { const a = t < 0.5 ? C.clone().lerp(q, t*2) : q.clone().lerp(E2, t*2 - 1); h = Math.max(h, ground(g, a.x, a.z)); } if (h < bh) { bh = h; best = q; } }
-  const ctrl = [C, best, E2, E1, W1, W2, D.clone().lerp(W2, 0.2), D];
+  let E1 = on(ext[1] + 8), E2 = on(ext[1] + 250), W1 = on(ext[0] - 8), W2 = on(ext[0] - 250);
+  if (C.distanceTo(W2) + D.distanceTo(E2) < C.distanceTo(E2) + D.distanceTo(W2)) [E1, E2, W1, W2] = [W1, W2, E1, E2];   // Copperton's end is whichever is nearer it
+  // each leg is laid the way a surveyor would: the cheapest way over a coarse grid, where water is out (the trestle is the line's
+  // one river crossing, so each leg keeps to its own bank), a metre climbed costs fourteen along and the river's edge is dearer; thinned and
+  // eased into bends for the spline
+  const route = (a, b, bank) => {
+    const S = 80, key = (i, j) => (i + 512)*1024 + j + 512, H = new Map(), hgt = (i, j) => { const k = key(i, j); let v = H.get(k); if (v === undefined) H.set(k, v = ground(g, i*S, j*S)); return v; };
+    const ai = Math.round(a.x/S), aj = Math.round(a.z/S), bi = Math.round(b.x/S), bj = Math.round(b.z/S), dist = new Map([[key(ai, aj), 0]]), from = new Map(), heap = [[0, ai, aj]];
+    const push = e => { let i = heap.push(e) - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
+    const pop = () => { const top = heap[0], e = heap.pop(); if (heap.length) { heap[0] = e; let i = 0; for (;;) { let m = i; const l = 2*i + 1, r = l + 1; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    let found = false;
+    while (heap.length) {
+      const [, i, j] = pop(), d0 = dist.get(key(i, j)); if (i === bi && j === bj) { found = true; break; }
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+        if (!di && !dj) continue; const ni = i + di, nj = j + dj, h = hgt(ni, nj); if (Math.abs(ni*S) > 6400 || Math.abs(nj*S) > 6400 || (h < 1 && !(ni === bi && nj === bj)) || ((ni*S - B.x)*ux + (nj*S - B.z)*uz)*bank < 0 || ground(g, (i + di/2)*S, (j + dj/2)*S) < 1) continue;
+        let shore = false; for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) if (hgt(ni + a, nj + c) < 1) shore = true;
+        const d = d0 + S*Math.hypot(di, dj) + 14*Math.abs(h - hgt(i, j)) + (shore ? 120 : 0), k = key(ni, nj);
+        if (d < (dist.get(k) ?? 1e12)) { dist.set(k, d); from.set(k, [i, j]); push([d + S*Math.hypot(ni - bi, nj - bj), ni, nj]); }
+      }
+    }
+    if (!found) return [];
+    const cells = []; for (let c = [bi, bj]; c; c = from.get(key(c[0], c[1]))) cells.unshift(c);
+    const out = []; for (let i = 2; i < cells.length - 2; i += 2) out.push(new V3(cells[i][0]*S, 0, cells[i][1]*S));
+    const all = [a, ...out, b]; return out.map((q, i) => q.clone().multiplyScalar(2).add(all[i]).add(all[i + 2]).multiplyScalar(0.25));
+  };
+  const bank = Math.sign((E2.x - B.x)*ux + (E2.z - B.z)*uz), ctrl = [C, ...route(C, E2, bank), E2, E1, W1, W2, ...route(W2, D, -bank), D];
   // a Catmull-Rom spline through the control points, resampled to even spacing
   const dense = [], cp = [ctrl[0], ...ctrl, ctrl[ctrl.length - 1]];
   for (let i = 1; i < cp.length - 2; i++) for (let k = 0; k < 40; k++) { const t = k/40, p0 = cp[i - 1], p1 = cp[i], p2 = cp[i + 1], p3 = cp[i + 2], t2 = t*t, t3 = t2*t;
@@ -134,8 +157,8 @@ function railway(m, g){
   dense.push(ctrl[ctrl.length - 1].clone().setY(0));
   let tot = 0; const cum = dense.map((p, i) => (tot += i ? p.distanceTo(dense[i - 1]) : 0)), N = Math.round(tot/9), raw = [];
   for (let i = 0, j = 1; i <= N; i++) { const d = tot*i/N; while (j < dense.length - 1 && cum[j] < d) j++; const t = (d - cum[j - 1])/Math.max(0.01, cum[j] - cum[j - 1]); raw.push(dense[j - 1].clone().lerp(dense[j], t)); }
-  const pts = raw.map(v => ({x:v.x, z:v.z, gy:ground(g, v.x, v.z), y:0, bridge:Math.abs(v.z - B.z) < 30 && Math.abs(v.x - B.x) < L/2 + 6}));
-  for (const p of pts) p.y = p.bridge ? deck : p.gy;
+  const pts = raw.map(v => ({x:v.x, z:v.z, gy:ground(g, v.x, v.z), y:0, bridge:Math.abs((v.z - B.z)*ux - (v.x - B.x)*uz) < 30 && (v.x - B.x)*ux + (v.z - B.z)*uz > ext[0] - 6 && (v.x - B.x)*ux + (v.z - B.z)*uz < ext[1] + 6}));
+  for (const p of pts) { if (p.bridge) p.gy = deck; p.y = p.gy; }   // on the masonry: no timber bents under it
   for (let it = 0; it < 60; it++) for (let i = 1; i < pts.length - 1; i++) { const p = pts[i]; if (p.bridge) continue; p.y = Math.max(p.gy - 4, (pts[i - 1].y + pts[i + 1].y)/2); }
   let s = 0; pts.forEach((p, i) => { if (i) s += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z); p.s = s; });
   g.scene.add(G.buildTrack(pts));

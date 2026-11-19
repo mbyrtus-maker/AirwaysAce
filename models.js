@@ -1772,11 +1772,21 @@ G.buildTower = (h, w, hex, rand = Math.random) => {
   k.build(g); g.userData.top = y; return g;
 };
 
-/* A railway viaduct: stone arches you can fly through, deck at deckY above the lowest ground, spanning `len` along local X. */
-G.buildViaduct = (len, deckY, heights) => {
+/* A railway viaduct: stone arches you can fly through, deck at deckY above the lowest ground, spanning `len` along local X.
+   o.abut = [west, east]: ground heights every o.step metres outward from each end pier; a solid masonry approach is built
+   over them, so the deck runs on to the bank. o.plain leaves the rails to the caller and gives the deck parapets. */
+G.buildViaduct = (len, deckY, heights, o = {}) => {
   const g = new THREE.Group(), k = new Kit(), stone = G.mat(0xb59f80, {roughness:0.95}), dark = G.mat(0x8a7860, {roughness:0.95});
   const n = heights.length - 1, span = len/n;
-  k.add(box(len + 6, 3, 9), stone, T(0, deckY + 1.5, 0)); k.add(box(len + 6, 0.6, 1), DARK(), T(0, deckY + 3.3, 2)); k.add(box(len + 6, 0.6, 1), DARK(), T(0, deckY + 3.3, -2));
+  const st = o.step || 8, ab = o.abut || [[], []], x0 = -len/2 - 3 - ab[0].length*st, x1 = len/2 + 3 + ab[1].length*st;
+  k.add(box(x1 - x0, 3, 9), stone, T((x0 + x1)/2, deckY + 1.5, 0));
+  if (o.plain) for (const s of [1, -1]) { k.add(box(x1 - x0, 1.1, 0.6), stone, T((x0 + x1)/2, deckY + 3.55, s*4.2)); k.add(box(x1 - x0, 0.3, 0.9), dark, T((x0 + x1)/2, deckY + 4.2, s*4.2)); }
+  else { k.add(box(len + 6, 0.6, 1), DARK(), T(0, deckY + 3.3, 2)); k.add(box(len + 6, 0.6, 1), DARK(), T(0, deckY + 3.3, -2)); }
+  for (const e of [0, 1]) ab[e].forEach((gy, j) => {            // the approaches: solid wall stepping down to the rising bank, a string course under the deck
+    const x = (e ? 1 : -1)*(len/2 + 3 + (j + 0.5)*st), hh = deckY - gy + 3;
+    if (hh > 0.3) k.add(box(st + 0.05, hh, 9), stone, T(x, deckY - hh/2, 0));
+    k.add(box(st + 0.05, 1.2, 10), dark, T(x, deckY - 3, 0));
+  });
   for (let i = 0; i <= n; i++) {
     const x = -len/2 + i*span, gy = heights[i], hh = deckY - gy + 2;
     k.add(box(6, hh, 9), stone, T(x, gy + hh/2 - 2, 0)); k.add(box(7, 1.2, 10), dark, T(x, deckY - 3, 0));
@@ -1788,7 +1798,7 @@ G.buildViaduct = (len, deckY, heights) => {
       if (hh > 0.2) k.add(box(u1 - u0 + 0.05, hh, 9), stone, T(cx + u, ya + hh/2, 0));
     }
   }
-  k.build(g); g.userData = {span, n}; return g;
+  k.build(g); g.userData = {span, n, x0, x1}; return g;
 };
 
 /* Air-race gate: two striped pylons with a pennant line between, numbered by a brass disc on each pylon. */
@@ -2059,7 +2069,8 @@ G.buildSkullRock = () => {
    to make solid: {x, z, w, d, yaw, top}. o: rx, rz, ceil(x, z) (height of the roof you can hit), pillars [{lx, lz, r}]. */
 G.buildCibolaCity = (o = {}) => {
   const g = new THREE.Group(), k = new Kit(), rr = G.rng(1540), pick = a => a[Math.floor(rr()*a.length)], ri = (a, b) => a + rr()*(b - a);
-  const rx = o.rx || 330, rz = o.rz || 230, ceil = o.ceil || (() => 95), pillars = o.pillars || [], solids = [], bulbs = [], bulbs2 = [], taken = [];
+  const rx = o.rx || 330, rz = o.rz || 230, ceil = o.ceil || (() => 95), pillars = o.pillars || [], solids = [], taken = [];
+  const fit = new G.Fittings({day:o.night ? 0 : 0.3}), LC = G.LAMP, FEST = [LC.WARM, LC.AQUA, LC.WARM, LC.PINK, LC.WARM, LC.AMBER];   // it is always dusk under the rock
   const M = (hex, r = 0.9) => G.mat(hex, {roughness:r});
   const WALLS = [0xe6d8bc, 0xdcc39a, 0xd2a878, 0xe0cfa6, 0xcf9c6c, 0xd8b488].map(h => M(h)), ADOBE = [0xc28a5c, 0xb67a4e, 0xcf9a68].map(h => M(h, 0.95)), TILE = [M(0xa6452b, 0.8), M(0x8f3a26, 0.8)];
   const wood = M(0x4a3424), trim = M(0xefe4c8), turq = M(0x2f8f8a, 0.7), stone = M(0x8f7a62, 0.95), pave = M(0x8a6e52, 1), flag = M(0xb39a78, 1), red = M(0xb5382c), yel = M(0xe0b040);
@@ -2095,7 +2106,7 @@ G.buildCibolaCity = (o = {}) => {
       k.add(box(bw, 0.22, 1.2), wood, mul(F0, T(bx, by, 0.6))); k.add(box(bw, 0.12, 0.1), wood, mul(F0, T(bx, by + 1, 1.15))); for (const e of [-1, 1]) k.add(box(0.12, 1, 0.12), wood, mul(F0, T(bx + e*(bw/2 - 0.06), by + 0.5, 1.15)));
       k.add(rect(1.2, 2.1), lit, mul(F0, T(bx, by + 1.2, 0.07))); }
     else if (rr() < 0.4) k.add(box(Math.min(w - 1, 3.6), 0.12, 1.7), pick([red, turq, yel, trim]), mul(F0, T(dx, 2.9, 0.8), RX(0.42)));   // a shop awning
-    if (rr() < 0.55) bulbs.push(at(F0, dx + 1.3, 2.9, 0.5));
+    if (rr() < 0.55) fit.lantern(at(F0, dx + 1.3, 2.75, 0.6), {s:0.8, yaw, wall:at(F0, dx + 1.3, 2.75, 0)});   // a lantern on a bracket by the door
     solid(X, Z, w, d, yaw, top); return top;
   };
 
@@ -2111,7 +2122,7 @@ G.buildCibolaCity = (o = {}) => {
       k.add(box(pw, 0.3, 3), TILE[1], mul(F, T(0, Y(3.7), 1.45), RX(0.14))); for (let i = 0; i <= 8; i++) k.add(box(0.45, Y(3.6), 0.45), trim, mul(F, T(-pw/2 + 0.4 + i*(pw - 0.8)/8, Y(1.8), 2.7)));   // the arcade
       for (let i = 0; i < 8; i++) k.add(rect(2.3, Y(2.6)), i % 2 ? lit : unlit, mul(F, T(-pw/2 + (i + 0.5)*pw/8, Y(1.5), 0.05)));
       const c = at(mul(B, RY(f*PI/2)), pw/2 - 2.2, 0, pw/2 - 2.2); k.add(cyl(1.9, 1.9, Y(3), 8), cream, T(c[0], ph + Y(1.5), c[2])); k.add(dome(2.2, 2.2, 8, 3), gold, T(c[0], ph + Y(3), c[2]));   // a cupola on each corner
-      bulbs.push([c[0], ph + Y(3) + 2.6, c[2]]); }
+      fit.bulb([c[0], ph + Y(3) + 2.1, c[2]], LC.WARM, 0.34, {up:true, big:true}); }
     k.add(box(sw, s1 - s0, sw), ochre, mul(B, T(0, (s0 + s1)/2, 0))); k.add(box(sw + 0.7, 0.6, sw + 0.7), TILE[0], mul(B, T(0, s0 + (s1 - s0)*0.5, 0)));
     for (let f = 0; f < 4; f++) { const F = face(B, f, sw, sw), nf = Math.floor((s1 - s0 - 2)/3.5);
       for (let i = 0; i < 4; i++) k.add(box(0.9, s1 - s0 + (i === 0 || i === 3 ? 2.5 : 4.2), 0.55), trim, mul(F, T(-sw/2 + 0.45 + i*(sw - 0.9)/3, (s0 + s1)/2 + 1.2, 0.2)));   // the ribs run up past the parapet
@@ -2119,13 +2130,13 @@ G.buildCibolaCity = (o = {}) => {
     k.add(box(sw + 0.5, 0.8, sw + 0.5), trim, mul(B, T(0, s1, 0)));
     k.add(box(uw, u1 - s1, uw), cream, mul(B, T(0, (s1 + u1)/2, 0))); k.add(box(uw + 0.6, 0.7, uw + 0.6), gold, mul(B, T(0, u1, 0)));
     for (let f = 0; f < 4; f++) { const F = face(B, f, uw, uw); for (let c = 0; c < 3; c++) k.add(rect(2, u1 - s1 - 3.2), glow, mul(F, T((c - 1)*3.6, (s1 + u1)/2 + 0.2, 0.05)));
-      for (const e of [-1, 1]) { const c = at(mul(B, RY(f*PI/2)), e*(sw/2 - 1.3), 0, sw/2 - 1.3); if (e > 0) { k.add(box(2.2, Y(5), 2.2), cream, T(c[0], s1 + Y(2.5), c[2])); k.add(cyl(0, 1.7, 2.4, 4), gold, mul(T(c[0], s1 + Y(5) + 1.2, c[2]), RY(PI/4))); bulbs.push([c[0], s1 + Y(5) + 2.9, c[2]]); } } }
+      for (const e of [-1, 1]) { const c = at(mul(B, RY(f*PI/2)), e*(sw/2 - 1.3), 0, sw/2 - 1.3); if (e > 0) { k.add(box(2.2, Y(5), 2.2), cream, T(c[0], s1 + Y(2.5), c[2])); k.add(cyl(0, 1.7, 2.4, 4), gold, mul(T(c[0], s1 + Y(5) + 1.2, c[2]), RY(PI/4))); fit.bulb([c[0], s1 + Y(5) + 2.3, c[2]], LC.WARM, 0.34, {up:true, big:true}); } } }
     k.add(cyl(5.1, 5.1, l1 - u1, 8), cream, mul(B, T(0, (u1 + l1)/2, 0))); for (let i = 0; i < 8; i++) k.add(rect(2.3, l1 - u1 - 2), glow, mul(B, RY(i*PI/4), T(0, (u1 + l1)/2, 5.1*Math.cos(PI/8) + 0.05)));   // the lantern, lit from within
     k.add(cyl(6, 6, 0.7, 8), gold, mul(B, T(0, l1, 0))); k.add(dome(5.3, Y(6.2), 12, 5), gold, mul(B, T(0, l1 + 0.3, 0)));
     k.add(cyl(0.12, 0.5, H - l1 - Y(6.2), 6), gold, mul(B, T(0, (H + l1 + Y(6.2))/2, 0))); k.add(ball(0.7, 6, 4), lamp(0xffe9a8), mul(B, T(0, H - 0.4, 0)));
-    for (let i = 0; i < 16; i++) { const a = i/16*2*PI; bulbs.push([TX + Math.cos(a)*6.3, l1 + 0.9, TZ + Math.sin(a)*6.3]); }
-    for (let i = 0; i < 24; i++) { const u = (i % 6 + 0.5)/6 - 0.5, f = Math.floor(i/6), c = at(mul(B, RY(f*PI/2)), u*(sw + 0.6), 0, sw/2 + 0.5); bulbs.push([c[0], s1 + 0.9, c[2]]); }
-    for (let i = 0; i < 40; i++) { const u = (i % 10 + 0.5)/10 - 0.5, f = Math.floor(i/10), c = at(mul(B, RY(f*PI/2)), u*(pw + 0.8), 0, pw/2 + 0.6); bulbs.push([c[0], ph + 0.9, c[2]]); }
+    for (let i = 0; i < 16; i++) { const a = i/16*2*PI; fit.bulb([TX + Math.cos(a)*6.3, l1 + 0.45, TZ + Math.sin(a)*6.3], LC.WARM, 0.18, {up:true, drop:0.45}); }   // bulbs on stalks round each cornice
+    for (let i = 0; i < 24; i++) { const u = (i % 6 + 0.5)/6 - 0.5, f = Math.floor(i/6), c = at(mul(B, RY(f*PI/2)), u*(sw + 0.6), 0, sw/2 + 0.5); fit.bulb([c[0], s1 + 0.45, c[2]], LC.WARM, 0.18, {up:true, drop:0.45}); }
+    for (let i = 0; i < 40; i++) { const u = (i % 10 + 0.5)/10 - 0.5, f = Math.floor(i/10), c = at(mul(B, RY(f*PI/2)), u*(pw + 0.8), 0, pw/2 + 0.6); fit.bulb([c[0], ph + 0.45, c[2]], LC.WARM, 0.18, {up:true, drop:0.45}); }
     k.add(box(13, 3, 0.4), M(0x2a1c18), mul(B, T(pw/2 - 0.1, ph + 2.6, 0), RY(PI/2))); k.add(box(13.6, 0.25, 0.5), pink, mul(B, T(pw/2 - 0.1, ph + 4.2, 0), RY(PI/2))); k.add(box(13.6, 0.25, 0.5), pink, mul(B, T(pw/2 - 0.1, ph + 1, 0), RY(PI/2)));
     g.userData.signs = [{text:'EL TOPO PALACE', w:12, h:1.5, x:TX + pw/2 + 0.2, y:ph + 2.6, z:TZ, yaw:PI/2}];
     solid(TX, TZ, pw + 2, pw + 2, 0, ph + 0.5); solid(TX, TZ, sw, sw, 0, s1 + 4); solid(TX, TZ, uw, uw, 0, u1 + 0.5); solid(TX, TZ, 11, 11, 0, H);
@@ -2143,7 +2154,7 @@ G.buildCibolaCity = (o = {}) => {
     for (const [ex, ez] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) k.add(box(1.1, 4.4, 1.1), wh, mul(BT, T(ex*2.2, 21.4, ez*2.2)));
     k.add(box(5.6, 0.7, 5.6), wh, mul(BT, T(0, 23.9, 0))); k.add(dome(2.9, 3, 8, 3), TILE[0], mul(BT, T(0, 24.2, 0))); k.add(box(0.3, 2.6, 0.3), gold, mul(BT, T(0, 28.4, 0))); k.add(box(1.4, 0.3, 0.3), gold, mul(BT, T(0, 28.9, 0)));
     k.add(cyl(0.5, 1.15, 1.7, 8), gold, mul(BT, T(0, 21.6, 0))); for (let f = 0; f < 4; f++) { const F = face(BT, f, 6, 6); windows(F, 6, 5, 3, 4.4, 0.5, 0.9, 1.8); }
-    bulbs.push(at(BT, 0, 22.9, 0), at(B, -3.2, 5.6, 12.6), at(B, 3.2, 5.6, 12.6));
+    fit.lantern(at(BT, 0, 22.3, 0), {s:1.5, hang:1.0}); for (const e of [-1, 1]) fit.lantern(at(B, e*3.2, 5.4, 12.9), {s:1.15, wall:at(B, e*3.2, 5.4, 12.05)});
     solid(CX + 0.5, CZ, 26, 15, 0, 14.5); solid(CX - 11.6, CZ, 2.4, 17, 0, 19.5); const c = at(BT, 0, 0, 0); solid(c[0], c[2], 6.4, 6.4, 0, 29.5); }
 
   /* the plaza: flagstones, a fountain, market stalls under striped awnings */
@@ -2153,8 +2164,9 @@ G.buildCibolaCity = (o = {}) => {
     for (let i = 0; i < 10; i++) { const sx = PX0 + 6 + (i % 5)*(PX1 - PX0 - 12)/4, sz = i < 5 ? PZ0 + 5.5 : PZ1 - 5.5, e = i < 5 ? 1 : -1; if (Math.abs(sx - fx) < 5) continue; const B = mul(T(sx, 0, sz), RY(e > 0 ? 0 : PI)), c1 = pick(AW), c2 = pick(AW);
       for (let j = 0; j < 4; j++) k.add(box(1.05, 0.1, 3.4), j % 2 ? c1 : c2, mul(B, T(-1.58 + j*1.05, 2.9, 0), RX(0.2)));
       for (const [px, pz, ph] of [[-2, -1.5, 3.2], [2, -1.5, 3.2], [-2, 1.5, 2.6], [2, 1.5, 2.6]]) k.add(box(0.14, ph, 0.14), wood, mul(B, T(px, ph/2, pz)));
-      k.add(box(3.6, 0.9, 1.4), wood, mul(B, T(0, 0.45, 0))); k.add(box(1, 0.5, 0.9), pick([red, yel, M(0x6a8a3a), M(0xd9742a)]), mul(B, T(ri(-1, 1), 1.15, 0))); bulbs.push(at(B, 0, 2.5, 1.6)); }
-    for (const [a, b] of [[[PX0, PZ0], [fx, fz]], [[PX1, PZ0], [fx, fz]], [[PX0, PZ1], [fx, fz]], [[PX1, PZ1], [fx, fz]]]) for (let i = 1; i < 12; i++) { const t = i/12; (i % 3 ? bulbs : bulbs2).push([a[0] + (b[0] - a[0])*t, 9 - 3.2*Math.sin(t*PI/2)*t - 1.2*Math.sin(t*PI), a[1] + (b[1] - a[1])*t]); }
+      k.add(box(3.6, 0.9, 1.4), wood, mul(B, T(0, 0.45, 0))); k.add(box(1, 0.5, 0.9), pick([red, yel, M(0x6a8a3a), M(0xd9742a)]), mul(B, T(ri(-1, 1), 1.15, 0))); fit.bulb(at(B, 0, 2.82, 1.55), LC.AMBER, 0.2, {drop:0.3}); }
+    { const cn = [[PX0, PZ0], [PX1, PZ0], [PX1, PZ1], [PX0, PZ1]];   // festoons from the corner poles up to the mast on the fountain, and round the square
+      cn.forEach(([x, z], i) => { fit.festoon([x, 8.9, z], [fx, 13.8, fz], {sag:2.6, every:1.9, cols:FEST}); const q = cn[(i + 1) % 4]; fit.festoon([x, 8.9, z], [q[0], 8.9, q[1]], {sag:i % 2 ? 1.3 : 2.2, every:2.1, cols:[LC.WARM, LC.WARM, LC.AMBER]}); fit.lantern([x, 9.3, z], {s:1.3}); }); }
     k.add(cyl(0.16, 0.2, 9.4, 5), wood, T(fx, 4.7 + 4.6, fz)); for (const [x, z] of [[PX0, PZ0], [PX1, PZ0], [PX0, PZ1], [PX1, PZ1]]) k.add(cyl(0.14, 0.2, 9, 5), wood, T(x, 4.5, z));
     const lt = new THREE.PointLight(0xffb060, 1.0, 230, 1.5); lt.position.set(fx, 16, fz); g.add(lt); }
 
@@ -2170,7 +2182,7 @@ G.buildCibolaCity = (o = {}) => {
         const nw = Math.max(1, Math.floor(w/3.6)); for (let j = 0; j < nw; j++) { const x = (j + 0.5 - nw/2)*w/nw*0.9; if (rr() < 0.3) k.add(rect(1.3, 2.3), rr() < 0.4 ? turq : wood, mul(F, T(x, y0 + 1.2, 0.05))); else if (rr() < 0.85) k.add(rect(1, 1.2), rr() < 0.65 ? lit : unlit, mul(F, T(x, y0 + 2.2, 0.05))); }
         for (let j = 0; j < 3; j++) k.add(box(0.3, 0.3, 1.1), wood, mul(F, T((j - 1)*w*0.3, y1 - 0.95, 0.3)));
         if (i && rr() < 0.6) { const lx = ri(-1, 1)*(w/2 - 1.5); for (const e of [-0.3, 0.3]) k.add(bar([lx + e, y0, 1.7], [lx + e, y1 + 0.9, 0.15], 0.12), wood, F); }
-        if (rr() < 0.7) bulbs.push(at(F, ri(-1, 1)*w*0.35, y0 + 3, 0.5));
+        if (rr() < 0.7) { const lx2 = ri(-1, 1)*w*0.35; fit.lantern(at(F, lx2, y0 + 2.8, 0.55), {s:0.75, yaw, wall:at(F, lx2, y0 + 2.8, 0)}); }
         const c0 = at(B, bx, 0, (fz - 12)/2); solid(c0[0], c0[2], w, fz + 12, yaw, y1); y0 = y1; }
       if (rr() < 0.4) { const sx = ri(-1, 1)*(W/2 - 2); for (let j = 0; j < 5; j++) k.add(box(2.6, 0.88*(5 - j), 1.05), stone, mul(B, T(sx, 0.44*(5 - j), front + 0.52 + j*1.05))); }   // steps up to the first roof
     } }
@@ -2199,18 +2211,76 @@ G.buildCibolaCity = (o = {}) => {
   const xr = z => (rx - 4)*0.95*Math.sqrt(Math.max(0, 1 - (z/((rz - 4)*0.955))**2));
   for (const [z, w0] of [[92, 8.4], [129, 6.4], [162, 6.4]]) { let a = -xr(z + 4) + 6, b = xr(z + 4) - 6; for (const q of pillars) if (Math.abs(q.lz - z) < q.r*2.9 + 6) { if (q.lx > 0) b = Math.min(b, q.lx - q.r*2.9 - 4); else a = Math.max(a, q.lx + q.r*2.9 + 4); }
     k.add(box(b - a, 0.2, w0), pave, T((a + b)/2, 0.06, z)); if (z === 92) g.userData.paseo = {z, a, b};
-    for (let x = a + 8; x < b - 4; x += z === 92 ? 17 : 26) { if (z === 92 && x > PX0 - 4 && x < PX1 + 4) continue; for (let i = 0; i <= 6; i++) (((x/17) | 0) % 3 === 0 && i % 2 ? bulbs2 : bulbs).push([x + (i - 3)*0.25, 7.6 - 1.3*Math.sin(i/6*PI), z + (i - 3)*w0/6]); } }
+    for (let x = a + 8; x < b - 4; x += z === 92 ? 17 : 26) { if (z === 92 && x > PX0 - 4 && x < PX1 + 4) continue; const z0 = z - w0/2 - 0.35, z1 = z + w0/2 + 0.35; for (const zz of [z0, z1]) k.add(cyl(0.08, 0.13, 8.2, 5), wood, T(x, 4.1, zz));   // a string across the street between two poles
+      fit.festoon([x, 8, z0], [x, 8, z1], {sag:1.1, every:1.2, cols:((x/17) | 0) % 3 === 0 ? FEST : [LC.WARM]}); if (z === 92) fit.lantern([x, 5.6, z0 + 0.75], {s:1.1, wall:[x, 5.6, z0]}); } }
   for (const cx of cross) { const z1 = Math.min(212, (rz - 6)*0.955*Math.sqrt(Math.max(0, 1 - ((Math.abs(cx) + 6)/((rx - 6)*0.955))**2)) - 10); if (z1 > 70 && inside(cx + 3, 66, 4) && !(cx + 6 > TX - 18 && cx < CX + 17)) k.add(box(5.2, 0.2, z1 - 61), pave, T(cx + 3, 0, (z1 + 61)/2)); }
-  for (let x = -250; x <= 240; x += 22) if (inside(x, 60, 6)) { k.add(box(0.22, 4.2, 0.22), wood, T(x, 2.1, 60)); k.add(box(0.5, 0.5, 0.5), glow, T(x, 4.4, 60)); }   // a row of lanterns along the field
-  for (const q of pillars) if (q.lz > 0) for (let i = 0; i < 14; i++) { const a = i/14*2*PI, r = q.r*2.1; bulbs.push([q.lx + Math.cos(a)*r, 6.5, q.lz + Math.sin(a)*r]); }   // and round the foot of the pillars that stand in town
+  for (let x = -250; x <= 240; x += 22) if (inside(x, 60, 6)) { k.add(box(0.22, 4.2, 0.22), wood, T(x, 2.1, 60)); fit.lantern([x, 4.68, 60], {s:1.25}); }   // a row of lanterns along the field
+  for (const q of pillars) if (q.lz > 0) { const m = 16, hk = (i, r) => { const a = i/m*2*PI; return [q.lx + Math.cos(a)*r, 7.8, q.lz + Math.sin(a)*r]; };   // swags pegged to the rock
+    for (let i = 0; i < m; i++) { fit.festoon(hk(i, q.r*2.2), hk(i + 1, q.r*2.2), {sag:0.8, every:2.2, cols:[LC.WARM, LC.AMBER]}); k.add(bar(hk(i, q.r*2.2), hk(i, q.r*1.7), 0.1), wood); } }   // and round the foot of the pillars that stand in town
 
   let tris = 0; for (const a of k.b.values()) tris += a.length/9;
   k.build(g);
-  for (const [list, hex] of [[bulbs, 0xffd890], [bulbs2, 0x5fe0d0]]) { if (!list.length) continue; const im = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.42, 0), new THREE.MeshBasicMaterial({color:hex}), list.length), mx = new THREE.Matrix4();
-    list.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.add(im); tris += list.length*8; }
+  fit.build(g); tris += fit.tris;
   for (const s of g.userData.signs) { const nt = nameTex(s.text, '#ffd76a', '#ff6a8a'); if (!nt) continue; const m = new THREE.Mesh(new THREE.PlaneGeometry(s.w, s.h), new THREE.MeshBasicMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(s.x, s.y, s.z); m.rotation.y = s.yaw; g.add(m); }
-  Object.assign(g.userData, {solids, tris, houses:nHouse, bulbs:bulbs.length + bulbs2.length});
+  Object.assign(g.userData, {solids, tris, houses:nHouse, bulbs:fit.count.bulbs + fit.count.lanterns});
   return g;
 };
+/* ---------- light fittings ----------
+   Lamps as the thirties hung them: festoons of small bulbs on sagging flex, bulbs on stalks along a cornice, and lanterns in iron housings
+   (a cap, a glass, a foot) on posts, wall brackets or chains. Every lamp gets a soft halo so it reads from the air and after dark.
+   Everything is merged: one mesh per material and two point clouds for the halos. day: 0 after dark or underground, 1 in broad daylight. */
+let HALO = null;
+function haloTex(){
+  if (HALO) return HALO;
+  const N = 64, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), gr = x.createRadialGradient(N/2, N/2, 0, N/2, N/2, N/2);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.18, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.14)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, N, N); return (HALO = new THREE.CanvasTexture(c));
+}
+const gem = (r, h, n = 4) => { const R = (q, y) => { const p = []; for (let j = 0; j < n; j++) { const a = (j + 0.5)*2*PI/n; p.push([Math.cos(a)*q, y, Math.sin(a)*q]); } return p; }; return loft([R(0, -h*0.58), R(r, 0), R(0, h*0.42)], false, false); };
+G.LAMP = {WARM:0xffd890, AMBER:0xffb347, AQUA:0x5fe0d0, PINK:0xff6f9a, RED:0xff5a48, WHITE:0xfff1d0};
+G.Fittings = class {
+  constructor(o = {}){
+    this.k = new Kit(); this.day = o.day || 0; this.h = [[], []]; this.hc = [[], []]; this.count = {bulbs:0, lanterns:0, spans:0};
+    this.iron = G.mat(0x1d1b19, {roughness:0.75, metalness:0.2}); this.cord = G.mat(0x15120f, {roughness:0.9});
+  }
+  glass(hex){ const d = 1 - 0.2*this.day; return lamp((Math.round((hex >> 16 & 255)*d) << 16) | (Math.round((hex >> 8 & 255)*d) << 8) | Math.round((hex & 255)*d)); }
+  halo(p, hex, big){ const i = big ? 1 : 0; this.h[i].push(p[0], p[1], p[2]); this.hc[i].push((hex >> 16 & 255)/255, (hex >> 8 & 255)/255, (hex & 255)/255); }
+  wire(a, b, r = 0.04){ if (Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) > 1e-3) this.k.add(tube(a, b, r, 3, false), this.cord); }
+  /* a bulb in its socket: hanging `drop` below p (a point on a wire), or standing on a stalk at p (up) */
+  bulb(p, hex = G.LAMP.WARM, r = 0.22, o = {}){
+    const up = o.up, d = o.drop === undefined ? (up ? 0.5 : 0.28) : o.drop, e = up ? 1 : -1, ys = p[1] + e*d, yc = ys + e*(r*0.3 + r*0.7);
+    if (d > 0.02) this.wire([p[0], up ? p[1] - d : p[1], p[2]], [p[0], up ? p[1] : ys, p[2]], Math.max(0.03, r*0.14));
+    this.k.add(cyl(r*0.42, r*0.42, r*0.6, 3, false), this.iron, T(p[0], up ? p[1] + r*0.3 : ys, p[2]));
+    const c = [p[0], up ? p[1] + r*0.6 + r*0.75 : yc, p[2]]; this.k.add(gem(r, r*2.3), this.glass(hex), up ? T(c[0], c[1], c[2]) : mul(T(c[0], c[1], c[2]), RX(PI)));
+    this.halo(c, hex, o.big); this.count.bulbs++; return c;
+  }
+  /* a string of bulbs on flex between two fixings, sagging `sag` in the middle; cols repeat along it */
+  festoon(a, b, o = {}){
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), n = Math.max(2, Math.round(L/(o.every || 1.8))), sag = o.sag === undefined ? L*0.08 : o.sag, cols = o.cols || [G.LAMP.WARM], r = o.r || 0.22;
+    const P = t => [a[0] + (b[0] - a[0])*t, a[1] + (b[1] - a[1])*t - 4*sag*t*(1 - t), a[2] + (b[2] - a[2])*t]; let q = a;
+    for (let i = 1; i <= n; i++) { const p = P(i/n); this.wire(q, p, o.wr || 0.04); if (i < n) this.bulb(p, cols[(i - 1) % cols.length], r, {drop:0.01}); q = p; }
+    this.count.spans++;
+  }
+  /* a lantern, its glass centred on p and about 0.6 s tall. hang: on a chain that long; wall: on a bracket from that point of a wall; otherwise it stands (on a post) */
+  lantern(p, o = {}){
+    const s = o.s || 1, hex = o.hex || G.LAMP.AMBER, [x, y, z] = p, top = y + 0.57*s, M = mul(T(x, y, z), RY(o.yaw || 0));
+    this.k.add(cyl(0.3*s, 0.2*s, 0.62*s, 4, false), this.glass(hex), M);
+    this.k.add(cyl(0.05*s, 0.43*s, 0.26*s, 4, false), this.iron, mul(M, T(0, 0.44*s, 0))); this.k.add(cyl(0.25*s, 0.17*s, 0.11*s, 4), this.iron, mul(M, T(0, -0.365*s, 0)));
+    if (o.hang) { this.wire([x, top, z], [x, top + o.hang, z], Math.max(0.035, 0.035*s)); }
+    else if (o.wall) { const w = o.wall, ya = top + 0.22*s, t = 0.06*s + 0.02;
+      this.k.add(bar([w[0], ya, w[2]], [x, ya, z], t), this.iron); if (s >= 1) { this.wire([x, ya, z], [x, top - 0.02, z], 0.03*s + 0.01); this.wire([w[0], ya - 0.55*s, w[2]], [(w[0] + x)/2, ya, (w[2] + z)/2], 0.03*s + 0.01); } }
+    else this.k.add(cyl(0.05*s, 0.05*s, 0.12*s, 4), this.iron, mul(M, T(0, 0.62*s, 0)));
+    this.halo(p, hex, s >= 1.4); this.count.lanterns++;
+  }
+  get tris(){ let n = 0; for (const a of this.k.b.values()) n += a.length/9; return n; }
+  build(g){
+    this.k.build(g);
+    for (const i of [0, 1]) { if (!this.h[i].length) continue; const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(this.h[i], 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(this.hc[i], 3));
+      const size = i ? 7 : 2.2, pts = new THREE.Points(geo, new THREE.PointsMaterial({size, map:haloTex(), vertexColors:true, transparent:true, opacity:(i ? 0.6 : 0.5)*(1 - 0.62*this.day), blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true}));
+      pts.frustumCulled = false; pts.userData.halo = size; g.add(pts); }
+    g.userData.fittings = this.count; return g;
+  }
+};
+
 G.KIT = {Kit, box, cyl, bar, ball, lathe, loft, lamp, T, RX, RY, RZ, mul, xf};
 })();

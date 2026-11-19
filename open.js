@@ -70,7 +70,7 @@ const REG = G.REGIONS = {
       {id:'aguafria', kind:'hook', name:'Agua Fria', contact:'lucia', at:{want:'high', x:2500, z:1000, r:900}, r:330, town:true, tower:{h:88, w:34, walls:0xe0c8a0, sign:'HOTEL AGUA FRIA', signCol:'#6b3a2a', signGlow:'#f2c14e'}}
     ],
     marks:[
-      {id:'trestle', kind:'viaduct', name:'the Coronado trestle', at:{want:'low', x:600, z:2400, r:1300, minH:8}},
+      {id:'trestle', kind:'viaduct', name:'the Coronado trestle', at:{want:'span', x:-450, z:-780, r:350, between:['copperton', 'dustdevil']}},   // on the Copperton Line, where it has to cross the river
       {id:'mine', kind:'mine', name:'the Lucky Strike mine', at:{want:'high', x:-2600, z:-2600, r:1400}},
       {id:'hideout', kind:'hideout', name:'Rattlesnake Gulch', at:{want:'low', x:3200, z:2800, r:1500, minH:10}},
       {id:'canyon', kind:'none', name:'the deep canyon', at:{want:'low', x:1600, z:-2600, r:1500, minH:4}},
@@ -265,7 +265,7 @@ G.JOBS = [
    blurb:'Odile\'s annual derby: Saint-Remy, the windmill, the crag, under-or-over the viaduct, and home. Three rivals and a bar tab for the winner.', go:'Win, and the champagne is free. Lose, and it is double.'},
   // ---- Red Mesa Badlands ----
   {id:'kate_canyon', contact:'kate', type:'race', title:'The Canyon Run', pay:3500, rivals:3, laps:1, low:true, reward:{livery:'sunset'}, course:{path:['dustdevil', 'trestle', 'canyon', 'hideout', 'dustdevil'], agl:50},
-   blurb:'Low and mean through the canyons: the trestle, the deep canyon, Rattlesnake Gulch and back. Three rivals. Gold wins the Mesa Sunset paint job.', go:'Stay low, stay lucky, and don\'t clip a mesa.'},
+   blurb:'Low and mean through the canyons: under the Coronado trestle, the deep canyon, Rattlesnake Gulch and back. Three rivals. Gold wins the Mesa Sunset paint job.', go:'Stay low, stay lucky, and don\'t clip a mesa.'},
   {id:'kate_night', contact:'kate', type:'race', title:'Lantern Dash', pay:3200, night:true, rivals:0, laps:2, low:true, course:{circuit:{at:'dustdevil', r:1100, n:8, agl:45}},
    blurb:'Two laps round the field at night, rings lit by kerosene. Just you and the clock. Beat the bronze time to get paid.', go:'Can\'t see the mesas? Neither could the last fella.'},
   {id:'kate_show', contact:'kate', type:'stunt', title:'Barnstorming the crowd', pay:2500, at:'dustdevil', r:900, target:6000, time:180, gates:4,
@@ -367,6 +367,7 @@ function place(R, s){
   if (!s || s.want === undefined) return {x:s.x, z:s.z};
   if (s.want === 'cavern') { const C = planCavern(R); return {x:C.x, z:C.z, yaw:C.yaw}; }
   const o = terrainProbe(R), f = (x, z) => o.raw(x, z);
+  if (s.want === 'span') return placeSpan(R, s, f);
   if (s.want === 'coast') { let last = 2000; for (let r = 1500; r < 8500; r += 20) if (f(Math.sin(s.a)*r, Math.cos(s.a)*r) > 5) last = r; return {x:Math.sin(s.a)*(last - 70), z:Math.cos(s.a)*(last - 70)}; }
   const r = s.r || 800, st = r/12; let best = null, bs = -Infinity;
   for (let dx = -r; dx <= r; dx += st) for (let dz = -r; dz <= r; dz += st) {
@@ -382,6 +383,31 @@ function place(R, s){
     if (sc > bs) { bs = sc; best = {x, z}; }
   }
   return best || {x:s.x, z:s.z};
+}
+/* A railway crossing: the shortest straight span (220 to 420 m) over a river between two banks of the same height, square to
+   the water, with level ground to run on to at both ends and clear of the region's other places. `between` names the two
+   stops the line runs between: the crossing that takes it least out of its way wins. Returns the middle of the
+   span, its yaw (the deck runs along local X turned by yaw), its length and the height of the banks. */
+function placeSpan(R, s, f){
+  const others = [...R.sites.filter(q => !q.cavern), ...R.marks.filter(q => q.at && q.at.want !== 'span')].map(q => place(R, q.at)); if (R.cavern) others.push(planCavern(R));
+  const r = s.r || 1200, st = 25, ends = (s.between || []).map(id => place(R, R.sites.find(q => q.id === id).at)), far = (x, z, q) => Math.hypot(x - q.x, z - q.z); let best = null, bs = -Infinity;
+  for (let dx = -r; dx <= r; dx += st) for (let dz = -r; dz <= r; dz += st) {
+    const d = Math.hypot(dx, dz), cx = s.x + dx, cz = s.z + dz; if (d > r || Math.hypot(cx, cz) > 6400 || f(cx, cz) > 6) continue;
+    if (others.some(q => Math.hypot(q.x - cx, q.z - cz) < 800)) continue;
+    for (let k = 0; k < 24; k++) { const a = k*Math.PI/24, ux = Math.cos(a), uz = -Math.sin(a);
+      for (let L = 220; L <= 420; L += 20) {
+        const hA = f(cx - ux*L/2, cz - uz*L/2), hB = f(cx + ux*L/2, cz + uz*L/2); if (Math.abs(hA - hB) > 6 || Math.min(hA, hB) < 45) continue;
+        const D = Math.max(hA, hB); let ok = true, wet = 0, rough = 0;
+        for (let t = -L/2 + 20; t <= L/2 - 20 && ok; t += 10) { const h = f(cx + ux*t, cz + uz*t); if (h > D - 5) ok = false; if (h < 0.5) wet++; }
+        if (!ok || !wet) continue;
+        for (const sg of [-1, 1]) for (const e of [25, 50, 90, 140, 200, 280]) rough = Math.max(rough, Math.abs(f(cx + ux*sg*(L/2 + e), cz + uz*sg*(L/2 + e)) - D));
+        const ax = cx - ux*L/2, az = cz - uz*L/2, bx = cx + ux*L/2, bz = cz + uz*L/2;
+        const way = ends.length === 2 ? Math.min(far(ax, az, ends[0]) + far(bx, bz, ends[1]), far(bx, bz, ends[0]) + far(ax, az, ends[1])) + L - far(ends[0].x, ends[0].z, ends[1]) : d;
+        const sc = -Math.abs(hA - hB)*2 - rough*2 - (L - 220)*0.08 - way*0.02;
+        if (rough <= 9 && sc > bs) { bs = sc; best = {x:cx, z:cz, yaw:a, len:L, deck:D}; }
+      } }
+  }
+  return best || place(R, {want:'low', x:s.x, z:s.z, r, minH:8});
 }
 function layout(R){
   if (R._L) return R._L;
@@ -739,6 +765,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (md.kind === 'lava') { p.y = 3.4; o = buildLava(md.r || 800, this.night); this.anim.push(o.userData.tick); }
     if (md.kind === 'cave') { p.y = 0.4; const C = Object.assign({}, md.cave), yaw = G.rng(md.id.length*97)()*Math.PI; C.P = cavePath(C); o = buildCave(C); o.rotation.y = yaw; const cv = {obj:o, C, name:md.name, t:-99, yaw, seen:null}; this.caves.push(cv); if (this.night) this.anim.push(() => { if (Math.random() < 0.6) { const e = Math.random() < 0.5 ? C.P[0] : C.P[C.P.length - 1], sd = Math.random() < 0.5 ? 1 : -1, l = new V3(e.x + e.lx*sd*(C.bw/2 - 1.5), C.bh*0.55, e.z + e.lz*sd*(C.bw/2 - 1.5)).applyAxisAngle(UP, yaw).add(p); this.g.fx.fire.emit(l.x, l.y, l.z, 0, 0.6, 0, 2.2, 0.35, 1, 0.75, 0.35, 0.9, 0, 1, 0); } }); }
     if (md.kind === 'viaduct') {
+      const S = this.L.marks[md.id]; if (S && S.len) return this.buildSpan(g, md, p, S);
       const len = 300, n = 5, hs = []; for (let i = 0; i <= n; i++) hs.push(Math.max(w.height(p.x - len/2 + i*len/n, p.z), 2));
       const deck = Math.max(...hs) + 46; o = G.buildViaduct(len, deck, hs); o.position.set(p.x, 0, p.z); g.scene.add(o);
       for (let i = 0; i <= n; i++) w.addBlocker({x:p.x - len/2 + i*len/n, z:p.z, hw:3, hd:4.5, top:deck + 3});
@@ -747,6 +774,39 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       return;
     }
     if (o) { o.position.copy(p); g.scene.add(o); this.markObj[md.id] = o; }
+  },
+  /* A viaduct laid out by placeSpan: bank to bank across a river, at the angle the layout found. The deck is level with the
+     higher bank, masonry approaches carry it on to the land at both ends, and in open skies a track runs over it and down
+     on to the ground either side (a story that runs a railway over it lays its own). */
+  buildSpan(g, md, p, S){
+    const w = g.world, len = S.len, yaw = S.yaw, ux = Math.cos(yaw), uz = -Math.sin(yaw), n = 2*Math.round((len/48 - 1)/2) + 1, span = len/n, r = span/2 - 3, st = 8;
+    const at = t => [p.x + ux*t, p.z + uz*t], gh = t => w.height(p.x + ux*t, p.z + uz*t, true);
+    let rail = -1e9; for (const sg of [-1, 1]) rail = Math.max(rail, Math.min(gh(sg*(len/2 + 30)), gh(sg*(len/2 + 50)), gh(sg*(len/2 + 70))));
+    rail += 0.3; const deck = rail - 3, hs = [], abut = [[], []];
+    for (let i = 0; i <= n; i++) hs.push(Math.max(gh(-len/2 + i*span), 2));
+    // the approaches run out until the bank comes up to the rails
+    for (const e of [0, 1]) { const sg = e ? 1 : -1; for (let j = 0; j < 12; j++) { const t0 = len/2 + 3 + j*st; abut[e].push(Math.max(0.4, Math.min(gh(sg*t0), gh(sg*(t0 + st/2)), gh(sg*(t0 + st))))); if (gh(sg*(t0 + st)) > rail - 0.6 || (j > 1 && gh(sg*(t0 + st)) > rail - 4.5 && gh(sg*(t0 + st)) - gh(sg*t0) < 0.4)) break; } }   // or, on a lower bank, until it levels off: the track comes down the rest of the way
+    const e0 = -(len/2 + 3 + abut[0].length*st), e1 = len/2 + 3 + abut[1].length*st;
+    const o = G.buildViaduct(len, deck, hs, {abut, step:st, plain:true}); o.position.set(p.x, 0, p.z); o.rotation.y = yaw; g.scene.add(o); this.markObj[md.id] = o;
+    // solid: the piers and the approaches stand as blockers, the deck and the stone over each arch are tested against the player
+    for (let i = 0; i <= n; i++) for (const c of [-3, 0, 3]) { const [x, z] = at(-len/2 + i*span); w.addBlocker({x:x - uz*c, z:z + ux*c, hw:3.2, hd:3.2, top:rail}); }
+    for (const e of [0, 1]) abut[e].forEach((gy, j) => { const [x, z] = at((e ? 1 : -1)*(len/2 + 3 + (j + 0.5)*st)); if (rail - gy > 1.5) w.addBlocker({x, z, hw:4.6, hd:4.6, top:rail}); });
+    this.anim.push(() => {
+      const P = g.player; if (!P || !P.alive || P.frozen || g.done) return;
+      const dx = P.pos.x - p.x, dz = P.pos.z - p.z, lx = dx*ux + dz*uz, lz = dz*ux - dx*uz, y = P.pos.y;
+      if (Math.abs(lz) > 5.3 || lx < e0 || lx > e1 || y > rail + 1.6) return;
+      let hit = y > deck - 4.4;
+      if (!hit && Math.abs(lx) < len/2) { const u = (lx + len/2) % span - span/2; hit = Math.abs(u) < r && y > deck - 4 - r + Math.sqrt(r*r - u*u) - 0.8; }
+      if (hit) P.destroy(null, 'crash');
+    });
+    p.y = this.ground(p.x, p.z, true);
+    this.arches.push({id:md.id, pos:new V3(p.x, 0, p.z), len, deck:deck - 2, yaw, rail, ext:[e0, e1], under:(p.y + deck - 4)/2, prev:undefined, name:md.name, t:-99});
+    if (this.story) return;
+    // the line: over the deck, then easing down on to the ground either side and a little way on to a buffer stop
+    const pts = [], run = sg => { const out = []; let lvl = 0; for (let d = 9; d < 300 && lvl < 5; d += 9) { const t = (sg < 0 ? e0 : e1) + sg*d, gy = gh(t), y = Math.max(gy + 0.4, rail + 0.4 - d*0.025), [x, z] = at(t); out.push({x, z, y, gy}); lvl = y < gy + 0.5 ? lvl + 1 : 0; } return out; };
+    pts.push(...run(-1).reverse()); for (let t = e0; t < e1; t += 9) { const [x, z] = at(t); pts.push({x, z, y:rail + 0.4, gy:rail}); } { const [x, z] = at(e1); pts.push({x, z, y:rail + 0.4, gy:rail}); } pts.push(...run(1));
+    g.scene.add(G.buildTrack(pts));
+    for (const q of [pts[0], pts[pts.length - 1]]) { const b = new THREE.Group(); b.add(mesh(BOX(0.5, 1.5, 3.2), 0x8e231c, 0, 1.1, 0)); for (const c of [-1.1, 1.1]) b.add(mesh(BOX(1.6, 0.3, 0.3), 0x4a3424, 0.7, 0.7, c, {rz:0.6})); b.position.set(q.x, q.y, q.z); b.rotation.y = yaw; g.scene.add(b); }
   },
   buildSite(g, sd, at){
     const w = g.world, site = {def:sd, id:sd.id, kind:sd.kind, name:sd.name, contact:sd.contact, armed:true, cool:0};
@@ -1138,10 +1198,9 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); const beam = new THREE.Mesh(ge, glow({}, 0.13)); beam.frustumCulled = false; g.scene.add(beam);
       fan(bt, 17, glow({}, 0.28)); }
     // lanterns hung from the roof, and a warm glow so the city reads in the gloom
-    const R0 = G.rng(711), L = [];
-    for (let i = 0; i < 70; i++) { const u = Math.sqrt(R0())*0.92, t = R0()*TAU, lx = Math.cos(t)*rx*u, lz = Math.sin(t)*rz*u; L.push(P3(lx, ceilC(lx, lz) - 5 - R0()*10, lz)); }
-    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1.1, 6, 4), new THREE.MeshBasicMaterial({color:0xffc870}), L.length), mx = new THREE.Matrix4();
-    L.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.scene.add(im);
+    const R0 = G.rng(711), fit = new G.Fittings({day:this.night ? 0 : 0.3});   // each in its housing on a chain from the rock; shorter chains over the runway
+    for (let i = 0; i < 70; i++) { const u = Math.sqrt(R0())*0.92, t = R0()*TAU, lx = Math.cos(t)*rx*u, lz = Math.sin(t)*rz*u, y = ceilC(lx, lz) - (Math.abs(lz) < 45 ? 3.5 + R0()*3 : 5 + R0()*10); fit.lantern(P3(lx, y, lz), {s:3, hang:Math.max(0.5, ceilV(lx, lz) + 2.5 - y - 1.71)}); }
+    g.scene.add(fit.build(new THREE.Group())); C.tris = (C.tris || 0) + fit.tris;
     for (const off of [0, 0.5, -0.5]) { const [x, y, z] = P3(off*rx, F + H*0.6, 0), lt = new THREE.PointLight(0xffb070, 0.9, 520, 1.4); lt.position.set(x, y, z); g.scene.add(lt); }
     // the mesa over the hollow: every terrain cell that lost a corner to the cavern or the portal, put back from the uncut
     // heights with the terrain's own colours, normals and material. Where the canyon comes in, it stops at the gate's face.
@@ -1155,6 +1214,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const col = w.colorAt(x, z, y, Math.hypot(hC(ix + 1, iz) - hC(ix - 1, iz), hC(ix, iz + 1) - hC(ix, iz - 1))/(2*st));
       const n0 = w.n0, nx = n0 ? n0[key*3] : -gx/nl, ny = n0 ? n0[key*3 + 1] : 6*st/nl, nz = n0 ? n0[key*3 + 2] : -gz/nl;
       v = {a:[x, y, z, col[0], col[1], col[2], nx, ny, nz], cut, roof:cut && roofed(x, z), key}; vc.set(key, v); return v; };
+    C.gridV = vtx;   // the canyon gate puts its own ground back with the same vertices
     const seam = new Set(), lp = [], lc = [], ln = [], lu = [], sd = a => (a[0] - g0.x)*g0.dx + (a[2] - g0.z)*g0.dz;
     const emit = (poly) => { for (let k = 1; k < poly.length - 1; k++) for (const a of [poly[0], poly[k], poly[k + 1]]) { lp.push(a[0], a[1], a[2]); lc.push(a[3], a[4], a[5]); ln.push(a[6], a[7], a[8]); lu.push((a[0] + S0/2)/S0, 1 - (a[2] + S0/2)/S0); } };
     const clip = poly => { const out = []; for (let k = 0; k < poly.length; k++) { const a = poly[k], b = poly[(k + 1) % poly.length], da = sd(a), db = sd(b); if (da >= 0) out.push(a); if ((da >= 0) !== (db >= 0)) { const t = da/(da - db); out.push(a.map((v, i) => v + (b[i] - v)*t)); } } return out; };
@@ -1174,7 +1234,8 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
      roofed; tunnelHit treats it like any other bore. The canyon walls get a skin of ledged rock over the coarse terrain. */
   buildCanyonGate(g, T){
     const w = g.world, td = T.td, cy = td.canyon, P = T.pts, F = T.floor, p0 = P[T.i0], dx = p0.dx, dz = p0.dz, ox = p0.lx, oz = p0.lz, Lp = P[T.i1].s - p0.s, W = cutHW(td) + 62, hb = td.bw/2, spring = F + td.bh - hb;
-    const n = G.Noise(this.R.seed + 78), rj = G.rng(4242), S = new Soup(), C = this.cavern, bulbs = [], PI = Math.PI;
+    const n = G.Noise(this.R.seed + 78), rj = G.rng(4242), S = new Soup(), C = this.cavern, PI = Math.PI;
+    const fit = new G.Fittings({day:this.night ? 0 : w.time === 'evening' ? 0.5 : 1}), LC = G.LAMP;   // lanterns and strings of bulbs: dim by day, the way in after dark
     const PW = (s, x, y) => [p0.x + dx*s + ox*x, y, p0.z + dz*s + oz*x], top0 = x => w.height0(p0.x + ox*x, p0.z + oz*x);
     const lidY = (p, x) => w.height0(p.x + p.lx*x, p.z + p.lz*x);
     const RED = [0.56, 0.15, 0.11], STONE = [0.83, 0.74, 0.6], GOLD = [0.93, 0.74, 0.27], TIMBER = [0.33, 0.22, 0.14], DARK = [0.12, 0.08, 0.07], WHITE = [0.92, 0.87, 0.74];
@@ -1193,7 +1254,8 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     // the mesa wall: ledged rock that bulges out round a flat niche for the mission front, and a smooth panel for the painted arrow
     const kx = td.bw/60, ky = td.bh/44, FX = 46*kx, GP = Math.min(39.3*kx, (cy.cw1 || 1e9) - 2), facTop = x => F + ky*(Math.abs(x) < 26*kx ? 68 + 24*Math.pow(Math.cos(PI*x/(52*kx)), 1.2) : 68), AY0 = F + 100*ky, AY1 = F + 146*ky;   // drawn for a 60 x 44 portal, scaled to this one
     const fmask = (x, y) => sms(0, 12, Math.hypot(Math.max(0, Math.abs(x) - FX - 3), Math.max(0, y - facTop(x) - 3))), amask = (x, y) => sms(0, 9, Math.hypot(Math.max(0, Math.abs(x) - 16), Math.max(0, AY0 - y, y - AY1)));
-    const bulge = (x, y) => -fmask(x, y)*amask(x, y)*sms(0, 14, top0(x) - y)*(1.2 + 5*clamp01(0.5 + 1.2*n(x*0.025 + 11, y*0.035, 2)) + ((y + 4*n(x*0.012, 1.7, 1))/16 % 1 < 0.5 ? 2.6 : 0));
+    const RX1 = (cy.cw1 || cy.hw1 - 40) + 5;   // beyond the canyon's rim the wall is under the ground: it must not bulge out through the slope
+    const bulge = (x, y) => -fmask(x, y)*amask(x, y)*sms(0, 14, top0(x) - y)*sms(RX1, RX1 - 8, Math.abs(x))*(1.2 + 5*clamp01(0.5 + 1.2*n(x*0.025 + 11, y*0.035, 2)) + ((y + 4*n(x*0.012, 1.7, 1))/16 % 1 < 0.5 ? 2.6 : 0));
     archWall(0, cols(W, 7), top0, 18, bulge, outCol);
     // the mission front: plaster with a red dado, a curved gable and a tiled coping
     const plaster = (x, y, z) => y < F + 6*ky ? shade(RED, 0.9 + 0.15*rj()) : shade([0.88, 0.78, 0.63], 0.9 + 0.1*rj() - 0.1*clamp01(n((x + z)*0.05, y*0.012, 2) + 0.2)), fc = cols(FX, 5.4);
@@ -1217,7 +1279,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       O:[arc(0.5, 0.7, 0.5, 0.7, 0, PI*2, 12)], L:[[[0.08, 1.4], [0.08, 0], [0.9, 0]]], A:[[[0, 0], [0.5, 1.4], [1, 0]], [[0.2, 0.48], [0.8, 0.48]]]};
     const LW = 5.2*kx, LU = 3.5*ky, GAP = 2.1*kx, word = ['C', 'I', 'B', 'O', 'L', 'A'], TW = word.length*LW + (word.length - 1)*GAP, ink = jit([1, 0.82, 0.32]);
     word.forEach((ch, i) => { const x0 = -TW/2 + i*(LW + GAP); for (const line of GL[ch]) for (let k = 0; k < line.length - 1; k++) stroke(-3.0, [-(x0 + line[k][0]*LW), BY0 + 1.1*ky + line[k][1]*LU], [-(x0 + line[k + 1][0]*LW), BY0 + 1.1*ky + line[k + 1][1]*LU], 0.4*kx, ink); });
-    for (let x = -20; x <= 20; x += 8) { S.beam(PW(-1.6, x*kx, BY1 + 1.4), PW(-4.2, x*kx, BY1 + 1.4), 0.14, DARK); bulbs.push(PW(-4.2, x*kx, BY1 + 0.6)); }
+    for (let x = -20; x <= 20; x += 8) { S.beam(PW(-1.6, x*kx, BY1 + 1.4), PW(-4.2, x*kx, BY1 + 1.4), 0.14, DARK); fit.lantern(PW(-4.2, x*kx, BY1 + 0.5), {s:1.3, hang:0.16}); }
     // bell in its niche, and a cross on the gable
     { const ny = F + 73*ky, s = -1.75, pts = [[-4, ny], [4, ny], ...arc(0, ny + 8, 4, 4, 0, PI, 6)]; for (let k = 1; k < pts.length - 1; k++) S.tri(PW(s, pts[0][0], pts[0][1]), PW(s, pts[k][0], pts[k][1]), PW(s, pts[k + 1][0], pts[k + 1][1]), DARK);
       const rings = [[0.8, ny + 8.5], [1.5, ny + 7.2], [1.9, ny + 5], [2.7, ny + 3.6]], bz = [0.62, 0.45, 0.18];
@@ -1227,46 +1289,70 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const GS = -10;
     for (const e of [-1, 1]) { S.beam(PW(GS, e*GP, F - 1), PW(GS, e*GP, F + 51*ky), 1.25, jit(TIMBER)); box(GS - 2.2, GS + 2.2, e*(GP - 2.3), e*(GP + 2.3), F - 1, F + 3.2*ky, jit(STONE));
       S.beam(PW(GS, e*GP, F + 33*ky), PW(GS, e*(GP - 12.3*kx), F + 47.5*ky), 0.8, jit(TIMBER)); S.beam(PW(GS, e*GP, F + 20*ky), PW(-1.6, e*GP, F + 20*ky), 0.6, jit(TIMBER)); S.beam(PW(GS, e*GP, F + 44*ky), PW(-1.6, e*GP, F + 44*ky), 0.6, jit(TIMBER));
-      S.beam(PW(GS - 1.3, e*GP, F + 13*ky), PW(GS - 4, e*GP, F + 13*ky), 0.25, DARK); bulbs.push(PW(GS - 4, e*GP, F + 11.6*ky)); }
+      S.beam(PW(GS - 1.3, e*GP, F + 13*ky), PW(GS - 4, e*GP, F + 13*ky), 0.25, DARK); fit.lantern(PW(GS - 4, e*GP, F + 13*ky - 2.4), {s:2.2, hang:0.9}); }
     S.beam(PW(GS, -GP - 4.7, F + 48*ky), PW(GS, GP + 4.7, F + 48*ky), 1.3, jit(TIMBER));
-    for (const x of [-26, -13, 13, 26]) { S.beam(PW(GS, x*kx, F + 46.7*ky), PW(GS, x*kx, F + 46.7*ky - 1.5), 0.12, DARK); bulbs.push(PW(GS, x*kx, F + 46.7*ky - 2.3)); }
+    for (const x of [-26, -13, 13, 26]) { S.beam(PW(GS, x*kx, F + 46.7*ky), PW(GS, x*kx, F + 46.7*ky - 1.5), 0.12, DARK); fit.lantern(PW(GS, x*kx, F + 46.7*ky - 2.6), {s:2, hang:0.2}); }
+    { const xs = [-GP, -26*kx, -13*kx, 0, 13*kx, 26*kx, GP]; for (let i = 0; i < 6; i++) fit.festoon(PW(GS - 0.9, xs[i], F + 46.4*ky), PW(GS - 0.9, xs[i + 1], F + 46.4*ky), {sag:1.3, every:1.5, r:0.27, wr:0.05, cols:[LC.WARM, LC.RED, LC.WARM, LC.AQUA]}); }   // a festoon swagged under the lintel
     { const PEN = [RED, GOLD, [0.16, 0.56, 0.6], WHITE], m = 26, at = t => [(-40 + 80*t)*kx, F + 53*ky - 5.5*ky*Math.sin(PI*t)]; for (let k = 0; k < m; k++) { const a = at(k/m), b = at((k + 0.7)/m); S.tri(PW(GS - 1.4, a[0], a[1]), PW(GS - 1.4, b[0], b[1]), PW(GS - 1.4, (a[0] + b[0])/2, Math.min(a[1], b[1]) - 2.4), PEN[k % 4]); } }
     // a painted arrow high on the wall: three whitewashed chevrons pointing down at the door
     for (let k = 0; k < 3; k++) { const yc = AY0 + 4 + k*14; for (const e of [-1, 1]) stroke(-0.45, [e*12, yc + 10], [0, yc], 2.1, jit(WHITE)); }
     // the bore: dressed stone at the mouth, then rock, with timber ribs
     { const NS = Math.max(3, Math.ceil((Lp + 1)/8)), prof = [[-hb, F - 3], ...arc(0, spring, hb, hb, PI, 0, NA), [hb, F - 3]], dim = (x, y, z) => shade(inCol(x, y, z), 0.62), lining = (x, y, z) => shade(STONE, (0.62 + 0.14*rj())*(Math.floor(y/3.2) % 2 ? 1 : 0.9));
       for (let i = 0; i < NS; i++) { const s0 = (Lp + 1)*i/NS, s1 = (Lp + 1)*(i + 1)/NS; for (let k = 0; k < prof.length - 1; k++) S.quad(PW(s0, prof[k][0], prof[k][1]), PW(s1, prof[k][0], prof[k][1]), PW(s1, prof[k + 1][0], prof[k + 1][1]), PW(s0, prof[k + 1][0], prof[k + 1][1]), i === 0 ? lining : dim); }
-      const rib = arc(0, spring, hb - 0.7, hb - 0.7, PI, 0, 8); for (let s = 14; s < Lp - 6; s += 14) { for (let k = 0; k < 8; k++) S.beam(PW(s, rib[k][0], rib[k][1]), PW(s, rib[k + 1][0], rib[k + 1][1]), 0.7, jit(TIMBER)); for (const e of [-1, 1]) S.beam(PW(s, e*(hb - 0.7), F - 1), PW(s, e*(hb - 0.7), spring), 0.7, jit(TIMBER)); bulbs.push(PW(s, hb - 2.2, spring + 1), PW(s, -hb + 2.2, spring + 1)); } }
+      const rib = arc(0, spring, hb - 0.7, hb - 0.7, PI, 0, 8); for (let s = 14; s < Lp - 6; s += 14) { for (let k = 0; k < 8; k++) S.beam(PW(s, rib[k][0], rib[k][1]), PW(s, rib[k + 1][0], rib[k + 1][1]), 0.7, jit(TIMBER)); for (const e of [-1, 1]) S.beam(PW(s, e*(hb - 0.7), F - 1), PW(s, e*(hb - 0.7), spring), 0.7, jit(TIMBER)); for (const e of [-1, 1]) fit.lantern(PW(s - 1, e*(hb - 2.4), spring + 0.4), {s:1.5, wall:PW(s - 1, e*(hb - 0.9), spring + 0.4)}); } }
     // the inside face, where the portal opens into the cavern: a buttress of rock with a timber frame
     { const IX = 62, IT = F + 86, imask = (x, y) => sms(0, 10, Math.hypot(Math.max(0, Math.abs(x) - hb - 5), Math.max(0, y - F - td.bh - 5)));
       archWall(Lp, cols(IX, 8), () => IT, 8, (x, y) => imask(x, y)*(0.4 + 3.2*clamp01(0.5 + 1.2*n(x*0.05 + 3, y*0.06, 2))), inCol);
       for (const e of [-1, 1]) { for (let k = 0; k < 6; k++) S.quad(PW(Lp, e*IX, F - 3 + (IT - F + 3)*k/6), PW(Lp - 36, e*IX, F - 3 + (IT - F + 3)*k/6), PW(Lp - 36, e*IX, F - 3 + (IT - F + 3)*(k + 1)/6), PW(Lp, e*IX, F - 3 + (IT - F + 3)*(k + 1)/6), inCol);
-        S.beam(PW(Lp + 1.6, e*(hb + 2.6), F - 1), PW(Lp + 1.6, e*(hb + 2.6), F + td.bh + 5), 1.1, jit(TIMBER)); bulbs.push(PW(Lp + 3.4, e*(hb + 2.6), F + td.bh*0.68)); }
+        S.beam(PW(Lp + 1.6, e*(hb + 2.6), F - 1), PW(Lp + 1.6, e*(hb + 2.6), F + td.bh + 5), 1.1, jit(TIMBER)); fit.lantern(PW(Lp + 3.9, e*(hb + 2.6), F + td.bh*0.68), {s:1.8, wall:PW(Lp + 2.6, e*(hb + 2.6), F + td.bh*0.68)}); }
       S.beam(PW(Lp + 1.6, -hb - 6, F + td.bh + 4.5), PW(Lp + 1.6, hb + 6, F + td.bh + 4.5), 1.2, jit(TIMBER)); }
     // the slot itself. The terrain's cut is whole grid cells (35 m) wide, far too coarse for a canyon you have to fly with care, so the walls are
-    // built here: cwAt(s) either side of the axis, ledged rock from the floor to the rim, and the mesa top put back behind them in the terrain's
-    // own material. `wall` (below) is the same shape for tunnelHit: beyond cwAt the ground is the uncut mesa again.
+    // built here: footAt(s) either side of the axis (cwAt, flaring a little at the mouth), ledged rock from the floor to the rim. Behind them the
+    // bench and the mesa are put back cell for cell from the uncut terrain grid (its heights, colours, normals and triangles, as the cavern's lid is),
+    // clipped along the rim, so the ground runs unbroken to the lip of the slot and the walls die away where the land falls to the river.
+    // `wall` (below) is the same shape for tunnelHit: beyond the foot of the wall the ground is the uncut land again.
     const st = w.step, S0 = w.S, Lc = p0.s || 1, cw0 = cy.cw0 || cy.hw0 - 40, cw1 = cy.cw1 || cy.hw1 - 40, cwAt = s => cw1 + (cw0 - cw1)*clamp01(1 - s/Lc), outer = s => cy.hw1 + (cy.hw0 - cy.hw1)*clamp01(1 - s/Lc) + st*1.45;
-    { const NS = Math.ceil(Lc/7), NV = 10, NC = 6, h0 = (s, o) => { const q = PW(s - Lc, o, 0); return w.height0(q[0], q[2]); }, lp = [], lc = [], ln = [], lu = [];
+    const RD = 4, FS = Math.min(22, Lc*0.2), FK = 0.5, SM = -1.6*st, cwL = s => cw1 + (cw0 - cw1)*(1 - s/Lc), footAt = s => cwL(s) + FK*Math.max(0, FS - s), rimAt = s => footAt(s) + RD;
+    { const NV = 10, lp = [], lc = [], ln = [], lu = [], Wd = w.N + 1, vtx = C && C.gridV;
       const ledge = (s, y) => sms(F - 1, F + 7, y)*(0.5 + 3.4*clamp01(0.5 + 1.2*n(s*0.035, y*0.045 + s*0.02, 2)) + ((y + 4*n(s*0.01, 3.3, 1))/14 % 1 < 0.45 ? 2.4 : 0));
-      const capV = (s, o) => { const q = PW(s - Lc, o, 0), x = q[0], z = q[2], y = w.height0(x, z) + 0.35, c = w.colorAt(x, z, y, w.slope0(x, z)), gx = w.height0(x + st, z) - w.height0(x - st, z), gz = w.height0(x, z + st) - w.height0(x, z - st), nl = Math.hypot(gx, 2*st, gz); return [x, y, z, c[0], c[1], c[2], -gx/nl, 2*st/nl, -gz/nl]; };
-      const capQ = (a, b, c, d) => { for (const v of [a, b, c, a, c, d]) { lp.push(v[0], v[1], v[2]); lc.push(v[3], v[4], v[5]); ln.push(v[6], v[7], v[8]); lu.push((v[0] + S0/2)/S0, 1 - (v[2] + S0/2)/S0); } };
-      for (const e of [-1, 1]) { let prev = null;
-        for (let i = 0; i <= NS; i++) { const s = Lc*i/NS, cw = cwAt(s), s2 = (o, y) => s + (i && i < NS ? 2.2*n(o*0.07 + y*0.05, s*0.3, 1) : 0); let cur = null;
-          const d0 = ledge(s, h0(s, e*(cw + 3))), yt = h0(s, e*(cw + d0)) + 0.35;
-          if (yt > F + 1.5) { const wall = [], cap = []; for (let r = 0; r <= NV; r++) { const y = F - 1 + (yt - F + 1)*r/NV, d = r === NV ? d0 : ledge(s, y); wall.push(PW(s2(r, y) - Lc, e*(cw + d), y)); }
-            for (let c = 0; c <= NC; c++) cap.push(capV(s, e*(cw + d0 + (outer(s) - cw - d0)*c/NC))); wall[NV] = cap[0].slice(0, 3); cur = {wall, cap};
-            if (!prev) for (let c = 0; c < NC; c++) S.quad([cap[c][0], F - 1, cap[c][2]], [cap[c + 1][0], F - 1, cap[c + 1][2]], cap[c + 1].slice(0, 3), cap[c].slice(0, 3), outCol); }   // where the wall begins, close its end
-          if (prev && cur) { for (let r = 0; r < NV; r++) S.quad(prev.wall[r], cur.wall[r], cur.wall[r + 1], prev.wall[r + 1], outCol); for (let c = 0; c < NC; c++) e > 0 ? capQ(prev.cap[c], prev.cap[c + 1], cur.cap[c + 1], cur.cap[c]) : capQ(prev.cap[c], cur.cap[c], cur.cap[c + 1], prev.cap[c + 1]); }
+      const sOf = a => (a[0] - p0.x)*dx + (a[2] - p0.z)*dz + Lc, oOf = a => (a[0] - p0.x)*ox + (a[2] - p0.z)*oz;
+      const clip = (poly, f) => { const out = []; for (let k = 0; k < poly.length; k++) { const a = poly[k], b = poly[(k + 1) % poly.length], da = f(a), db = f(b); if (da >= 0) out.push(a); if ((da >= 0) !== (db >= 0)) { const t = da/(da - db); out.push(a.map((v, i) => v + (b[i] - v)*t)); } } return out; };
+      const emit = poly => { for (let k = 1; k < poly.length - 1; k++) for (const a of [poly[0], poly[k], poly[k + 1]]) { lp.push(a[0], a[1], a[2]); lc.push(a[3], a[4], a[5]); ln.push(a[6], a[7], a[8]); lu.push((a[0] + S0/2)/S0, 1 - (a[2] + S0/2)/S0); } };
+      if (vtx) {   // the land beside the slot
+        const seam = new Set(), cs = [[SM - st, 1], [SM - st, -1], [Lc + st, 1], [Lc + st, -1]].map(([s, e]) => PW(s - Lc, e*(cy.hw0 + 2*st), 0)), gi = v => Math.max(0, Math.min(w.N - 1, Math.floor((v + S0/2)/st)));
+        const i0 = gi(Math.min(...cs.map(q => q[0]))), i1 = gi(Math.max(...cs.map(q => q[0]))), k0 = gi(Math.min(...cs.map(q => q[2]))), k1 = gi(Math.max(...cs.map(q => q[2])));
+        const inGate = a => Lc - sOf(a), side = [-1, 1].map(e => [a => e*oOf(a) - cwL(sOf(a)) - RD, a => e*oOf(a) - cwL(sOf(a)) - FK*(FS - sOf(a)) - RD]);
+        for (let iz = k0; iz <= k1; iz++) for (let ix = i0; ix <= i1; ix++) { const a = vtx(ix, iz), d = vtx(ix + 1, iz), b = vtx(ix, iz + 1), c = vtx(ix + 1, iz + 1), q = [a, b, c, d];
+          if (!q.some(v => v.cut && !v.roof)) continue; const roof = q.some(v => v.roof);   // a cell that also reaches under the cavern's lid: that lid has the part beyond the gate's face
+          for (const v of q) if (!v.cut) seam.add(v);
+          for (const t of [[a, b, d], [c, d, b]]) { if (!t.some(v => v.cut)) continue; let poly = t.map(v => v.a); if (roof) poly = clip(poly, inGate);
+            for (const [f1, f2] of side) { const pp = clip(clip(poly, f1), f2); if (pp.length >= 3) emit(pp); } } }
+        const tg = w.terrain.geometry, TN = tg.attributes.normal, TC = tg.attributes.color;   // and the ground round it lit and coloured as if nothing were cut
+        if (TN && TC && TN.setXYZ) { for (const v of seam) { const a = v.a; TN.setXYZ(v.key, a[6], a[7], a[8]); TC.setXYZ(v.key, a[3], a[4], a[5]); } TN.needsUpdate = TC.needsUpdate = true; }
+      }
+      // the walls: a station wherever the rim crosses an edge of the terrain's triangles, so their tops follow the land exactly
+      for (const e of [-1, 1]) { const R3 = s => PW(s - Lc, e*rimAt(s), 0), ss = [];
+        for (const [sa, sb] of [[SM, FS], [FS, Lc]]) { const A = R3(sa), B = R3(sb), fa = [(A[0] + S0/2)/st, (A[2] + S0/2)/st], fb = [(B[0] + S0/2)/st, (B[2] + S0/2)/st];
+          for (const [u, v] of [[fa[0], fb[0]], [fa[1], fb[1]], [fa[0] + fa[1], fb[0] + fb[1]]]) { if (Math.abs(v - u) < 1e-9) continue; for (let k = Math.ceil(Math.min(u, v)); k <= Math.max(u, v); k++) ss.push(sa + (k - u)/(v - u)*(sb - sa)); }
+          const m = Math.ceil((sb - sa)/7); for (let k = 0; k <= m; k++) ss.push(sa + (sb - sa)*k/m); }
+        ss.sort((a, b) => a - b); let prev = null;
+        for (let i = 0; i < ss.length; i++) { const s = ss[i]; if (i && s - ss[i - 1] < 1e-4) continue;
+          const tp = R3(s), yt = w.height0(tp[0], tp[2]), hc = w.height(tp[0], tp[2], true), yb = Math.min(F - 1, hc - 2), has = yt > Math.min(F - 1, hc) + 0.3, col = []; tp[1] = yt;
+          for (let r = 0; r <= NV; r++) { if (!has || r === NV) { col.push(tp); continue; } const y = yb + (yt - yb)*r/NV, dd = Math.min(ledge(s, y), RD + (NV - r)*1.3); col.push(PW(s + (i && i < ss.length - 1 && r ? 2.2*n(r*0.07 + y*0.05, s*0.3, 1) : 0) - Lc, e*(footAt(s) + dd), y)); }
+          const cur = {col, has};
+          if (prev && (prev.has || cur.has)) for (let r = 0; r < NV; r++) { const A = prev.col[r], B = cur.col[r], Cc = cur.col[r + 1], D = prev.col[r + 1]; if (B !== Cc) S.tri(A, B, Cc, outCol); if (A !== D) S.tri(A, Cc, D, outCol); }
           prev = cur; } }
       if (lp.length) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(ln, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(lu, 2));
         const rim = new THREE.Mesh(geo, w.terrain.material); rim.receiveShadow = true; g.scene.add(rim); if (C) C.tris = (C.tris || 0) + lp.length/9; }
       // running lights along the canyon floor, on posts at the foot of the walls
-      for (let i = T.im + 2; i < T.i0; i += 2) { const p = P[i], o0 = cwAt(p.s) - 2.4; if (o0 < hb + 2) continue; for (const e of [-1, 1]) { const x = p.x + p.lx*o0*e, z = p.z + p.lz*o0*e; if (w.height(x, z, true) > F + 1.2) continue; S.beam([x, F - 0.5, z], [x, F + 7, z], 0.3, jit(TIMBER)); bulbs.push([x, F + 8, z]); } } }
-    const wall = (a, x, z) => { if (a.s < 0 || a.s > Lc + 2 || Math.abs(a.x) < cwAt(a.s) || Math.abs(a.x) > outer(a.s)) return null; const y = w.height0(x, z); return y > F + 1.5 ? y : null; };
+      // (posts at the foot of the walls, a lantern on each and a string of bulbs sagging from post to post)
+      const last = {}; for (let i = T.im + 2; i < T.i0; i += 2) { const p = P[i], o0 = cwAt(p.s) - 1.7; if (o0 < hb + 2) continue;
+        for (const e of [-1, 1]) { const x = p.x + p.lx*o0*e, z = p.z + p.lz*o0*e; if (w.height(x, z, true) > F + 1.2) { last[e] = null; continue; }
+          S.beam([x, F - 0.5, z], [x, F + 7, z], 0.3, jit(TIMBER)); S.beam([x - p.dx*0.9, F + 6.4, z - p.dz*0.9], [x + p.dx*0.9, F + 6.4, z + p.dz*0.9], 0.16, jit(TIMBER)); fit.lantern([x, F + 7.95, z], {s:2.2, yaw:Math.atan2(p.dx, p.dz)});
+          const q = [x, F + 6.4, z]; if (last[e]) fit.festoon(last[e], q, {sag:2.1, every:2.4, r:0.3, wr:0.06}); last[e] = q; } } }
+    const wall = (a, x, z) => { if (a.s < SM || a.s > Lc + 2 || Math.abs(a.x) < footAt(a.s) || Math.abs(a.x) > outer(a.s)) return null; const y = w.height0(x, z); return y > F + 1.5 ? y : null; };
     g.scene.add(S.mesh()); if (C) C.tris = (C.tris || 0) + S.tris;
-    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 6, 4), new THREE.MeshBasicMaterial({color:0xffc870}), bulbs.length), mx = new THREE.Matrix4();
-    bulbs.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.scene.add(im);
+    g.scene.add(fit.build(new THREE.Group())); if (C) C.tris = (C.tris || 0) + fit.tris;
     { const q = PW(-14, 0, F + 40), lt = new THREE.PointLight(0xffb070, 0.8, 260, 1.4); lt.position.set(q[0], q[1], q[2]); g.scene.add(lt); }   // the door glows down the canyon
     return {T, lidY, W, wall, cwAt, seen:null, t:-99, name:td.name};
   },
@@ -1582,6 +1668,9 @@ function coursePoints(O, spec){
   for (let i = 0; i < ids.length - 1; i++) {
     const a = ids[i], b = ids[i + 1], L = Math.hypot(b.x - a.x, b.z - a.z), k = Math.max(1, Math.round(L/550));
     for (let j = 0; j < k; j++) { const t = j/k, x = a.x + (b.x - a.x)*t, z = a.z + (b.z - a.z)*t; pts.push(new V3(x, groundMax(O, x, z) + (spec.agl || 80), z)); }
+    // a viaduct on the way: the ring hangs in its middle arch, square to the bridge (rivals go over the top)
+    const A = O.arches.find(q => q.id && q.id === spec.path[i] && q.under !== undefined), q0 = pts[pts.length - k];
+    if (A) { q0.y = A.under; q0.n = new V3(Math.sin(A.yaw), 0, Math.cos(A.yaw)); q0.over = A.rail + 24; }
   }
   const e = ids[ids.length - 1]; pts.push(new V3(e.x, groundMax(O, e.x, e.z) + (spec.agl || 80), e.z));
   const loop = ids.length > 2 && ids[0].distanceTo(e) < 50; if (loop) pts.pop();
@@ -1595,7 +1684,8 @@ ENG.race = (O, def) => {
   const seq = []; for (let l = 0; l < laps; l++) for (let i = 0; i < nR; i++) seq.push(i); if (C.loop) seq.push(0);
   const rings = pts.map((p, i) => {
     const nx = pts[(i + 1) % nR], pv = pts[(i - 1 + nR) % nR], n = (C.loop || (i > 0 && i < nR - 1)) ? tB.copy(nx).sub(pv) : i === 0 ? tB.copy(pts[1]).sub(p) : tB.copy(p).sub(pts[i - 1]);
-    n.y = 0; n.normalize(); const boost = i % 3 === 2, m = ringMesh(12, i === 0 ? 'start' : boost ? 'boost' : 'check');
+    n.y = 0; n.normalize(); if (p.n) n.copy(p.n).multiplyScalar(n.dot(p.n) < 0 ? -1 : 1);
+    const boost = i % 3 === 2, m = ringMesh(12, i === 0 ? 'start' : boost ? 'boost' : 'check');
     m.position.copy(p); m.rotation.y = Math.atan2(n.x, n.z); g.scene.add(m);
     return {pos:p, n:n.clone(), R:12, boost, m, prev:new Map(), used:new Set()};
   });
@@ -1612,7 +1702,7 @@ ENG.race = (O, def) => {
         const nm = G.name1920s({nick:true}), pos = back.clone().add(new V3((i - (def.rivals - 1)/2)*40, 10 + i*6, 0));
         const p = g.addPlane({loadout:L, team:1, name:nm.full, callsign:nm.short, pos, q:new Q().setFromUnitVectors(Z, first.n), speed:Math.max(60, P.speed), ai:{role:'fighter', skill:0.75}, grace:3});
         p.invuln = true; const pl = g.pilots[g.pilots.length - 1];
-        pl.route = seq.slice(1).map(ix => ({x:pts[ix].x, z:pts[ix].z, y:pts[ix].y, r:26})); pl.wp = 0; pl.raceThrottle = 0.92 + 0.03*i; pl.raceDone = false;
+        pl.route = seq.slice(1).map(ix => ({x:pts[ix].x, z:pts[ix].z, y:pts[ix].over ?? pts[ix].y, r:26})); pl.wp = 0; pl.raceThrottle = 0.92 + 0.03*i; pl.raceDone = false;
         pl.onWaypoint = k => { if (k >= pl.route.length && !pl.raceDone) { pl.raceDone = true; pl.finishT = J.t; } };
         J.rivals.push({p, pl});
       }
