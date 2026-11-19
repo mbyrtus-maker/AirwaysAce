@@ -833,7 +833,7 @@ function buildStreets(c, g){
   const bins = new Map();
   for (const R of runs) {
     const key = Math.floor(R.pts[0].x/1500) + ',' + Math.floor(R.pts[0].z/1500) + R.ax; if (!bins.has(key)) bins.set(key, {p:[], uv:[], ix:[]});
-    const B = bins.get(key), hw = SW/2, nx = R.ax === 'x' ? 0 : 1, nz = R.ax === 'x' ? 1 : 0;
+    const B = bins.get(key), hw = SW/2, nx = R.ax === 'x' ? 0 : 1, nz = R.ax === 'x' ? -1 : 0;   // left and right of the direction of travel, so every ribbon faces up
     // east-west streets sit a hair above the others so the crossings don't flicker
     const lift = R.ax === 'x' ? 0.04 : 0;
     R.pts.forEach((q, i) => { const base = B.p.length/3, v = (R.ax === 'x' ? q.x : q.z)/12;
