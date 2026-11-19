@@ -72,7 +72,7 @@ G.Plane = class {
     const stall = this.stallSpeed(), auth = clamp((this.speed - stall*0.55)/(stall*0.9), 0.22, 1)*(this.speed > st.top*1.15 ? 0.8 : 1);
     const pk = this.pk(), dL = 1 - pk[2], dR = 1 - pk[3];
     const wingHurt = (Math.pow(dR, 1.3) - Math.pow(dL, 1.3))*2, tailHurt = 0.5 + 0.5*pk[1], rollK = 1 - 0.3*(dL + dR)/2;
-    if (!this.isPlayer && (pk[2] < 0.25 || pk[3] < 0.25)) this.ctrl.pitch = Math.min(this.ctrl.pitch, 0.4);   // AI with a failing wing stops hauling on the stick
+    if (this.crew && (pk[2] < 0.25 || pk[3] < 0.25)) this.ctrl.pitch = Math.min(this.ctrl.pitch, 0.4);   // your wingmen nurse a failing wing; bandits keep hauling on the stick and pay for it
     // control surfaces ease toward the stick instead of snapping, which keeps the mouse-aim autopilot from twitching
     const cs = this.cs, ease = Math.min(1, dt*7);
     cs.pitch += (this.ctrl.pitch - cs.pitch)*ease; cs.roll += (this.ctrl.roll - cs.roll)*ease; cs.yaw += (this.ctrl.yaw - cs.yaw)*ease;
@@ -323,6 +323,7 @@ G.Plane = class {
   partHit(f, d, src){
     if (!this.parts || d <= 0 || this.parts[f] <= 0) return;
     this.parts[f] = Math.max(0, this.parts[f] - d); this.partNews(f, src);
+    if (f >= 2 && this.parts[f] <= 0 && this.wingGone < 0 && this.alive) { if (src) this.lastHitBy = src; this.tearWing(f); }   // shot clean away
   }
   /* thresholds crossed: say so once each (player HUD, wingmen on the radio) */
   partNews(f, src){
@@ -365,6 +366,7 @@ G.Plane = class {
     const wp = tA.set(f === 2 ? 4 : -4, 0, 0.4).applyQuaternion(this.q).add(this.pos); this.g.fx.explosion(wp, 0.35);
     if (this.isPlayer) { G.HUD.toast('WING GONE'); if (this.g.audio && this.g.audio.tear) this.g.audio.tear(); }
     else if (this.g.audio && this.g.audio.tear && this.g.player && this.pos.distanceTo(this.g.player.pos) < 600) this.g.audio.tear(this.pos);
+    if (!this.isPlayer && this.team !== 0 && this.lastHitBy && this.lastHitBy.isPlayer) G.HUD.feed(this.callsign + '\'s wing came off', true);
     if (this.crew) G.HUD.radio(this.callsign, 'My wing\'s come off! I\'m going in!');
     this.clipWing(f);
   }
