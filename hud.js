@@ -60,11 +60,17 @@ const H = G.HUD = {
     const gh = P.pos.y - Math.max(g.world.height(P.pos.x, P.pos.z, true), 0.4);
     const nearStrip = (g.runways || []).some(r => Math.hypot(r.pos.x - P.pos.x, r.pos.z - P.pos.z) < 1600);
     const impact = P.vel.y < -1 ? gh/-P.vel.y : 99, pull = !(g.mission && g.mission.lowFlying) && !nearStrip && gh < 250 && impact < 3.5;
-    const warn = P.engineDead && !P.onGround ? 'ENGINE OUT · GLIDE' : P.retract && P.gearT > 0 && !P.onGround && P.alive && g.running && nearStrip && gh < 200 && P.fwd.y < 0.05 && P.speed < P.st.top*0.8 ? 'GEAR UP · PRESS G' : P.onGround || P.flaps ? '' : !P.alive || P.frozen || !g.running ? (g.docked ? 'DOCKED · REPAIRING' : '') : P.choke > 0 ? 'ENGINE CHOKED' : pull ? 'PULL UP' : P.speed < P.st.stall*1.05 ? 'STALL' : !P.hasAmmo() && P.guns.length ? 'OUT OF AMMO' : '';
+    const warn = P.wingGone >= 0 && P.alive ? 'WING GONE · SHE\'S GOING IN' : P.creak > 0 && P.alive ? 'WING FAILING · EASE OFF THE STICK' : P.engineDead && !P.onGround ? (P.seized ? 'ENGINE SEIZED · GLIDE' : 'ENGINE OUT · GLIDE') : P.retract && P.gearT > 0 && !P.onGround && P.alive && g.running && nearStrip && gh < 200 && P.fwd.y < 0.05 && P.speed < P.st.top*0.8 ? 'GEAR UP · PRESS G' : P.onGround || P.flaps ? '' : !P.alive || P.frozen || !g.running ? (g.docked ? 'DOCKED · REPAIRING' : '') : P.choke > 0 ? 'ENGINE CHOKED' : pull ? 'PULL UP' : P.speed < P.st.stall*1.05 ? 'STALL' : !P.hasAmmo() && P.guns.length ? 'OUT OF AMMO' : '';
     const w = $('hWarn'); w.textContent = warn; w.hidden = !warn;
     // armor zones
     const zone = (id, v, m) => { const el = $(id); const f = m > 0 ? v/m : 0; el.setAttribute('fill', f <= 0 ? '#3a1712' : f < 0.35 ? '#d9534a' : f < 0.7 ? '#e8b13f' : '#cfe8b0'); };
     zone('zN', P.armor[0], P.armorMax[0]); zone('zT', P.armor[1], P.armorMax[1]); zone('zL', P.armor[2], P.armorMax[2]); zone('zR', P.armor[3], P.armorMax[3]);
+    // parts behind the armour: engine, tail, wings. Dim when sound, amber/red as they go, black when gone; blinking while the oil runs or a wing creaks
+    const pk = P.pk ? P.pk() : [1, 1, 1, 1], blink = (g.t*3 % 1) < 0.5;
+    ['pN', 'pT', 'pL', 'pR'].forEach((id, i) => { const el = $(id); if (!el) return; const k = pk[i], gone = k <= 0 || P.wingGone === i;
+      el.setAttribute('fill', gone ? '#000' : k < 0.35 ? '#ff4a3a' : k < 0.7 ? '#ffb02e' : '#2b3140'); el.setAttribute('stroke', gone ? '#ff4a3a' : k < 0.7 ? '#1a1a1a' : '#5a6478');
+      el.style.opacity = ((i === 0 && P.leak && !P.engineDead) || (i >= 2 && P.creak > 0 && pk[i] < 0.25)) && blink ? 0.25 : 1; });
+    $('hLeak').hidden = !(P.leak && !P.engineDead && P.alive);
     const fi = Math.max(0, P.internal/P.internalMax); $('hInt').style.width = (fi*100) + '%'; $('hInt').parentNode.classList.toggle('crit', fi < 0.35);
     // weapons
     const rows = P.guns.map(gn => {

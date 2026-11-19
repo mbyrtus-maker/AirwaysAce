@@ -24,10 +24,10 @@ G.AMMO_W = 0.3;   // share of a gun pair's weight that is ammunition (burned off
 
 /* ---------- Ammunition: multipliers vs armor and vs internal structure ---------- */
 G.AMMO = {
-  slug:{id:'slug', name:'Slug', short:'SLUG', a:1,    i:1,   desc:'Plain ball. No strengths, no weaknesses.'},
-  dd:  {id:'dd',   name:'Dum-dum', short:'DD', a:0.5, i:2,   desc:'Soft-nosed. Shreds what\'s under the plating, bounces off armor.'},
-  ap:  {id:'ap',   name:'Armor-piercing', short:'AP', a:1.75, i:0.5, desc:'Hardened core. Strips armor fast, does little after.'},
-  ex:  {id:'ex',   name:'Explosive', short:'EX', a:1, i:1, splash:0.2, desc:'Small charge. Some damage spills to a neighbouring zone.'}
+  slug:{id:'slug', name:'Slug', short:'SLUG', a:1,    i:1,   p:1,   desc:'Plain ball. No strengths, no weaknesses.'},
+  dd:  {id:'dd',   name:'Dum-dum', short:'DD', a:0.5, i:2,   p:1.5, desc:'Soft-nosed. Shreds what\'s under the plating, bounces off armor. Wrecks engines and spars once it\'s through.'},
+  ap:  {id:'ap',   name:'Armor-piercing', short:'AP', a:1.75, i:0.5, p:0.6, desc:'Hardened core. Strips armor fast, and a quarter of each round goes clean through to the engine, wing or tail behind it.'},
+  ex:  {id:'ex',   name:'Explosive', short:'EX', a:1, i:1, p:1, splash:0.2, desc:'Small charge. Some damage spills to a neighbouring zone.'}
 };
 G.AMMO_ORDER = ['slug', 'dd', 'ap', 'ex'];
 
@@ -43,6 +43,8 @@ G.ROCKET_ORDER = ['he', 'flak', 'ap', 'choke', 'conc'];
 G.HP_W = 250; G.ROCKET_W = 70; G.ARMOR_W = 4; G.ARMOR_HP = 4; G.ARMOR_MAX = 50;
 G.ENGINE = [{id:0, name:'Low', mph:-20, w:-400}, {id:1, name:'Stock', mph:0, w:0}, {id:2, name:'High', mph:20, w:400}];
 G.NITRO_W = 300;
+/* where a torn wing breaks off (metres out from the centreline): outboard of the fuselage, or of the booms on twin-boom ships */
+G.WING_ROOT = {banshee:3.3, highwayman:3.0, thunderbuss:4.0, mantis:3.0, zephyr:2.2, whirligig:1.9, hornet:2.0, ironclad:1.8};
 G.TORP_W = 600;   // an air torpedo, each: the bombers carry them on a belly rack, on top of their rockets
 
 /* ---------- Mods: bought from contacts, found in treasure, or earned with stunt points. Player only. ---------- */
@@ -52,7 +54,8 @@ G.MODS = {
   prop:  {id:'prop', name:'Racing propeller', price:6500, desc:'Coarse-pitch blades: +8 mph top speed and 12% quicker acceleration.'},
   gyro:  {id:'gyro', name:'Gyro gunsight', price:4500, desc:'Your guns lean up to 8 degrees toward the lead indicator, up from 5.'},
   plate: {id:'plate', name:'Cold-rolled armor plate', price:5000, desc:'Every point of armor stops 25% more, for the same weight.'},
-  spars: {id:'spars', name:'Reinforced spars', price:5000, desc:'30% more internal structure under the armor.'},
+  spars: {id:'spars', name:'Reinforced spars', price:5000, desc:'30% more internal structure under the armor, and 30% tougher wings and tail.'},
+  engplate:{id:'engplate', name:'Armoured engine bearers', price:4500, desc:'A steel cradle round the engine: armor-piercing rounds do half the damage to it.'},
   drums: {id:'drums', name:'Drum magazines', price:4000, desc:'30% more rounds in every gun.'},
   winch: {id:'winch', name:'Skyhook winch', price:3000, desc:'Skyhooks and docking rings catch you at up to 125 mph instead of 105.'},
   lights:{id:'lights', name:'Landing lights', price:2500, desc:'A pair of nose floodlights for flying and landing at night.'}

@@ -130,6 +130,9 @@ G.Pilot = class {
       }
       if (this.retT > 1.5) this.retT = 1.5;   // wingmen re-check threats more often than pirates do
     }
+    if (!this.wing && !this.limping && p.parts && p.team !== 0 && p.pk()[0] < 0.35) {   // engine's going: a bandit limps away from the fight, shallow climb, everything she's got
+      this.limping = true; this.role = 'flee'; const P = this.g.player; this.dir.copy(p.pos).sub(P ? P.pos : tB.set(0, 0, 0)).setY(0); if (this.dir.lengthSq() < 1) this.dir.copy(p.fwd).setY(0); this.dir.normalize().setY(0.08).normalize();
+    }
     if (this.role === 'flee') { this.dir.setY(Math.max(this.dir.y, 0.05)).normalize(); this.fly(this.dir); p.throttle = 1; return; }
     if (this.state === 'extend' || this.state === 'break') {
       this.fly(this.dir); if (this.t <= 0) this.state = 'attack'; return;

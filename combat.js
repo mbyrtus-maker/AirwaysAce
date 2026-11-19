@@ -405,7 +405,7 @@ G.Combat = {
       const dist = p.pos.distanceTo(at), reach = d.splash + p.radius*0.5;
       if (p !== direct && dist > reach) continue;
       const k = p === direct ? 1 : clamp(1 - dist/reach, 0, 1)*0.7;
-      p.damage(d.dmg*k, p.facingOf(at), ammo, r.owner, {armorMul:d.armorMul || 1, wingMul:d.wingMul});
+      p.damage(d.dmg*k, p.facingOf(at), ammo, r.owner, {armorMul:d.armorMul || 1, wingMul:d.wingMul, pen:d.id === 'ap' && p === direct ? 0.35 : 0, splashParts:d.id === 'he' || d.id === 'flak'});
       if (d.choke && k > 0.3) p.choke = d.choke;
       if (d.knock && k > 0.05) { p.knock = 0.9; p.knockAx.set((Math.random() - 0.5)*2, (Math.random() - 0.5)*1, (Math.random() - 0.5)*3).multiplyScalar(k + 0.4); p.speed *= 1 - 0.2*k; }
     }
@@ -445,7 +445,7 @@ G.Combat = {
         for (const gn of P.guns) { gn.rounds = gn.def.ammo; P.spent.ammo[gn.i] = 1; }
         P.rockets = P.L.hp*3; P.spent.rockets = P.rockets;
         P.armor = P.armor.map((a, k) => Math.min(P.armorMax[k], a + P.armorMax[k]*0.6));
-        P.internal = Math.min(P.internalMax, P.internal + P.internalMax*0.4);
+        P.internal = Math.min(P.internalMax, P.internal + P.internalMax*0.4); P.repairParts();
         D.cd = 30; this.docked = null; P.frozen = false; P.speed = 52; P.throttle = 1;
         P.q.multiply(new THREE.Quaternion().setFromAxisAngle(tA.set(1, 0, 0), 0.12));
         const f = tA.set(0, 0, 1).applyQuaternion(P.q); this.aimYaw = Math.atan2(f.x, f.z); this.aimPitch = -0.05;

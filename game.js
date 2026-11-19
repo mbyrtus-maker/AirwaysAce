@@ -76,7 +76,7 @@ G.Game = class {
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
     if (code === 'KeyM' && this.audio) G.HUD.toast(this.audio.toggleMute() ? 'Sound off' : 'Sound on');
-    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && !P.engineDead && (P.L.nitro || P.st.rocket) && P.nitroLeft > 0 && !(P.nitro > 0)) { P.nitro = P.st.rocket ? 5 : 3; P.nitroLeft--; if (P.st.rocket && this.audio && this.audio.rocket) this.audio.rocket(0.7); } }
+    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && !P.engineDead && (P.L.nitro || P.st.rocket) && P.nitroLeft > 0 && !(P.nitro > 0)) { if (P.st.rocket && P.pk()[1] < 0.35) { G.HUD.toast('Tail motor shot up · won\'t light'); return; } P.nitro = P.st.rocket ? 5 : 3; P.nitroLeft--; if (P.st.rocket && this.audio && this.audio.rocket) this.audio.rocket(0.7); } }
   }
   /* Canned stunts on a double-tap, as in Crimson Skies. Each is an exact rotation, so they always finish level. */
   stunt(kind){

@@ -505,7 +505,7 @@ Object.assign(UI, {
   devPlane(id){ const S = G.save; if (!S.owned.includes(id)) S.owned.push(id); const p = S.load.chassis === id ? S.load.paint : null; S.load = G.stockLoadout(id); if (p) S.load.paint = p; },
   devUnlock(){ const S = G.save; S.owned = Object.keys(G.CHASSIS); S.mods = Object.keys(G.MODS); S.liveries = Object.keys(G.LIVERIES); },
   devFly(id){ G.persist(); UI.inDev = false; $('dev').hidden = true; UI.devPaused = false; G.save.mission = id; G.persist(); UI.fly(); },
-  devRepair(){ const P = G.game.player; P.internal = P.internalMax; P.armor = P.armorMax.slice(); for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; P.engineDead = false; },
+  devRepair(){ const P = G.game.player; P.internal = P.internalMax; P.armor = P.armorMax.slice(); P.repairParts(); for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; P.engineDead = false; },
   devWin(win){
     const g = G.game, m = g.mission; if (g.done) return;
     if (m.open) { if (m.job) m.finishJob(win ? {win:true, medal:'gold', time:60} : {win:false, note:'Dev'}); else m.finish(); }

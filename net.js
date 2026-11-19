@@ -215,14 +215,14 @@ const Net = G.Net = {
     }
     if (!p || !p.alive) return;
     const n = p.net; n.p.set(m.p[0], m.p[1], m.p[2]); n.q.set(m.p[3], m.p[4], m.p[5], m.p[6]).normalize(); n.v.set(m.p[7], m.p[8], m.p[9]); n.at = g.t;
-    p.speed = +m.s || 0; p.fire = !!(m.f & 2); p.fireRk = !!(m.f & 4); p.gearUp = (m.g ?? 1) > 0.5; p.flaps = !!(m.f & 8);
+    p.speed = +m.s || 0; p.fire = !!(m.f & 2); p.fireRk = !!(m.f & 4); p.gearUp = (m.g ?? 1) > 0.5; p.flaps = !!(m.f & 8); if (m.pt) p.setParts(m.pt);
   },
 
   /* host: damage meant for a guest's stand-in goes to the guest, whose plane takes it */
   forwardDamage(p, dmg, facing, ammo, src, o){
     if (!p.alive || !p.remote) return;
     p.hitFlash = 0.15; p.lastHitBy = src;
-    p.remote.send({t:'dmg', d:r2(dmg), f:facing, a:ammo && ammo.id || 'slug', s:src && src.nid || 0, o:{armorMul:o.armorMul, wingMul:o.wingMul}});
+    p.remote.send({t:'dmg', d:r2(dmg), f:facing, a:ammo && ammo.id || 'slug', s:src && src.nid || 0, o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen, sp:o.splashParts ? 1 : 0}});
     if (p.g.onHit) p.g.onHit(p, src, dmg, facing);
   },
 
@@ -234,7 +234,7 @@ const Net = G.Net = {
     for (const p of g.planes) {
       if (!p.nid) this.tagPlane(g, p);
       const f = (p.alive ? 1 : 0) | (p.fire ? 2 : 0) | (p.fireRk ? 4 : 0) | (p.obj.visible === false || p.docked ? 8 : 0) | (p.onGround ? 16 : 0);
-      P.push([p.nid, r2(p.pos.x), r2(p.pos.y), r2(p.pos.z), r4(p.q.x), r4(p.q.y), r4(p.q.z), r4(p.q.w), r2(p.vel.x), r2(p.vel.y), r2(p.vel.z), f, r2(p.gearT || 0), r2(p.speed), p.internalMax ? r2(p.internal/p.internalMax) : 1]);
+      P.push([p.nid, r2(p.pos.x), r2(p.pos.y), r2(p.pos.z), r4(p.q.x), r4(p.q.y), r4(p.q.z), r4(p.q.w), r2(p.vel.x), r2(p.vel.y), r2(p.vel.z), f, r2(p.gearT || 0), r2(p.speed), p.internalMax ? r2(p.internal/p.internalMax) : 1, p.partCode ? p.partCode() : 0]);
     }
     g.ships.forEach((s, i) => {
       const dead = s.comps ? s.comps.map((c, j) => c.alive ? -1 : j).filter(j => j >= 0) : [];
@@ -409,7 +409,7 @@ const Net = G.Net = {
       n.p.set(e[1], e[2], e[3]); n.q.set(e[4], e[5], e[6], e[7]).normalize(); n.v.set(e[8], e[9], e[10]); n.at = g.t;
       const f = e[11];
       if (first) { p.pos.copy(n.p); p.q.copy(n.q); p.obj.visible = !!(f & 1) && !(f & 8); }
-      p.fire = !!(f & 2); p.fireRk = !!(f & 4); p.gearUp = e[12] > 0.5; p.speed = e[13]; p.onGround = !!(f & 16); if (typeof e[14] === 'number' && p.internalMax) p.internal = Math.max(0, e[14])*p.internalMax;
+      p.fire = !!(f & 2); p.fireRk = !!(f & 4); p.gearUp = e[12] > 0.5; p.speed = e[13]; p.onGround = !!(f & 16); if (typeof e[14] === 'number' && p.internalMax) p.internal = Math.max(0, e[14])*p.internalMax; if (p !== g.player && p.setParts) p.setParts(e[15]);
       if (p.alive && !(f & 1)) { p.lastHitBy = null; p.destroy(null, 'shot'); }
       else if (p.alive) p.obj.visible = !(f & 8);
     }
@@ -445,7 +445,7 @@ const Net = G.Net = {
   guestDamage(g, m){
     const P = g.player; if (!P || !P.alive || P.frozen) return;
     const d = Math.max(0, Math.min(400, +m.d || 0)), f = Math.max(0, Math.min(3, m.f | 0));
-    P.damage(d, f, G.AMMO[m.a] || G.AMMO.slug, g.netPlanes.get(m.s) || null, {armorMul:+m.o?.armorMul || undefined, wingMul:+m.o?.wingMul || undefined, net:true});
+    P.damage(d, f, G.AMMO[m.a] || G.AMMO.slug, g.netPlanes.get(m.s) || null, {armorMul:+m.o?.armorMul || undefined, wingMul:+m.o?.wingMul || undefined, pen:typeof m.o?.pen === 'number' ? Math.max(0, Math.min(1, m.o.pen)) : undefined, splashParts:!!m.o?.sp, net:true});
   },
   guestHud(m){
     const txt = s => String(s ?? '').slice(0, 300);
@@ -485,7 +485,7 @@ const Net = G.Net = {
     const hasAmmo = P.guns.some(gn => gn.rounds > 0);
     const f = (P.alive ? 1 : 0) | (P.fire && hasAmmo ? 2 : 0) | (P.fireRk && P.rockets > 0 ? 4 : 0) | (P.flaps ? 8 : 0);
     if (P.frozen) return;   // still on the trapeze: the host doesn't see us yet
-    this.host.send({t:'st', p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0});
+    this.host.send({t:'st', p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0, pt:P.partCode()});
   },
   sendOrder(o){ if (this.host) { this.host.send({t:'order', o}); G.HUD.toast('Wingmen: ' + G.ORDER_NAMES[o]); } },
 
@@ -581,7 +581,7 @@ G.Plane.prototype.remoteUpdate = function(dt){
     if (this.pos.distanceToSquared(tA) > 250*250) this.pos.copy(tA); else this.pos.lerp(tA, k);
     this.q.slerp(n.q, k); this.vel.copy(n.v);
   }
-  this.axes();
+  this.axes(); if (this.damageFx) this.damageFx(dt);
   for (const gn of this.guns) gn.rounds = gn.def.ammo;   // the guest counts their own ammo; a stand-in never runs dry first
   if (!this.onGround) { this.updateGuns(dt); this.updateRockets(dt); if (this.turrets.length) this.updateTurrets(dt); }
   if (this.rockets < 2) this.rockets = 6;

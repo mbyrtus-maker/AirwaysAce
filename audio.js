@@ -26,6 +26,7 @@ const A = G.audio = {
       }
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
       if (typeof fetch === 'function') fetch('sounds/turbine2.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
+      if (typeof fetch === 'function') for (const k of ['creak', 'tear']) fetch(`sounds/${k}.wav?v=1`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf[k] = b; this.trim[k] = {s:0, e:b.duration}; }).catch(() => {});   // airframe failing: made from the rivet and hull recordings
       if (typeof fetch === 'function') fetch('sounds/prop_pass.wav?v=2').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.pass = b; this.trim.pass = {s:0, e:b.duration}; }).catch(() => {});
       // more engine voices, each a seamless WAV loop: an inline V12 for the sleek fighters, and the Whirligig's rotor chop
       if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam', 'prop_light', 'prop_smooth', 'prop_twin', 'prop_heavy']) fetch(`sounds/${k}.wav?v=2`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
@@ -102,6 +103,11 @@ const A = G.audio = {
     const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain;
     s.connect(g).connect(dest || this.sfxBus); s.start(0, (this.trim[k] ? this.trim[k].s : 0) + offset);
   },
+  /* damage to parts */
+  cough(k){ this.one('hitshort', 0.16 + 0.24*k, 0.33 + Math.random()*0.06); },
+  creak(){ if (!this.thr('creak', 1100)) this.one('creak', 0.75, 0.85 + Math.random()*0.25); },
+  tear(pos){ this.one('tear', pos ? this.att(pos, 600)*0.9 : 1, 0.95 + Math.random()*0.1); },
+  partHit(f, lvl){ if (!this.thr('parthit', 250)) this.one('hit', 0.3 + lvl*0.05, f === 0 ? 0.62 : 0.85); },
   att(pos, range = 1500){ const g = G.game; if (!g || !g.camera) return 0.5; return Math.max(0, 1 - g.camera.position.distanceTo(pos)/range)**1.6; },
 
   /* per-frame: player engine follows throttle and speed; a second loop tracks the nearest enemy for flybys; the airship drones */
@@ -111,6 +117,7 @@ const A = G.audio = {
       const vt = Math.min(1.25, P.speed/(P.top || 1)); this.intensity = Math.max(0, Math.min(1.15, 0.32*(P.throttle || 0) + 0.68*vt));
       this.engLP.frequency.setTargetAtTime(800 + 5400*Math.pow(this.intensity, 1.3), t, 0.25);
     }
+    if (P && P.creak > 0 && P.alive && P.wingGone < 0) this.creak();
     if (this.eng && P) {
       const want = this.engKey(P);
       if (this.eng.key !== want) { const old = this.eng; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} this.unbeat(old, t); this.eng = this.toEng(this.loop(want, 0)) || old; this.eng.key = want; }
@@ -133,7 +140,8 @@ const A = G.audio = {
         else this.eng.g.gain.setTargetAtTime(0, t, 0.2);
       } else {
         if (!P.engineDead) this.deadAt = undefined;
-        this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1)*this.pitchOf(P), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.1 + 0.24*this.intensity)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
+        const dip = P.dip > 0;   // a shot-up engine misses: the note sags and drops out for a beat
+        this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1)*this.pitchOf(P)*(dip ? 0.86 : 1), t, dip ? 0.05 : 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.1 + 0.24*this.intensity)*(this.VGAIN[this.eng.key] || 1)*(dip ? 0.3 : 1) : 0, t, dip ? 0.03 : 0.15);   // the V12 recording is hotter
         // the new engine voices are engine only; under them runs the original recording, quieter, for the propeller's thrum and whirr
         const propOn = on && !realJet && /^(v12|heavy|rough)$/.test(this.eng.key);
         if (propOn && !this.prop && this.buf.engine) this.prop = this.beat(this.toEng(this.loop('engine', 0)), 0.4);

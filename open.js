@@ -220,7 +220,7 @@ G.CONTACTS = {
     shop:[{mod:'drums'}, {mod:'plate'}]},
   sam:{name:'"Smokestack" Sam Okafor', role:'Shipwright, Smoke Harbour Yards', music:'sidewalk', look:{skin:'#7a4a30', hair:'#1f1714', hat:'cap', glasses:true, coat:'#3a3530'},
     hello:['Mind the slipway. And the sparks. And me.', 'You want it faster, louder or uglier? I do all three.'],
-    shop:[{mod:'winch'}, {mod:'spars'}, {chassis:'bulldog', price:19000}, {chassis:'thunderbuss', price:27000}]},
+    shop:[{mod:'winch'}, {mod:'spars'}, {mod:'engplate'}, {chassis:'bulldog', price:19000}, {chassis:'thunderbuss', price:27000}]},
   lucien:{club:true, name:'"Lucky" Lucien Delacroix', role:'Proprietor, the Gallows', music:'jetaime', look:{skin:'#c88a60', hair:'#3a2a1a', hat:'bowler', tache:true, coat:'#4a1a2a'},
     hello:['Welcome to the Gallows. The name is a joke. Mostly.', 'Cards, dice or aeroplanes? I take bets on all three.'],
     shop:[]},
@@ -1497,7 +1497,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.bank(); g.paused = true; this.atSite = site;
     if (g.sea && !G.CONTACTS[site.contact].local) g.sea.settle();
     const C0 = G.CONTACTS[site.contact], P = g.player;
-    if (C0.local && P.alive) { P.internal = P.internalMax; P.armor = P.armorMax.slice(); for (const gn of P.guns) { gn.rounds = gn.def.ammo; P.spent.ammo[gn.i] = 1; } P.rockets = P.L.hp*3; P.spent.rockets = P.rockets; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; this.patched = true; } else this.patched = false;
+    if (C0.local && P.alive) { P.internal = P.internalMax; P.armor = P.armorMax.slice(); P.repairParts(); for (const gn of P.guns) { gn.rounds = gn.def.ammo; P.spent.ammo[gn.i] = 1; } P.rockets = P.L.hp*3; P.spent.rockets = P.rockets; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; this.patched = true; } else this.patched = false;
     if (G.audio.ctx) G.audio.ctx.suspend();
     const C = G.CONTACTS[site.contact]; if (this.night && C.club) G.music.club(); else G.music.play(C.music || 'sidewalk');
     G.UI.contact(this, site);

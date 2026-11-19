@@ -123,7 +123,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .thr{display:grid;grid-template-columns:62px 1fr 42px;gap:8px;align-items:center;font-size:13px;color:var(--dim);margin-top:6px}.thr b{color:var(--cream);font-weight:500;text-align:right}
 #hLoad{font-size:12.5px;color:var(--dim);margin-top:4px}#hLoad .flaps{color:#9ef0a0;font-weight:600;letter-spacing:.08em}#hLoad .gdn{color:#9ef0a0;font-weight:600;letter-spacing:.08em}#hLoad .gup{color:#e8c46a;font-weight:600;letter-spacing:.08em}
 #hArmor{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-top:8px}
-#hArmor svg{width:70px;display:block}#hArmor .bar>i{background:var(--ok)}#hArmor .bar.crit>i{background:var(--red)}#hArmor small{font-size:11px;letter-spacing:.14em;color:var(--dim)}
+#hArmor svg{width:70px;display:block}#hArmor .bar>i{background:var(--ok)}#hArmor .bar.crit>i{background:var(--red)}#hArmor small{font-size:11px;letter-spacing:.14em;color:var(--dim)}#hArmor .leak{display:block;margin-top:4px;font-size:11px;letter-spacing:.14em;color:#ffb02e;animation:leakb 1s steps(2) infinite}#hArmor .leak[hidden]{display:none}@keyframes leakb{50%{opacity:.35}}
 #hArmsP{right:16px;bottom:max(16px,env(safe-area-inset-bottom));width:260px;display:flex;flex-direction:column;gap:5px}
 .ar{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:14px}.ar b{font-weight:600;font-variant-numeric:tabular-nums}.ar em{font-style:normal;color:var(--brass);font-size:12px;margin-left:4px}
 .ar .am{grid-column:1/-1;display:block;height:4px;background:rgba(255,255,255,.1)}.ar .am>i{display:block;height:100%;background:var(--cream)}
@@ -209,8 +209,8 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
     <div class="thr"><span>Throttle</span><i class="bar"><i id="hThr"></i></i><b id="hThrV"></b></div>
     <div id="hLoad"></div>
     <div id="hArmor">
-      <svg viewBox="0 0 70 70" aria-label="Armor by facing"><path id="zN" d="M30 4 L40 4 L42 22 L28 22Z"/><path id="zL" d="M4 26 L28 24 L28 34 L4 34Z"/><path id="zR" d="M42 24 L66 26 L66 34 L42 34Z"/><path id="zT" d="M29 36 L41 36 L40 58 L50 62 L50 66 L20 66 L20 62 L30 58Z"/><rect x="28" y="22" width="14" height="14" fill="#2b3140"/></svg>
-      <div><small>ARMOR · STRUCTURE</small><i class="bar"><i id="hInt"></i></i></div>
+      <svg viewBox="0 0 70 70" aria-label="Armor by facing"><path id="zN" d="M30 4 L40 4 L42 22 L28 22Z"/><path id="zL" d="M4 26 L28 24 L28 34 L4 34Z"/><path id="zR" d="M42 24 L66 26 L66 34 L42 34Z"/><path id="zT" d="M29 36 L41 36 L40 58 L50 62 L50 66 L20 66 L20 62 L30 58Z"/><rect x="28" y="22" width="14" height="14" fill="#2b3140"/><g stroke-width="1.2"><circle id="pN" cx="35" cy="13" r="3.4"/><circle id="pL" cx="15" cy="29" r="3.4"/><circle id="pR" cx="55" cy="29" r="3.4"/><circle id="pT" cx="35" cy="48" r="3.4"/></g></svg>
+      <div><small>ARMOR · STRUCTURE</small><i class="bar"><i id="hInt"></i></i><b id="hLeak" class="leak" hidden>OIL LEAK</b></div>
     </div>
   </div>
   <div class="hp" id="hTgtP" hidden></div>
@@ -287,27 +287,27 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="window.Peer=undefined"></script>
-<script src="data.js?v=1119u"></script>
+<script src="data.js?v=1119dmg"></script>
 <script src="sfx.js"></script>
 <script src="world.js"></script>
 <script src="models.js"></script>
-<script src="planes.js?v=1119u"></script>
-<script src="combat.js?v=1119u"></script>
-<script src="ai.js"></script>
-<script src="audio.js?v=1119t"></script>
-<script src="hud.js?v=1119u"></script>
-<script src="game.js?v=1119u"></script>
+<script src="planes.js?v=1119dmg"></script>
+<script src="combat.js?v=1119dmg"></script>
+<script src="ai.js?v=1119dmg"></script>
+<script src="audio.js?v=1119dmg"></script>
+<script src="hud.js?v=1119dmg"></script>
+<script src="game.js?v=1119dmg"></script>
 <script src="traffic.js"></script>
 <script src="story.js"></script>
-<script src="open.js"></script>
-<script src="rust.js"></script>
+<script src="open.js?v=1119dmg"></script>
+<script src="rust.js?v=1119dmg"></script>
 <script src="story2.js"></script>
 <script src="story3.js"></script>
 <script src="story4.js"></script>
-<script src="net.js"></script>
+<script src="net.js?v=1119dmg"></script>
 <script src="pad.js"></script>
 <script src="keys.js?v=1119u"></script>
-<script src="ui.js?v=1119u"></script>
+<script src="ui.js?v=1119dmg"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>

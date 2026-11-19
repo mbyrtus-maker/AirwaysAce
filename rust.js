@@ -77,7 +77,7 @@ Object.assign(G.CONTACTS, {
     hello:['Union hall\'s open to anybody who works for a living. Even flyers.', 'The company\'s got guns and money. We\'ve got each other. And now you.'], shop:[{mod:'drums'}]},
   bucco:{name:'Sal "Fingers" Bucco', role:'Fixer, the Undercroft', music:'caravan', look:{skin:'#c88a60', hair:'#1f1714', hat:'bowler', tache:true, coat:'#2a2a2a'},
     hello:['Nobody followed you down the drain? Good. Sit.', 'Everything in Gantry has a price, pal. Even the police. Especially the police.'],
-    shop:[{mod:'winch'}, {chassis:'jackal', price:21000}]},
+    shop:[{mod:'winch'}, {mod:'engplate'}, {chassis:'jackal', price:21000}]},
   quill:{name:'Dr. Tobias Quill', role:'Inventor, Quarry Field', music:'sidewalk', look:{skin:'#e8c0a0', hair:'#d8d8d0', hat:'none', glasses:true, coat:'#6a5a3a'},
     hello:['Ah! A test pilot! Do you bounce? Never mind.', 'Mind the workbench. And the other workbench. And the ceiling.'], shop:[{mod:'spars'}, {chassis:'grackle', price:16000}]},
   mabs:{club:true, name:'"Mabs" Doyle', role:'Proprietor, the Coldwater Diner', music:'swing', look:{skin:'#f0c8a8', hair:'#c0582a', hat:'scarf', lips:true, coat:'#2f5d8a'},
