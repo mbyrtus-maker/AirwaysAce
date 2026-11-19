@@ -58,6 +58,19 @@ const A = G.audio = {
     highwayman:'heavy', ironclad:'heavy', thunderbuss:'heavy', bulldog:'heavy', vandal:'rough', grackle:'rough'},
   VGAIN:{engine:1, v12:1.05, heavy:1.1, rough:1.0}, VRATE:{engine:1, v12:1, heavy:0.88, rough:1.04},
   engKey(P){ const k = P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
+  /* the propeller's beat: the engine's sound is pulsed by two low oscillators, the shaft turning (a rough flutter) and the
+     blades passing the cowling (a buzz), so engine and propeller sound like one machine. beat(L) puts it on a loop; tune() sets
+     the speeds from the engine's rpm, the blades lagging a touch behind a throttle change */
+  beat(L, depth){
+    const c = this.ctx; if (!c || !L || L.mod || !c.createOscillator) return L;
+    const m = c.createGain(); m.gain.value = 1 - depth; L.src.disconnect(); L.src.connect(m).connect(L.g);
+    const o1 = c.createOscillator(), d1 = c.createGain(), o2 = c.createOscillator(), d2 = c.createGain();
+    o1.type = 'sine'; o2.type = 'triangle'; o1.frequency.value = 90; o2.frequency.value = 30; d1.gain.value = depth*0.65; d2.gain.value = depth*0.35;
+    o1.connect(d1).connect(m.gain); o2.connect(d2).connect(m.gain); o1.start(); o2.start();
+    L.mod = {o1, o2}; return L;
+  },
+  tune(L, rpm, t){ if (!L || !L.mod) return; L.mod.o2.frequency.setTargetAtTime(rpm/60, t, 0.35); L.mod.o1.frequency.setTargetAtTime(rpm/60*3, t, 0.35); },
+  unbeat(L, t){ if (L && L.mod) { try { L.mod.o1.stop(t + 0.35); L.mod.o2.stop(t + 0.35); } catch (e) {} } },
   startEngines(){
     if (!this.eng && this.buf.engine) { this.eng = this.loop('engine', 0); if (this.eng) this.eng.key = 'engine'; }
     if (!this.eng2 && this.buf.engine) { this.eng2 = this.loop('engine', 0); if (this.eng2) { this.eng2.src.detune.value = 260; this.eng2.key = 'engine'; } }
@@ -81,7 +94,8 @@ const A = G.audio = {
     if (!this.ctx) return; const t = this.ctx.currentTime, P = game.player;
     if (this.eng && P) {
       const want = this.engKey(P);
-      if (this.eng.key !== want) { const old = this.eng; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} this.eng = this.loop(want, 0) || old; this.eng.key = want; }
+      if (this.eng.key !== want) { const old = this.eng; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} this.unbeat(old, t); this.eng = this.loop(want, 0) || old; this.eng.key = want; }
+      if (!this.eng.mod && !(P.st && P.st.jet)) this.beat(this.eng, 0.22);
       const gyro = P.L && P.L.chassis === 'whirligig' && this.buf.rotor;
       if (gyro && !this.rotor) this.rotor = this.loop('rotor', 0);
       if (this.rotor) { this.rotor.src.playbackRate.setTargetAtTime((P.hover ? 1.0 : 0.8) + Math.min(1, P.speed/P.top)*0.3, t, 0.3); this.rotor.g.gain.setTargetAtTime(gyro && P.alive && game.running ? 0.34 + Math.min(1, P.speed/P.top)*0.12 + (P.hover ? 0.1 : 0) : 0, t, 0.25); }   // the rotor is the big noise, louder still when she's hanging on it
@@ -103,8 +117,9 @@ const A = G.audio = {
         this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
         // the new engine voices are engine only; under them runs the original recording, quieter, for the propeller's thrum and whirr
         const propOn = on && !realJet && this.eng.key !== 'engine';
-        if (propOn && !this.prop && this.buf.engine) this.prop = this.loop('engine', 0);
-        if (this.prop) { this.prop.src.playbackRate.setTargetAtTime(rate*1.05, t, 0.12); this.prop.g.gain.setTargetAtTime(propOn ? (0.15 + P.throttle*0.1)*0.38 : 0, t, 0.15); }
+        if (propOn && !this.prop && this.buf.engine) this.prop = this.beat(this.loop('engine', 0), 0.4);
+        const rpm = 1150 + P.throttle*1350 + sp*350; this.tune(this.eng, rpm, t); this.tune(this.prop, rpm, t);   // a three-blade prop: the beat rises with the rpm
+        if (this.prop) { this.prop.src.playbackRate.setTargetAtTime(rate*1.05, t, 0.4); this.prop.g.gain.setTargetAtTime(propOn ? (0.15 + P.throttle*0.1)*0.38 : 0, t, 0.15); }
       }
       if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
