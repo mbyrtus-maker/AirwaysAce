@@ -26,9 +26,9 @@ const A = G.audio = {
       }
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
       if (typeof fetch === 'function') fetch('sounds/turbine2.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
-      if (typeof fetch === 'function') fetch('sounds/prop_pass.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.pass = b; this.trim.pass = {s:0, e:b.duration}; }).catch(() => {});
+      if (typeof fetch === 'function') fetch('sounds/prop_pass.wav?v=2').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.pass = b; this.trim.pass = {s:0, e:b.duration}; }).catch(() => {});
       // more engine voices, each a seamless WAV loop: an inline V12 for the sleek fighters, and the Whirligig's rotor chop
-      if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam', 'prop_light', 'prop_smooth', 'prop_twin', 'prop_heavy']) fetch(`sounds/${k}.wav`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
+      if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam', 'prop_light', 'prop_smooth', 'prop_twin', 'prop_heavy']) fetch(`sounds/${k}.wav?v=2`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : 1; },
