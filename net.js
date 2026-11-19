@@ -155,6 +155,7 @@ const Net = G.Net = {
       case 'leftgame': if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
       case 'bye': this.dropSpawned(g, L); L.close(); this.dropLink(L); break;
       case 'spawn': if (g && G.game === g && !g.done) this.hostSpawn(g, L, m); break;
+      case 'seaHit': if (g && G.game === g && g.sea) { const s = g.sea.ships[m.i | 0]; if (s && s.alive) g.sea.hit(s, Math.max(0, Math.min(400, +m.d || 0)), L.proxy || null, null, true); } break;
       case 'despawn': if (g && G.game === g) { const p = this.byNid(g, m.nid | 0); if (p && p.jobOwner === L) { this.removeNetPlane(g, p); L.spawned.delete(p); } } break;
       case 'spawnShip': if (g && G.game === g && !g.done && m.o && typeof m.o === 'object' && (L.ships = (L.ships || 0) + 1) <= 3) { this.spawnTid = String(m.tid || '').slice(0, 16); try { const sh = g.addShip(unspec(m.o)); sh.jobOwner = L; } catch (e) {} this.spawnTid = null; } break;
     }
@@ -237,7 +238,9 @@ const Net = G.Net = {
       S.push([i, r2(s.pos.x), r2(s.pos.y), r2(s.pos.z), r4(s.q.x), r4(s.q.y), r4(s.q.z), r4(s.q.w), r2(s.hp/s.hpMax), s.alive ? 1 : 0, dead]);
     });
     const X = (g.targets || []).map((t, i) => t.alive ? -1 : i).filter(i => i >= 0);
-    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, B:g.netShots || [], K:g.netFlak || []}); g.netShots = []; g.netFlak = [];
+    // surface shipping: where each ship is on her lane, her way, her yaw and how badly she's hurt, so everyone sees the same ships
+    const W = g.sea ? g.sea.ships.map((s, i) => [i, r2(s.s), r2(s.v), r4(s.yaw), r2(s.hp/s.hpMax), s.alive ? 1 : 0, s.gone ? 1 : 0]) : [];
+    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, W, B:g.netShots || [], K:g.netFlak || []}); g.netShots = []; g.netFlak = [];
   },
   hostEnd(g, r){
     if (!this.links.length) return;
@@ -417,6 +420,7 @@ const Net = G.Net = {
     // the ships' tracers and flak, drawn here as harmless copies
     for (const b of (m.B || []).slice(0, 60)) { const s = g.ships[b[0]]; if (!s || !Array.isArray(b) || b.length < 8) continue; const d = new V3(b[4], b[5], b[6]); if (!isFinite(d.x)) continue; g.spawnRaw(s, new V3(b[1], b[2], b[3]), d.normalize(), G.GUNS[b[7] === 40 ? '40' : '50'], G.AMMO.slug, s.vel || new V3()); }
     for (const k of (m.K || []).slice(0, 20)) { const s = g.ships[k[0]]; if (!s || !Array.isArray(k) || k.length < 8) continue; g.flakShell(s, new V3(k[1], k[2], k[3]), new V3(k[4], k[5], k[6]), Math.min(4, Math.max(0, +k[7] || 0))); }
+    if (g.sea && Array.isArray(m.W)) for (const e of m.W) { const s = g.sea.ships[e[0] | 0]; if (s && Array.isArray(e)) g.sea.netState(s, e); }
     for (const i of m.X || []) { const t = g.targets && g.targets[i]; if (t && t.alive) { t.alive = false; if (t.group) t.group.visible = false; g.fx.explosion(t.pos, 1.6); if (g.audio) g.audio.boom(t.pos, true); } }
   },
   guestShip(g, m){

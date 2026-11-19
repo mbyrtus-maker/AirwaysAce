@@ -278,16 +278,23 @@ G.Sea = class {
   }
   /* fines are settled the next time you sit down with anybody respectable */
   settle(){ if (this.fine < 60 || this.police()) return 0; const f = Math.min(G.save.cash, Math.round(this.fine/10)*10); G.save.cash -= f; this.fine = 0; this.wanted = 0; G.persist(); if (f) G.HUD.toast(`The Harbour Board fined you $${f.toLocaleString()} for firing on shipping`); return f; }
-  hit(S, d, src, at){
+  /* co-op: the host runs the ships; a guest follows the host's snapshots and sends its hits to the host */
+  netState(S, e){ S.net = {s:+e[1] || 0, v:+e[2] || 0, yaw:+e[3] || 0, hp:+e[4], alive:!!e[5], gone:!!e[6]};
+    if (S.hp !== undefined && isFinite(S.net.hp)) S.hp = S.net.hp*S.hpMax;
+    if (!S.net.alive && S.alive) this.sink(S, null, true); }
+  hit(S, d, src, at, fromGuest){
     const g = this.g; if (!S.alive) return;
     const mine = src && src === g.player;
+    if (g.netGuest) { if (mine) { G.HUD.hitMark(); if (g.audio) g.audio.hitThem(); if (G.Net && G.Net.host) G.Net.host.send({t:'seaHit', i:this.ships.indexOf(S), d:Math.round(d*10)/10}); } return; }
+    if (fromGuest && S.faction !== 'pirate') { S.hostile = g.t + 40; this.crime(Math.min(14, 2 + d*0.05), `Your wingman is firing on ${S.the}!`); }
     if (!mine && S.aiMul !== undefined) d *= S.aiMul;   // a mission can script what other people's guns do to her
     S.hp -= d; if (mine) { G.HUD.hitMark(); if (g.audio) g.audio.hitThem(); S.hostile = g.t + 40; }
     if (mine && S.faction !== 'pirate') this.crime(Math.min(14, 2 + d*0.05), S.faction === 'navy' ? `You're firing on the Navy! That's ${S.the}!` : `You're firing on ${S.the}! She's a neutral ship!`);
     if (S.hp <= 0) this.sink(S, src);
   }
-  sink(S, src){
+  sink(S, src, quiet){
     const g = this.g; if (!S.alive) return; S.alive = false; S.sinking = 0.001; S.hp = 0;
+    if (quiet) { g.fx.explosion(this.world(S, 0, 4, 0, tV), 2.4); if (S.deck) this.launch(S.deck, true); G.HUD.feed(`${S.the[0].toUpperCase() + S.the.slice(1)} is going down`, false); return; }
     const mine = (src || null) === g.player;
     g.fx.explosion(this.world(S, 0, 4, 0, tV), 2.4); if (g.audio) g.audio.boom(S.pos, true);
     if (S.deck) this.launch(S.deck, true);
@@ -353,6 +360,7 @@ G.Sea = class {
           const headOn = Math.cos(O.yaw - S.yaw) < -0.5; if (headOn && this.ships.indexOf(S) < this.ships.indexOf(O)) continue;
           want = Math.min(want, Math.max(0, (lz - gap)*0.08)); }
         S.v += Math.max(-0.5*dt, Math.min(0.35*dt, want - S.v)); S.s = (S.s + S.v*dt) % S.lane.len;
+        if (g.netGuest && S.net) { const L = S.lane.len, err = ((S.net.s - S.s) % L + L*1.5) % L - L/2; S.v = S.net.v; S.s = ((S.s + (Math.abs(err) > 60 ? err : err*Math.min(1, dt*2))) % L + L) % L; S.net.s = (S.net.s + S.net.v*dt) % L; }
       } else S.v = Math.max(0, S.v - 0.5*dt), S.s = (S.s + S.v*dt) % S.lane.len;
       const A = S.lane.at(S.s, tL), px = S.pos.x, pz = S.pos.z; S.yaw += Math.max(-0.2*dt, Math.min(0.2*dt, angTo(S.yaw, A.yaw)));
       S.pos.x = A.x; S.pos.z = A.z; if (dt > 0) S.vel.set((A.x - px)/dt, 0, (A.z - pz)/dt);
