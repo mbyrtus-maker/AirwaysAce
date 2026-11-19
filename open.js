@@ -52,6 +52,12 @@ const REG = G.REGIONS = {
       {id:'cove', kind:'none', name:'Smuggler\'s Cove', at:{want:'coast', a:-Math.PI*0.72}},
       {id:'crag', kind:'none', name:'Halcyon Crag', at:{want:'high', x:0, z:0, r:4000}}
     ],
+    tunnels:[
+      // Halcyon is crowded and its hills are low, so these look harder (more tries), accept a shorter roofed stretch and sit closer to the places
+      {id:'railcut', name:'the Saint-Remy rail tunnel', shape:'straight', amp:0, len:[200, 480], bw:28, bh:18, tries:14000, cover:0.3, clear:450},
+      {id:'cragrun', name:'the Crag Run', shape:'bend', amp:30, len:[260, 600], bw:30, bh:20, tries:14000, cover:0.3, clear:450},
+      {id:'smugglers', name:'the Smugglers\' Run', shape:'s', amp:20, len:[200, 460], bw:26, bh:16, bonus:2500, tries:14000, cover:0.3, clear:450}
+    ],
     treasures:[
       {id:'h1', name:'The railwayman\'s savings', at:'viaduct', hint:'A railwayman swears he buried his savings where the trains stopped running. Under the arches, low.', reward:{livery:'halcyon', cash:1000}},
       {id:'h2', name:'The miller\'s strongbox', at:'mill', off:[40, 30], hint:'Old Hendrik the miller never trusted banks. Look up on his hill.', reward:{cash:2500}},
@@ -75,6 +81,11 @@ const REG = G.REGIONS = {
       {id:'hideout', kind:'hideout', name:'Rattlesnake Gulch', at:{want:'low', x:3200, z:2800, r:1500, minH:10}},
       {id:'canyon', kind:'none', name:'the deep canyon', at:{want:'low', x:1600, z:-2600, r:1500, minH:4}},
       {id:'butte', kind:'none', name:'Sentinel Butte', at:{want:'high', x:0, z:0, r:5000}}
+    ],
+    tunnels:[
+      {id:'adit', name:'the Lucky Strike adit', shape:'straight', amp:0, len:[320, 620], bw:30, bh:22},
+      {id:'snakepass', name:'Rattlesnake Pass', shape:'s', amp:50, len:[450, 800], bw:34, bh:26},
+      {id:'hollowbutte', name:'the Hollow Butte', shape:'bend', amp:40, len:[260, 520], bw:28, bh:20, bonus:2500}
     ],
     // rock: the rough-hewn interior. The gate is an open slot canyon ending in a short roofed portal: hw0 at the mouth to hw1 at the mesa wall are half-widths of the
     // terrain cut, cw0 to cw1 the half-widths left clear between the rock walls built inside it (a test of flying, but open to the sky)
@@ -498,9 +509,9 @@ function finishPath(pts){
 }
 function planTunnel(R, td, avoid){
   const o = terrainProbe(R), f = (x, z) => o.raw(x, z), rng = G.rng(hashStr(R.id + td.id)), N = 40; let best = null, bs = -1e9;
-  for (let tr = 0; tr < (td.sea ? 9000 : 2600); tr++) {
+  for (let tr = 0; tr < (td.tries || (td.sea ? 9000 : 2600)); tr++) {
     const cx = (rng() - 0.5)*10400, cz = (rng() - 0.5)*10400; if (Math.hypot(cx, cz) > 5400) continue;
-    if (avoid.some(p => Math.hypot(p.x - cx, p.z - cz) < (td.sea ? 600 : 800))) continue;
+    if (avoid.some(p => Math.hypot(p.x - cx, p.z - cz) < (td.clear || (td.sea ? 600 : 800)))) continue;
     const th = rng()*Math.PI*2, L = td.len[0] + rng()*(td.len[1] - td.len[0]), pts = tunnelPath(cx, cz, th, L, td, N);
     for (const p of pts) p.h = f(p.x, p.z);
     const hA = pts[0].h, hB = pts[N].h;
@@ -511,7 +522,7 @@ function planTunnel(R, td, avoid){
     for (let i = 0; i <= N; i++) if (pts[i].h > top) { if (i0 < 0) i0 = i; i1 = i; }
     if (i0 < 2 || i1 > N - 2) continue;
     let ok = true; for (let i = i0; i <= i1; i++) if (pts[i].h < (td.sea ? 1.5 : floor + td.bh + 4)) ok = false; if (!ok) continue;
-    const cover = (i1 - i0)/N; if (cover < (td.sea ? 0.22 : 0.4) || pts[i1].s0 === 0) continue;
+    const cover = (i1 - i0)/N; if (cover < (td.cover || (td.sea ? 0.22 : 0.4)) || pts[i1].s0 === 0) continue;
     // keep it inside the rock sideways too
     const m = pts[(i0 + i1) >> 1], th2 = th; let side = 1e9; for (const sd of [-1, 1]) side = Math.min(side, f(m.x + Math.cos(th2)*sd*(td.bw/2 + 25), m.z - Math.sin(th2)*sd*(td.bw/2 + 25)));
     if (side < (td.sea ? 2 : floor + td.bh)) continue;
