@@ -57,7 +57,14 @@ const A = G.audio = {
   VOICE:{sparrowhawk:'v12', mantis:'v12', jackal:'v12', comet:'v12', banshee:'v12', hornet:'v12',
     highwayman:'heavy', ironclad:'heavy', thunderbuss:'heavy', bulldog:'heavy', vandal:'rough', grackle:'rough'},
   VGAIN:{engine:1, v12:1.05, heavy:1.1, rough:1.0}, VRATE:{engine:1, v12:1, heavy:0.88, rough:1.04},
-  engKey(P){ const k = P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
+  // the V12, radial and rough recordings turned out to be car and machine engines, not aircraft, so every propeller plane uses
+  // the aircraft recording again (set USE_VOICES when real aircraft engines are recorded). Each type gets its own pitch instead:
+  // the light racers higher, the heavies lower
+  USE_VOICES:false,
+  PITCH:{sparrowhawk:1.12, comet:1.1, hornet:1.08, jackal:1.06, mantis:1.04, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
+    banshee:0.95, bulldog:0.9, highwayman:0.88, ironclad:0.85, thunderbuss:0.82},
+  pitchOf(P){ return (P && P.L && this.PITCH[P.L.chassis]) || 1; },
+  engKey(P){ const k = this.USE_VOICES && P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
   /* the propeller's beat: the engine's sound is pulsed by two low oscillators, the shaft turning (a rough flutter) and the
      blades passing the cowling (a buzz), so engine and propeller sound like one machine. beat(L) puts it on a loop; tune() sets
      the speeds from the engine's rpm, the blades lagging a touch behind a throttle change */
@@ -114,7 +121,7 @@ const A = G.audio = {
         else this.eng.g.gain.setTargetAtTime(0, t, 0.2);
       } else {
         if (!P.engineDead) this.deadAt = undefined;
-        this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
+        this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1)*this.pitchOf(P), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
         // the new engine voices are engine only; under them runs the original recording, quieter, for the propeller's thrum and whirr
         const propOn = on && !realJet && this.eng.key !== 'engine';
         if (propOn && !this.prop && this.buf.engine) this.prop = this.beat(this.loop('engine', 0), 0.4);
@@ -130,7 +137,7 @@ const A = G.audio = {
       const want = best ? (best.st && best.st.jet && this.buf.turbine ? 'turbine' : this.engKey(best)) : this.eng2.key || 'engine';
       if (this.eng2.key !== want && this.buf[want]) { const old = this.eng2; old.g.gain.setTargetAtTime(0, t, 0.05); try { old.src.stop(t + 0.3); } catch (e) {} const n = this.loop(want, 0); if (n) { this.eng2 = n; if (want === 'engine') n.src.detune.value = 260; } this.eng2.key = want; }
       const k2 = this.eng2.key, vr = k2 === 'turbine' ? 0.95 : this.VRATE[k2] || 1, vg = k2 === 'turbine' ? 1.1 : this.VGAIN[k2] || 1;
-      if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr, t, 0.08); }
+      if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr*(k2 === 'turbine' ? 1 : this.pitchOf(best)), t, 0.08); }
       this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32*vg : 0, t, 0.1);
       const p2 = /v12|heavy|rough/.test(k2); if (p2 && !this.prop2 && this.buf.engine) { this.prop2 = this.loop('engine', 0); if (this.prop2) this.prop2.src.detune.value = 260; }
       if (this.prop2) { this.prop2.src.playbackRate.value = this.eng2.src.playbackRate.value*1.05/(vr || 1); this.prop2.g.gain.setTargetAtTime(game.running && p2 ? a*0.32*0.38 : 0, t, 0.1); }   // their propellers too
