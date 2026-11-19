@@ -909,7 +909,7 @@ G.MISSIONS.c3m2 = Object.assign(Object.create(base), {
    ===================================================================== */
 G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
   id:'c3m3', story:true, weather:'overcast', title:'The Wraith', place:'The sky over Port Halcyon, sunset', wing:3,
-  brief:'The Wraith is the biggest zeppelin on the coast: half again the Nightjar\'s size, twice her armour, guns everywhere. The escort raider Black Widow flies with her. Aero Works is putting up two militia fighters to fly with Dutch, Hellcat and Doc. The Margaret will slug it out with the Wraith while you take her apart: every engine, then her gas cells. And the Lamplighter flies his own fighter. When he comes out, he\'s yours.',
+  brief:'The Wraith is the biggest zeppelin on the coast: half again the Nightjar\'s size, twice her armour, flak batteries everywhere. The escort raider Black Widow flies with her. Aero Works is putting up two militia fighters to fly with Dutch, Hellcat and Doc. The Margaret will slug it out with the Wraith while you take her apart: every engine, then her gas cells. And the Lamplighter flies his own fighter. When he comes out, he\'s yours.',
   sides:[{text:'Sink the escort raider Black Widow'}, {text:'Keep the Margaret above 40%'}],
   pay:{success:12000, perfect:5000, kill:300},
   worldOpts:() => Object.assign(flatsBoth(), {time:'evening'}),
@@ -920,8 +920,8 @@ G.MISSIONS.c3m3 = Object.assign(Object.create(base), {
     this.launch(g, `Hook's live, ${G.save.callsign || 'Ace'}. There she is. The Wraith. Give 'em hell, and come home.`, {pos:new V3(CITY.x - 400, 760, CITY.z - 1500), heading:0, turn:0.02});
     const s = this.ship; s.hp = s.hpMax = 6500;
     const wp = new V3(CITY.x + 300, 820, CITY.z + 1700), widow = new V3(CITY.x + 1100, 760, CITY.z + 1500);
-    this.wraith = g.addShip({team:1, kind:'raider', name:'Wraith', label:'WRAITH', paint:{hull:0x1d1b1c, band:0x7a1414, trim:0xb88a2a, scale:1.4, hpMul:F.depotBurned ? 1.25 : 1.45}, pos:wp, heading:Math.PI, speed:6, turn:0.012, noRun:true, gunCd:0.32});
-    this.widow = g.addShip({team:1, kind:'raider', name:'Black Widow', label:'BLACK WIDOW', paint:{hull:0x2b2626, band:0x5a1a3a, trim:0x8a8f94}, pos:widow, heading:Math.PI, speed:7, turn:0.015, noRun:true});
+    this.wraith = g.addShip({team:1, kind:'raider', name:'Wraith', label:'WRAITH', paint:{hull:0x1d1b1c, band:0x7a1414, trim:0xb88a2a, scale:1.4, hpMul:F.depotBurned ? 1.25 : 1.45}, pos:wp, heading:Math.PI, speed:6, turn:0.012, noRun:true, noMG:true});
+    this.widow = g.addShip({team:1, kind:'raider', name:'Black Widow', label:'BLACK WIDOW', paint:{hull:0x2b2626, band:0x5a1a3a, trim:0x8a8f94}, pos:widow, heading:Math.PI, speed:7, turn:0.015, noRun:true, noMG:true});
     g.targetShip = this.wraith;
     s.foe = this.wraith; this.wraith.foe = s; this.widow.foe = s; s.standoff = 800; this.wraith.standoff = 650; this.widow.standoff = 900; s.turn0 = 0.02;
   },
