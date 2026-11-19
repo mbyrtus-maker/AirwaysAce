@@ -633,7 +633,9 @@ function buildCity(c, g){
   for (const s of c.sites) if (s.kind === 'hook') { const a = Math.atan2(-s.point.x, -s.point.z); keep.push({lane:true, x:s.point.x, z:s.point.z, dx:Math.sin(a), dz:Math.cos(a), len:620, hw:62}); keep.push({x:s.point.x, z:s.point.z, r:60}); }
   for (const B of BRIDGES) { const F = bridgeFrame(B.z); for (const sgn of [1, -1]) keep.push({lane:true, x:F.c.x, z:F.c.z, dx:sgn*F.ax, dz:sgn*F.az, len:F.L/2 + 260, hw:20}); }
   for (const id of ['gasworks']) if (c.P[id]) keep.push({x:c.P[id].x, z:c.P[id].z, r:260});
-  if (c.rail) for (let i = 0; i < c.rail.pts.length; i += 3) keep.push({x:c.rail.pts[i].x, z:c.rail.pts[i].z, r:16});
+  // the El: no lot whose building could reach within 7 m of the rails (checked against the whole lot, not just its centre)
+  const railH = new Map(); if (c.rail) for (const q of c.rail.pts) { const key = Math.floor(q.x/60) + ',' + Math.floor(q.z/60); if (!railH.has(key)) railH.set(key, []); railH.get(key).push(q); }
+  const railNear = (cx, cz, hw, hd) => { for (let i = Math.floor((cx - hw - 8)/60); i <= Math.floor((cx + hw + 8)/60); i++) for (let j = Math.floor((cz - hd - 8)/60); j <= Math.floor((cz + hd + 8)/60); j++) for (const q of railH.get(i + ',' + j) || []) if (Math.abs(q.x - cx) < hw + 7 && Math.abs(q.z - cz) < hd + 7) return true; return false; };
   const clear = (x, z) => keep.some(k => { if (!k.lane) return Math.hypot(x - k.x, z - k.z) < k.r; const ux = x - k.x, uz = z - k.z, al = ux*k.dx + uz*k.dz; return al > -k.hw && al < k.len && Math.abs(ux*k.dz - uz*k.dx) < k.hw; });
   const steel = (x, z) => z > 2550 && z < 4250 && x > rx(z);
 
@@ -764,7 +766,7 @@ function buildCity(c, g){
     const lots = down || docks || mills ? 1 : rr() < 0.75 ? 1 : 2, lw = 52/(lots === 4 ? 2 : lots === 2 ? 2 : 1), ld = 52/(lots === 4 ? 2 : 1);
     for (let i = 0; i < lots; i++) {
       const cx = bx - 26 + lw/2 + (lots > 1 ? (i % 2)*lw : 0), cz = bz - 26 + ld/2 + (lots === 4 ? Math.floor(i/2)*ld : 0);
-      if (clear(cx, cz)) continue;
+      if (clear(cx, cz) || railNear(cx, cz, lw/2, (docks ? 34 : ld/2))) continue;
       const y = w.height(cx, cz, true), k = tile(cx, cz), wv = lw - 4 - rr()*6, dv = ld - 4 - rr()*6; let top;
       if (down) {
         const near = Math.max(0, 1 - Math.hypot(cx - bankX(-800, 1, 200), cz + 800)/900), h = 22 + rr()*30 + near*near*85, col = pick(rr, rr() < 0.5 ? PAL.cream : PAL.stone), tiers = h > 60 ? 3 : h > 36 ? 2 : 1;
@@ -884,7 +886,7 @@ function streetTick(c, g, dt){
 /* ---------- the El: an elevated railway up the east bank and over the river at the El crossing ---------- */
 function buildEl(c, g){
   const w = g.world, zEl = 3500, F = bridgeFrame(zEl), ctrl = [];
-  for (let z = -3900; z <= 3150; z += 350) ctrl.push(new V3(bankX(z, 1, 80), 0, z));
+  for (let z = -3900; z <= 3150; z += 350) ctrl.push(new V3(bankX(z, 1, z > -400 && z < 700 ? 104 : 80), 0, z));   // further back by the Iron Footbridge, clear of its approach and stair towers
   ctrl.push(new V3(F.c.x + F.ax*(F.L/2 + 120), 0, F.c.z + F.az*(F.L/2 + 120)), new V3(F.c.x - F.ax*(F.L/2 + 120), 0, F.c.z - F.az*(F.L/2 + 120)), new V3(bankX(3900, -1, 160), 0, 3900), new V3(bankX(4250, -1, 260), 0, 4250));
   const cp = [ctrl[0], ...ctrl, ctrl[ctrl.length - 1]], dense = [];
   for (let i = 1; i < cp.length - 2; i++) for (let k2 = 0; k2 < 30; k2++) { const t = k2/30, t2 = t*t, t3 = t2*t, p0 = cp[i - 1], p1 = cp[i], p2 = cp[i + 1], p3 = cp[i + 2], f = (a, b, c2, d) => 0.5*((2*b) + (-a + c2)*t + (2*a - 5*b + 4*c2 - d)*t2 + (-a + 3*b - 3*c2 + d)*t3); dense.push(new V3(f(p0.x, p1.x, p2.x, p3.x), 0, f(p0.z, p1.z, p2.z, p3.z))); }

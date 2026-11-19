@@ -46,7 +46,7 @@ const RUST = G.RUST = {
   dx:(x, z) => Math.abs(x - RUST.rx(z)),
   bank:(x, z) => RUST.dx(x, z) - RUST.rw(z)/2,                                                            // metres from the water's edge (negative = in the river)
   city:(x, z) => z < 4300 && z > -4600 && RUST.bank(x, z) > 18 && RUST.bank(x, z) < RUST.fp(z) - 60,      // flat town ground
-  isle:(x, z) => ((z - 1900)/520)**2 + ((x - RUST.rx(1900))/115)**2 < 1
+  isle:(x, z) => ((z - 1900)/520)**2 + ((x - RUST.rx(1900))/178)**2 < 1
 };
 const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
 let DETAIL = null;
