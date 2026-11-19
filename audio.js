@@ -93,7 +93,7 @@ const A = G.audio = {
       if (P.engineDead && P.alive && game.running && !realJet) {
         if (this.deadAt === undefined) { this.deadAt = t; this.deadRate = this.eng.src.playbackRate.value || 1;
           for (const [d, v] of [[0.35, 0.5], [1.25, 0.42], [2.3, 0.3]]) setTimeout(() => { if (this.deadAt !== undefined) this.one('hitshort', v, 0.32 + Math.random()*0.06); }, d*1000); }
-        const k = t - this.deadAt, life = 3.8;
+        const k = t - this.deadAt, life = 3.8; if (this.prop) this.prop.g.gain.setTargetAtTime(0, t, 0.3);
         if (k < life) { const f = 1 - k/life, beat = Math.sin(k*(15 - k*3.2) + Math.sin(k*7)*1.5) > 0.15 - k*0.12;
           this.eng.src.playbackRate.setTargetAtTime(Math.max(0.22, this.deadRate*(0.35 + 0.65*f*f)), t, 0.06);
           this.eng.g.gain.setTargetAtTime(beat ? 0.26*f : 0.012, t, 0.018); }
@@ -101,6 +101,10 @@ const A = G.audio = {
       } else {
         if (!P.engineDead) this.deadAt = undefined;
         this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
+        // the new engine voices are engine only; under them runs the original recording, quieter, for the propeller's thrum and whirr
+        const propOn = on && !realJet && this.eng.key !== 'engine';
+        if (propOn && !this.prop && this.buf.engine) this.prop = this.loop('engine', 0);
+        if (this.prop) { this.prop.src.playbackRate.setTargetAtTime(rate*1.05, t, 0.12); this.prop.g.gain.setTargetAtTime(propOn ? (0.15 + P.throttle*0.1)*0.38 : 0, t, 0.15); }
       }
       if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
@@ -113,6 +117,8 @@ const A = G.audio = {
       const k2 = this.eng2.key, vr = k2 === 'turbine' ? 0.95 : this.VRATE[k2] || 1, vg = k2 === 'turbine' ? 1.1 : this.VGAIN[k2] || 1;
       if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr, t, 0.08); }
       this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32*vg : 0, t, 0.1);
+      const p2 = /v12|heavy|rough/.test(k2); if (p2 && !this.prop2 && this.buf.engine) { this.prop2 = this.loop('engine', 0); if (this.prop2) this.prop2.src.detune.value = 260; }
+      if (this.prop2) { this.prop2.src.playbackRate.value = this.eng2.src.playbackRate.value*1.05/(vr || 1); this.prop2.g.gain.setTargetAtTime(game.running && p2 ? a*0.32*0.38 : 0, t, 0.1); }   // their propellers too
     }
     // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
     // steamship thrums low as she passes
@@ -141,7 +147,7 @@ const A = G.audio = {
   },
   stopAll(){
     const t = this.ctx ? this.ctx.currentTime : 0;
-    for (const L of [this.eng, this.eng2, this.shipEng, this.turb, this.rotor, this.steamL, this.seaL]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
+    for (const L of [this.eng, this.eng2, this.shipEng, this.turb, this.rotor, this.steamL, this.seaL, this.prop, this.prop2]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
   /* caliber sets the voice: the .30 a quick high crack, the .70 a slow deep thump */
