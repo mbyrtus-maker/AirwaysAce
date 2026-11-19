@@ -122,9 +122,9 @@ const A = G.audio = {
     const out = c.createGain(); out.gain.value = 0.85;
     eq.connect(ws).connect(lp).connect(out).connect(this.sfxBus); return (this._heavy = eq);
   },
-  calPitch(def){ return 0.5 + ((def.pitch || 1) - 0.75)*1.5; },   // .70 0.5, .60 0.73, .50 0.88, .40 0.97, .30 1.1
+  calPitch(def){ return {'30':1.12, '40':1.05, '50':1.0, '60':0.74, '70':0.5}[def.id] || def.pitch || 1; },   // the light guns near the recording's own pitch; the .60 and .70 well down
   playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def), heavy = Math.max(0, Math.min(1, (0.9 - p)/0.4)), r = 0.97 + Math.random()*0.06;
-    const bus = heavy > 0.05 ? this.heavyBus() : null;
+    const bus = p < 0.9 ? this.heavyBus() : null;   // only the .60 and .70 go through the cannon bus
     this.one('gunshot', 0.42 + 0.2*heavy, p*r, 0, bus); this.one('guntail', 0.06 + 0.3*heavy, p*r, 0, bus);
     if (heavy > 0.3) this.one('boomsmall', 0.4*heavy, 0.9 + Math.random()*0.1, 0, bus); },
   shot(pos, pitch){ const a = this.att(pos, 1200); if (a < 0.02 || this.thr('shot', 55)) return; this.one('gunshot', a*0.5, pitch*(0.95 + Math.random()*0.1)); },
