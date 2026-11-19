@@ -126,7 +126,12 @@ G.JOBS.push(
    blurb:'Dr. Quill is studying the thermals off the steelworks chimneys. Score 5,000 stunt points over the works; the updrafts will help, if they don\'t kill you.', go:'Take notes! No, don\'t. Fly.'},
   {id:'quill_test', contact:'quill', type:'errand', title:'A test flight', pay:2200, time:240, cargo:'Dr. Quill\'s new instrument',
    legs:[{how:'near', mark:'dam', r:300, say:'Reading at the dam: steady.'}, {how:'near', mark:'wgcx', r:300, say:'Reading at the tower: the needle\'s going mad. Interesting.'}, {how:'land', site:'quarry', say:'Back at the quarry. Quill is very excited about the needle.'}],
-   blurb:'Quill has built a gadget that "listens to the sky". Fly it past the dam and the WGCX tower and bring it back in one piece.', go:'If it starts humming, that\'s normal. If it starts smoking, that\'s not.'}
+   blurb:'Quill has built a gadget that "listens to the sky". Fly it past the dam and the WGCX tower and bring it back in one piece.', go:'If it starts humming, that\'s normal. If it starts smoking, that\'s not.'},
+  {id:'stan_organiser', contact:'stan', type:'errand', needs:'whirligig', title:'A man off the Maud Kessler', pay:5200, time:480, cargo:'Nothing yet', foes:[{leg:1, n:3, gang:'gearjammers'}], medal:{gold:190, silver:290},
+   legs:[{how:'deck', ship:'kessler', load:6, verb:'getting Brannigan up the ladder', say:'Brannigan\'s aboard, with a suitcase and a black eye. Get him to the Flats before the company finds out which boat he was on.'},
+         {how:'land', site:'coldwater', say:'He\'s in Mabs\'s back room with a plate of pie. Local 9 has its organiser.'}],
+   blurb:'Joe Brannigan, the best organiser the steelworkers ever had, is coming up the river hidden on the freighter Maud Kessler. The company knows it, and its hired planes will be waiting at the docks. Land on the Kessler\'s stage before she ties up, take him off, and put him down at Coldwater Flats. They will come after you the minute he is in the air.',
+   go:'He gets seasick and he talks too much. Bring him anyway.'}
 );
 
 /* ---------- landmark builders ---------- */

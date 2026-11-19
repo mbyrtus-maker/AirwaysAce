@@ -329,9 +329,31 @@ G.JOBS = [
          {how:'low', mark:'kcove', riddle:'"In Blackwater, under the leaning palm."', say:'The ledger! Every bribe the corsairs ever paid. The Commodore will be delighted.'}],
    blurb:'A corsair purser\'s ledger would hang half the pirates in the Keys. He left riddles. Follow them: the lighthouse, the wreck, the tallest key, and wherever that leads.', go:'Riddles. Why is it always riddles?'},
   {id:'hale_night', contact:'hale', type:'bounty', title:'Night raiders', pay:4500, night:true, at:'fort', gang:'corsairs', n:4, waves:[3],
-   blurb:'Corsairs hit the fort at night when the gun crews can\'t see them. Tonight you\'re the gun crew. Two waves.', go:'Shoot anything without navy roundels.'}
+   blurb:'Corsairs hit the fort at night when the gun crews can\'t see them. Tonight you\'re the gun crew. Two waves.', go:'Shoot anything without navy roundels.'},
+  // ---- ship work: only for a pilot who owns the Whirligig, the one machine that can put down on a deck ----
+  {id:'odile_doctor', contact:'odile', type:'errand', needs:'whirligig', title:'House call at sea', pay:4200, time:480, cargo:'Dr. Vernet and his bag', fragile:{hard:true}, medal:{gold:170, silver:260},
+   legs:[{how:'deck', ship:'belle', load:6, verb:'the doctor is with her', say:'Dr. Vernet says it\'s her appendix and it won\'t wait for the pier. They\'re carrying her up to your machine. Bayport has a surgeon.'},
+         {how:'land', site:'bayport', say:'Old Tom has the ambulance on the apron. She\'ll keep her life and lose her appendix.'}],
+   blurb:'The coastal packet Halcyon Belle has wirelessed for a doctor: a passenger is very sick, and the ship is hours from a pier. Dr. Vernet was halfway through his soup. Put him down on the Belle\'s after stage (flaps down, under 65 mph over the deck), wait while he looks at her, then fly the patient to Bayport. Gently, both times.',
+   go:'He has not finished his soup, chéri. Fly as if he were still holding the bowl.'},
+  {id:'hollis_yacht', contact:'hollis', type:'errand', needs:'whirligig', title:'Late for the Aurelia', pay:3800, time:330, cargo:'Mr. Thaddeus Vandermeer, investor', fragile:{stunts:true, comfort:true}, medal:{gold:120, silver:190},
+   legs:[{how:'deck', ship:'aurelia', load:4, verb:'Mr. Vandermeer is climbing out', say:'Mr. Vandermeer is aboard his yacht, hat on, breakfast down. The Aero Works gets its cheque.'}],
+   blurb:'Mr. Vandermeer owns a bank, a yacht and, if this goes well, a third of the Aero Works. He overslept, and the Aurelia sailed without him. She is steaming off Halcyon Point. Land him on her after deck before she is out of reach. He is a poor flyer: no stunts, no hard turns.',
+   go:'He has never flown before. If he asks what a rotor is for, tell him it is decorative.'},
+  {id:'rosa_crate', contact:'rosa', type:'errand', needs:'whirligig', title:'The Rosalía\'s crate', pay:5600, time:420, cargo:'Nothing yet', hot:['resolute'], foes:[{leg:1, n:2, gang:'navy'}], medal:{gold:170, silver:260},
+   legs:[{how:'deck', ship:'rosalia', load:6, verb:'lashing the crate down', say:'It\'s aboard and lashed down. Captain Reyes says vaya con Dios, and go now: the gunboat has seen you.'},
+         {how:'land', site:'anchor', say:'The crate is in Rosa\'s cellar and the Navy is searching a tramp steamer full of bananas. Drinks, flyer.'}],
+   blurb:'The tramp steamer Santa Rosalía carries bananas, according to her papers, and one crate that Rosa wants and the Navy wants more. The gunboat Resolute is closing on her to search. The Rosalía has a landing stage aft: put down on it, take the crate off her, and bring it to the Rusty Anchor. Once it is on your machine the Resolute will shoot at you instead, and she will call her planes.',
+   go:'If the Commodore asks, it is church candles. It is always church candles.'},
+  {id:'lucien_chart', contact:'lucien', type:'errand', needs:'whirligig', title:'The chart in the prize', pay:6000, cargo:'Nothing yet', hot:['blacktide', 'widow'], foes:[{leg:1, n:3, gang:'brethren'}], rep:1, medal:{gold:200, silver:300},
+   legs:[{how:'deck', ship:'prize', load:5, verb:'cracking the purser\'s safe', say:'Got it: Captain Sorrow\'s own chart, every cache from here to the Teeth. And the prize crew is awake. Go!'},
+         {how:'hook', site:'gallows', say:'Lucien is copying it already. He says you were never here, and neither was he.'}],
+   blurb:'Last week Captain Sorrow took the packet Star of Maravilla as a prize, and he likes her so well that he has moved his chart into her purser\'s safe: every cache the Brethren ever buried. She is steaming round the island between his two galleons, the Black Tide and the Widow\'s Kiss, and she still has her landing stage. Put down on it, lift the chart, and bring it to the Gallows by skyhook. The galleons will open fire the moment you leave her deck, and their fighters will follow.',
+   go:'His prize crew is drunk on her wine cellar. You have until they find the brandy.'}
 ];
 const JOB = id => G.JOBS.find(j => j.id === id);
+/* ship jobs need an autogyro: nobody mentions them until you own one */
+G.jobOpen = j => !j.needs || (G.save.owned || []).includes(j.needs);
 
 /* ---------- bar-room aces: pick a fight at any bar or club and settle it in the air, one on one ----------
    Each bar keeps a short ladder; beat the first and the next one is waiting. */
@@ -737,6 +759,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const T = g.traffic || (g.traffic = new G.Traffic(g)), stops = this.sites.filter(s => s.kind !== 'field' && !s.def.cavern).map(s => s.point);
     const pairs = []; for (let i = 0; i < stops.length; i++) for (let j = i + 1; j < stops.length; j++) pairs.push([stops[i], stops[j]]);
     T.routes(pairs.slice(0, 7), {night:this.night}); T.cruisers(this.night ? 2 : 3, this.R.id);
+    if (G.shipping) G.shipping(this, g, R.id);   // tramp steamers, tugs, packets and worse on the region's water
     const M = R.margaret, line = this.night ? `Hook's live, ${G.save.callsign || 'Ace'}. Clear night over ${R.name}. Watch for lights on the ground.` : `Hook's live, ${G.save.callsign || 'Ace'}. ${R.name}, ${G.timeLabel().split(' · ')[1].toLowerCase()}. Go find us some work.`;
     this.launch(g, line, {pos:new V3(M.x, M.y, M.z), heading:0, turn:0.012, banner:R.name});
     setTimeout(() => { if (G.game === g && !this.ended) G.HUD.radio(G.RADIO.short, `Land at a field or hook a skyhook to meet people. ${this.sites.filter(s => s.contact).map(s => G.CONTACTS[s.contact].name.replace(/".*" /, '')).join(' and ')} are expecting you.`); }, 4500);
@@ -965,6 +988,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const d = P.pos.distanceTo(s.markAt), C = G.CONTACTS[s.contact];
       g.markers.push({pos:s.markAt, label:d < 2500 ? `${s.name.toUpperCase()} · ${C.name.replace(/".*" /, '').split(' ').slice(-1)[0].toUpperCase()}` : s.name.toUpperCase(), col:'#9ec7f0', edgeOnly:d > 6000, noDist:d > 6000});
     }
+    if (g.sea) g.sea.marks(g);
     const far = Math.hypot(P.pos.x, P.pos.z);
     if (far > 7800 && !this.farWarn) { this.farWarn = true; G.HUD.radio(G.RADIO.short, 'You\'re at the edge of the chart, sugar. Turn back before you run out of map.'); }
     if (far < 7000) this.farWarn = false;
@@ -975,6 +999,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   hudSides(g){
     const S = G.save.open, R = this.R, found = R.treasures.filter(t => S.found[t.id]).length;
     const list = this.job && this.job.sides ? this.job.sides() : [];
+    if (g.sea && g.sea.wanted >= 1) list.push({text:'Wanted for firing on shipping', st:'fail', val:'★'.repeat(Math.min(3, Math.ceil(g.sea.wanted/40)))});
     list.push({text:'Treasures found', st:found >= R.treasures.length ? 'ok' : 'live', val:`${found}/${R.treasures.length}`});
     list.push({text:this.night ? 'Stunt points tonight' : 'Stunt points today', st:'live', val:Math.round(this.sc.session + this.sc.chain).toLocaleString()});
     G.HUD.sides(list);
@@ -1459,6 +1484,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   meet(site){
     const g = this.g; if (g.done) return;
     this.bank(); g.paused = true; this.atSite = site;
+    if (g.sea && !G.CONTACTS[site.contact].local) g.sea.settle();
     const C0 = G.CONTACTS[site.contact], P = g.player;
     if (C0.local && P.alive) { P.internal = P.internalMax; P.armor = P.armorMax.slice(); for (const gn of P.guns) { gn.rounds = gn.def.ammo; P.spent.ammo[gn.i] = 1; } P.rockets = P.L.hp*3; P.spent.rockets = P.rockets; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; this.patched = true; } else this.patched = false;
     if (G.audio.ctx) G.audio.ctx.suspend();
@@ -1476,10 +1502,11 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   /* ---------- what a contact offers ---------- */
   offer(site){
     const S = G.save.open, cid = site.contact, C = G.CONTACTS[cid], night = this.night, rep = G.JOBS.filter(j => j.contact === cid).reduce((n, j) => n + ((S.jobs[j.id] || {}).done ? 1 : 0), 0);
-    const jobs = G.JOBS.filter(j => j.contact === cid).map(j => {
+    const jobs = G.JOBS.filter(j => j.contact === cid && G.jobOpen(j)).map(j => {
       const rec = S.jobs[j.id] || {};
       let lock = null;
-      if (j.night && !night) lock = 'After dark';
+      if (j.needs && this.g.player.L.chassis !== j.needs) lock = `Come back in the ${G.CHASSIS[j.needs].name}`;
+      else if (j.night && !night) lock = 'After dark';
       else if (j.rep && rep < j.rep) lock = `Do ${j.rep} job${j.rep > 1 ? 's' : ''} for ${C.name.split(' ')[0].replace(/"/g, '')} first`;
       else if (this.job) lock = 'Finish your current job first';
       return {def:j, rec, lock};
@@ -1504,7 +1531,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     return this.R.sites.filter(s => s.contact && !G.CONTACTS[s.contact].local && (!site || s.contact !== site.contact))
       .flatMap(s => this.offer(s).jobs.map(j => Object.assign(j, {at:s, C:G.CONTACTS[s.contact]})));
   },
-  accept(id){ const d = JOB(id); if (!d || this.job) return; this.pending = d; },
+  accept(id){ const d = JOB(id); if (!d || this.job || (d.needs && this.g.player.L.chassis !== d.needs)) return; this.pending = d; },
   acceptDuel(cid){ const a = G.aceFor(cid); if (!a || this.job) return; this.pending = {id:'duel_' + a.id, contact:cid, type:'duel', title:`Duel: ${a.name}`, pay:a.purse, ace:a, go:a.line}; },
   grant(rw){
     if (!rw) return ''; const S = G.save, out = [];
@@ -1618,6 +1645,8 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   onShipRun(){},
   onShipHit(){},
   onTouchdown(g, hard){ if (this.job && this.job.onTouchdown) this.job.onTouchdown(hard); },
+  onDeck(g, ship, hard){ if (this.job && this.job.onDeck) this.job.onDeck(ship, hard); },
+  onSeaShipDown(g, ship){ if (this.job && this.job.onSeaShipDown) this.job.onSeaShipDown(ship); },
   onInvulnHit(){},
   playerDown(g){
     if (this.ended) return; this.ended = true; this.sc.chain = 0;
@@ -1808,7 +1837,8 @@ ENG.errand = (O, def) => {
       J.lights.push({m, head:m.userData.head, pos:new V3(x, y + 16, z), base:Math.atan2(from.x - x, from.z - z), ph:Math.random()*6, dir:new V3()});
     }
   }
-  const legPos = l => l.site ? (siteOf(l.site).apron || siteOf(l.site).hook || siteOf(l.site).point) : pointOf(O, l.mark || l.around);
+  const shipOf = l => g.sea ? g.sea.byId(l.ship) : null;
+  const legPos = l => l.how === 'deck' ? (shipOf(l) ? shipOf(l).pos : P.pos) : l.site ? (siteOf(l.site).apron || siteOf(l.site).hook || siteOf(l.site).point) : pointOf(O, l.mark || l.around);
   const done = () => {
     const l = legs[J.i]; if (g.audio) g.audio.ding(); if (l.say) G.HUD.radio(def.contact ? G.CONTACTS[def.contact].name.replace(/".*" /, '').split(' ').slice(-1)[0] : G.RADIO.short, l.say);
     J.i++; if (J.hoops) { for (const h of J.hoops) g.scene.remove(h.m); J.hoops = null; }
@@ -1818,6 +1848,7 @@ ENG.errand = (O, def) => {
   J.onHooked = site => { const l = legs[J.i]; if (l && l.how === 'hook' && l.site === site.id) { J.hookedOk = true; } };
   J.onStunt = () => { if (F.stunts) J.broke = 'You did stunts with the cargo aboard!'; if (F.comfort) J.comfort -= 35; };
   J.onTouchdown = hard => { if (hard && F.hard) J.broke = 'Hard landing. The crate didn\'t survive it.'; };
+  J.onDeck = (ship, hard) => { if (hard && F.hard) J.broke = 'You dropped her on the deck like a sack of coal.'; };
   J.update = dt => {
     J.t += dt; if (def.time) J.clock -= dt;
     if (J.broke) return {win:false, note:J.broke, say:'Well, that\'s that.'};
@@ -1829,7 +1860,7 @@ ENG.errand = (O, def) => {
       if (P.speed > 175*MPH) J.comfort -= dt*4;
       J.comfort = Math.min(100, J.comfort + dt*0.6);
       if (J.comfort <= 0) return {win:false, note:'Your passenger was sick everywhere', say:'They\'ll never fly again. Or tip.'};
-    }
+    } else if (F.comfort) J.lastF = null;   // parked: the next take-off starts a fresh reading
     // searchlights sweep; get caught for a moment and the fighters come up
     for (const L of J.lights) {
       const yaw = L.base + Math.sin(g.t*0.32 + L.ph)*1.3, pit = 0.32 + 0.22*Math.sin(g.t*0.47 + L.ph*1.7);
@@ -1843,6 +1874,8 @@ ENG.errand = (O, def) => {
     const l = legs[J.i]; if (!l) return J.win();
     const at = legPos(l), dH = Math.hypot(P.pos.x - at.x, P.pos.z - at.z), agl = P.pos.y - O.ground(P.pos.x, P.pos.z);
     const name = l.site ? siteOf(l.site).name : (O.R.marks.find(m => m.id === l.mark) || {}).name || 'the spot';
+    // a ship that has taken on something hot shoots at whoever lifted it
+    if (def.hot && J.i > 0 && g.sea) for (const id of def.hot) { const H = g.sea.byId(id); if (H && H.alive) H.hostile = g.t + 4; }
     if (l.how === 'land' || l.how === 'pickup') {
       const s = siteOf(l.site), spot = s.apron || s.point, rad = s.apron ? 30 : 75, d = Math.hypot(P.pos.x - spot.x, P.pos.z - spot.z);
       g.markers.push({pos:spot.clone().setY(spot.y + 10), label:P.onGround ? (d < rad ? (P.speed < 3 ? 'HOLD' : 'STOP HERE') : 'TAXI HERE') : `LAND · ${name.toUpperCase()}`, col:'#f2c14e'});
@@ -1850,6 +1883,12 @@ ENG.errand = (O, def) => {
         if (l.how === 'land') { done(); s.armed = true; return legs[J.i] ? undefined : J.win(); }
         O.holdOnGround = true; J.load += dt; if (J.load >= 6) { O.holdOnGround = false; J.load = 0; done(); }
       }
+    } else if (l.how === 'deck') {
+      // land the Whirligig on a ship's stage and sit tight while they load (or unload) her
+      const S = shipOf(l); if (!S || !S.alive) return {win:false, note:S ? `${S.the[0].toUpperCase() + S.the.slice(1)} went down` : 'No ship to meet', say:'There\'s nothing left to land on. That\'s that.'};
+      const on = P.deck && P.deck.ship === S; S.marked = true;
+      g.markers.push({pos:g.sea.padTop(S, new V3()).setY(S.y + S.pad.y + 7), label:on ? (J.load > 0 ? 'HOLD' : 'ON DECK') : dH < 900 ? `LAND ON HER STAGE · flaps, under ${Math.round(65)} mph` : `${S.name.toUpperCase()}`, col:on ? '#9ef0a0' : '#f2c14e'});
+      if (on) { O.holdOnGround = true; J.load += dt; if (J.load >= (l.load || 5)) { O.holdOnGround = false; J.load = 0; S.marked = false; done(); } }
     } else if (l.how === 'hook') {
       g.markers.push({pos:siteOf(l.site).hook, label:`SKYHOOK · ${name.toUpperCase()}`, col:'#f2c14e'});
       if (J.hookedOk) { J.hookedOk = false; done(); }
@@ -1875,12 +1914,12 @@ ENG.errand = (O, def) => {
     }
     if (!legs[J.i]) return J.win();
   };
-  J.win = () => ({win:true, payMul:J.caught ? 0.6 : F.comfort ? 0.6 + 0.4*J.comfort/100 : 1, say:J.caught ? 'Delivered, but the customs men got a good look at us. Half the profit goes in bribes.' : null});
+  J.win = () => ({win:true, medal:def.medal ? (J.t <= def.medal.gold ? 'gold' : J.t <= def.medal.silver ? 'silver' : 'bronze') : undefined, time:def.medal ? J.t : undefined, payMul:J.caught ? 0.6 : F.comfort ? 0.6 + 0.4*J.comfort/100 : 1, say:J.caught ? 'Delivered, but the customs men got a good look at us. Half the profit goes in bribes.' : null});
   J.objective = () => {
     const l = legs[J.i]; if (!l) return def.title;
-    const verb = {land:'Land at', pickup:'Land and pick up at', hook:'Deliver by skyhook to', drop:'Air-drop at', near:'Find', low:'Low pass over', hoops:'Fly the hoops round'}[l.how];
-    const where = l.site ? siteOf(l.site).name : l.around ? (O.R.marks.find(m => m.id === l.around) || {}).name : l.riddle ? 'the place in the riddle' : (O.R.marks.find(m => m.id === l.mark) || {}).name;
-    return `${def.title}: ${verb} ${where}${def.time ? ' · ' + clock(J.clock) : ''}${O.holdOnGround ? ` · loading ${Math.round(J.load/6*100)}%` : ''}`;
+    const verb = {land:'Land at', pickup:'Land and pick up at', hook:'Deliver by skyhook to', drop:'Air-drop at', near:'Find', low:'Low pass over', hoops:'Fly the hoops round', deck:'Land on the stage of'}[l.how];
+    const where = l.how === 'deck' ? (shipOf(l) || {the:'the ship'}).the : l.site ? siteOf(l.site).name : l.around ? (O.R.marks.find(m => m.id === l.around) || {}).name : l.riddle ? 'the place in the riddle' : (O.R.marks.find(m => m.id === l.mark) || {}).name;
+    return `${def.title}: ${verb} ${where}${def.time ? ' · ' + clock(J.clock) : ''}${O.holdOnGround ? ` · ${l.how === 'deck' ? (l.verb || 'loading') : 'loading'} ${Math.round(J.load/(l.how === 'deck' ? l.load || 5 : 6)*100)}%` : ''}`;
   };
   J.sides = () => {
     const out = [];
@@ -1891,7 +1930,7 @@ ENG.errand = (O, def) => {
     if (J.lights.length) out.push({text:'Stay out of the searchlights', st:J.caught ? 'fail' : 'live', val:J.caught ? 'spotted' : Math.round(J.spotted) + '%'});
     return out;
   };
-  J.cleanup = () => { for (const L of J.lights) g.scene.remove(L.m); if (J.hoops) for (const h of J.hoops) g.scene.remove(h.m); O.holdOnGround = false; };
+  J.cleanup = () => { for (const L of J.lights) g.scene.remove(L.m); if (J.hoops) for (const h of J.hoops) g.scene.remove(h.m); O.holdOnGround = false; if (g.sea) for (const S of g.sea.ships) S.marked = false; };
   return J;
 };
 

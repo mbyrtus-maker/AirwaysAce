@@ -289,6 +289,73 @@ G.MISSIONS.c11m1 = EP4({
 });
 
 /* =====================================================================
+   Chapter 11, the Whirligig episode: The Bookkeeper's Passage (a man and a ledger off a moving ship's deck)
+   ===================================================================== */
+G.MISSIONS.c11x1 = EP4({
+  id:'c11x1', title:'The Bookkeeper\'s Passage', place:'The Rustwater estuary, Gantry City', wing:3, police:true, weather:'overcast',
+  brief:'Wilbur Pettibone kept the Gantry Steel Company\'s books for nineteen years. Last week he found out what the company paid Lucan Ashgrove for a squadron of planes with nobody in them, and he ran, with the ledger under his coat. He is hiding in a lifeboat aboard the packet Gantry Queen, coming up the estuary on the tide, and the company knows it: the ghosts are out looking for her. Della has lent you a Courier autogyro, the one machine that can put down on a deck. Land on the Queen\'s after stage (flaps down, under 65 mph), get Pettibone aboard, and fly him to Gantry Municipal, where Captain Strand has a cell that locks from the inside. Your wingmen can keep the ghosts busy. The Queen can\'t.',
+  sides:[{text:'The Gantry Queen stays above 50%'}, {text:'Not a scratch on Pettibone'}, {text:'Keep the Air Police off your back'}],
+  pay:{success:5200, perfect:2200, kill:250},
+  worldOpts:RW('day'),
+  // this one is flown in the Courier's machine, whatever is in the hangar
+  launch(g, line, o){ const L = G.stockLoadout('whirligig'); L.paint = [0xe8e0cc, 0x1a1a1a, 0x9e1b1b]; return G.MISSIONS.ambush.launch.call(this, g, line, Object.assign({}, o, {load:L})); },
+  setup(g){
+    const z0 = -5500;
+    this.begin(g, `Hook's live, ${G.save.callsign || 'Ace'}. That's Della's eggbeater you're hanging in, so bring it back. The Gantry Queen is the white packet coming up the estuary below us.`, {heading:Math.PI, near:new V3(RU.rx(z0), 0, z0)});
+    // the harbour's own traffic, and the Queen on a passage of her own: in from the bay and up to the docks
+    const sea = this.sea = G.shipping(this.scene, g, 'rustwater'), Qn = this.queen = sea.byId('gantryq'), pts = [];
+    for (let z = -7500; z <= -4700; z += 280) pts.push([RU.rx(z) + 70, z]); for (let z = -4700; z >= -7500; z -= 280) pts.push([RU.rx(z) - 110, z]);
+    const lane = sea.lane(pts, {name:'the Queen\'s passage'}); if (lane) { Qn.lane = lane; Qn.s = 150; const a = lane.at(Qn.s, {}); Qn.yaw = a.yaw; Qn.pos.set(a.x, Qn.y, a.z); }
+    Qn.hp = Qn.hpMax = 2600; Qn.aiMul = 0; Qn.marked = true;   // the raiders' damage is scripted (see update), so a stray burst can't sink her early
+    this.raiders = []; this.stage = 0; this.load = 0; this.wave = 0; this.hp0 = null; this.scratch = 0;
+  },
+  hpOf(P){ return P.internal + P.armor.reduce((a, b) => a + b, 0); },
+  onDeck(g, S, hard){ if (S === this.queen && this.stage === 0) { this.stage = 1; this.load = 0; G.HUD.radio(SPARKS(), 'You\'re down! There he is, sugar: grey suit, coming up the companionway with a ledger the size of a paving stone.'); } else if (this.stage < 2) G.HUD.radio(SPARKS(), `Wrong boat, sugar. That's ${S.the}. The Queen's the white one with two funnels.`); },
+  onDeckOff(g, S){ if (S === this.queen && this.stage === 2 && !this.offSaid) { this.offSaid = true; G.HUD.radio(DELLA, 'Is he aboard? Is the ledger aboard? Don\'t tell me which matters more.'); } },
+  onSeaShipDown(g, S){ if (S !== this.queen) return; if (this.stage < 2) { G.HUD.radio(SPARKS(), 'The Queen\'s going down by the head! They\'re lowering the boats... I can\'t see him. I can\'t see him anywhere.'); this.lose(g, 'queen'); } else G.HUD.radio(SPARKS(), 'They\'ve sunk the Queen! Her boats are away. All that for one bookkeeper.'); },
+  update(g, dt){
+    const live = this.tick4(g, dt, 'A boat job. In an eggbeater. I\'ll just shoot things and try not to laugh.'), P = g.player, Qn = this.queen, sea = this.sea;
+    if (!live) { G.HUD.sides(this.sideState(g)); return; }
+    // ghosts: two go for the ship, the rest for whoever's nearest; a second lot when Pettibone is in the air
+    if (this.wave === 0 && this.pt > 16) { this.wave = 1; const from = Qn.pos.clone().add(new V3(1500, 380, -900));
+      const rs = GH.spawn(this, g, from, 2, {skill:0.8}); for (const p of rs) { g.pilots = g.pilots.filter(x => x.p !== p); p.raider = true; this.raiders.push(p); }
+      GH.spawn(this, g, from.clone().add(new V3(200, 200, 300)), 2, {skill:0.85});
+      G.HUD.radio(SPARKS(), 'White planes, low over the bay, and they\'re not answering. Two of them are lining up on the Queen!'); }
+    if (this.wave === 1 && this.stage === 2 && this.pt > this.liftT + 6) { this.wave = 2; GH.spawn(this, g, P.pos.clone().add(new V3(-1300, 420, 1500)), 3, {skill:0.85, target:P}); G.HUD.radio(SPARKS(), 'More of them, coming down the river! They know which machine he\'s in. Run for Municipal!'); }
+    for (const p of this.raiders) if (Qn.alive) strafe(g, p, sea.world(Qn, 0, 6, 0, tA.clone()), dt, h => { Qn.hp -= h*(this.stage < 2 ? 24 : 14); if (Qn.hp <= 0) sea.sink(Qn, p); });
+    if (Qn.alive && Qn.hp < Qn.hpMax*0.5 && !this.qWarn) { this.qWarn = true; G.HUD.radio('Gantry Queen', 'Mayday, mayday! We are on fire aft and taking water! Whoever you are up there, get them off us!'); }
+    // the pick-up, then the run home
+    const M = this.scene.sites.find(x => x.id === 'municipal'), spot = M.apron || M.point;
+    if (this.stage < 2) {
+      const on = P.deck && P.deck.ship === Qn, top = sea.padTop(Qn, new V3());
+      g.markers.push({pos:top.setY(top.y + 7), label:on ? 'HOLD · he\'s coming' : 'GANTRY QUEEN · LAND ON HER STAGE', col:on ? '#9ef0a0' : '#f2c14e'});
+      if (this.stage === 1 && on) { this.holdOnGround = true; this.load += dt;
+        if (this.load >= 8) { this.stage = 2; this.holdOnGround = false; this.liftT = this.pt; this.hp0 = this.hpOf(P); if (g.audio) g.audio.ding(); G.HUD.radio('Pettibone', 'Nineteen years of double entry, young man, and it is all in here. I get airsick. Please proceed.'); }
+      } else this.holdOnGround = false;
+      G.HUD.objective(this.stage === 1 && on ? `Hold on the stage: Pettibone is coming aboard · ${Math.round(this.load/8*100)}%` : `Land on the Gantry Queen's after stage · flaps down, under 65 mph · the Queen ${Math.max(0, Math.round(Qn.hp/Qn.hpMax*100))}%`);
+    } else {
+      this.scratch = Math.max(this.scratch, this.hp0 - this.hpOf(P));
+      const d = Math.hypot(P.pos.x - spot.x, P.pos.z - spot.z);
+      g.markers.push({pos:spot.clone().setY(spot.y + 10), label:P.onGround && !P.deck ? (d < 34 ? 'STOP HERE' : 'TAXI HERE') : 'LAND · GANTRY MUNICIPAL', col:'#f2c14e'});
+      G.HUD.objective(P.deck ? 'Pettibone is aboard: pull up with the throttle open to jump off' : `Fly Pettibone to Gantry Municipal and taxi to the hangar · ${ghostsLeft(g)} ghosts`);
+      if (P.onGround && !P.deck && d < 34 && P.speed < 3) { G.HUD.radio(STRAND, 'I have him. He\'s asked for a cell, a pot of tea and an adding machine. That ledger had better be worth it, Thirteen.'); this.win(g); }
+    }
+    G.HUD.sides(this.sideState(g));
+  },
+  sideState(g){ const Qn = this.queen, pct = Qn ? Math.max(0, Math.round(Qn.hp/Qn.hpMax*100)) : 0, hurt = this.scratch > 6;
+    return [{text:this.sides[0].text, st:pct >= 50 ? (this.ended ? 'ok' : 'live') : 'fail', val:pct + '%'}, {text:this.sides[1].text, st:hurt ? 'fail' : this.ended && this.stage === 2 ? 'ok' : 'live', val:''},
+            {text:this.sides[2].text, st:this.heatOk() ? (this.ended ? 'ok' : 'live') : 'fail', val:''}]; },
+  result(g, kind, why){
+    const F = flags(), prisoner = F.prisoner || (F.kroll === 'caught' ? 'Ambrose Kroll' : F.varga === 'caught' ? 'Liesl Varga' : '"Diamondback" Dixon'), next = `The airship over Gantry Island prison comes back tonight, and this time she has a line down. Somebody means to lift ${prisoner} out of the exercise yard.`;
+    return RES(this, g, kind, {cash:this.pay3(g, kind)}, Object.assign({
+      perfect:{mood:'pleased', say:'Pettibone\'s in Strand\'s cell doing sums, the Queen made her pier, and Della has the ledger on her desk: forty thousand dollars, Gantry Steel to L. Ashgrove, "for aircraft, unmanned". She says it\'s the best thing she has ever read.', then:next},
+      success:{mood:'stern', say:'The bookkeeper\'s safe and so is his ledger. Gantry Steel paid Ashgrove forty thousand dollars for aircraft, unmanned. Della\'s setting it in type.', then:next},
+      fail:{mood:'angry', say:why === 'queen' ? 'The Gantry Queen went down in the estuary. Her boats got everybody off but one grey suit and one ledger.' : why === 'margaret' ? 'The Margaret came down in the bay. Everyone swam.' : 'You put Della\'s eggbeater in the estuary. She wants it back. So does the Courier.', then:'No ledger and no bookkeeper: Della will have to make her case against the company the slow way. ' + next}
+    }[kind]), kind === 'fail' ? {} : {ledger:true});
+  }
+});
+
+/* =====================================================================
    Chapter 11, Episode 2: Jailbreak
    ===================================================================== */
 G.MISSIONS.c11m2 = EP4({
@@ -591,9 +658,10 @@ Object.assign(G.STORY, {
   c10m1:{n:1, ch:'c10', next:r => r.kind === 'fail' ? 'c10m1' : 'c10m2'},
   c10m2:{n:2, ch:'c10', next:() => 'c10m3'},
   c10m3:{n:3, ch:'c10', next:r => r.kind === 'fail' ? 'c10m3' : 'c11m1'},
-  c11m1:{n:1, ch:'c11', next:() => 'c11m2'},
-  c11m2:{n:2, ch:'c11', next:() => 'c11m3'},
-  c11m3:{n:3, ch:'c11', next:r => r.kind === 'fail' ? 'c11m3' : 'c12m1'},
+  c11m1:{n:1, ch:'c11', next:() => 'c11x1'},
+  c11x1:{n:2, ch:'c11', next:() => 'c11m2'},   // the Whirligig episode: win or lose, the story goes on to the prison
+  c11m2:{n:3, ch:'c11', next:() => 'c11m3'},
+  c11m3:{n:4, ch:'c11', next:r => r.kind === 'fail' ? 'c11m3' : 'c12m1'},
   c12m1:{n:1, ch:'c12', next:() => 'c12m2'},
   c12m2:{n:2, ch:'c12', next:r => r.kind === 'fail' ? 'c12m2' : 'c12m3'},
   c12m3:{n:3, ch:'c12', next:r => r.kind === 'fail' ? 'c12m3' : 'c12end'}

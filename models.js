@@ -2282,5 +2282,371 @@ G.Fittings = class {
   }
 };
 
+/* ==== SHIPS BEGIN ==== */
+/* ---------- Surface ships: tramp steamers, tugs, packets, trawlers, a gunboat, schooners, a pirate galleon, a yacht ----------
+   Frame: bow +Z, up +Y, port +X, origin on the waterline amidships. G.buildShip(kind, o) returns a Group whose userData
+   carries what traffic.js needs: boxes (solid hull and upperworks, local [cx, cy, cz, hx, hy, hz]), masts (thin capsules
+   [ax, ay, az, bx, by, bz, r]), funnels (smoke points), pad ({x, y, z, r}: a landing stage for the Whirligig) and the
+   overall len / beam / top. o.pad adds the landing stage on the types that carry one well (freighter, steamer, yacht:
+   never the sailing ships); o.night adds lamp halos. */
+const SHIP_SAIL = (c, belly, n = 3, th = 0.04) => {
+  // a sail between four corners (tack, clew, peak, throat), bellied along `belly`; both faces, a hair apart
+  const o = [], P = (u, v, s) => { const a = [0, 1, 2].map(i => (c[0][i]*(1 - u) + c[1][i]*u)*(1 - v) + (c[3][i]*(1 - u) + c[2][i]*u)*v), f = Math.sin(PI*u)*Math.sin(PI*(0.15 + 0.85*v)*0.95); return [a[0] + belly[0]*f + s*belly[0]*th, a[1] + belly[1]*f, a[2] + belly[2]*f + s*belly[2]*th]; };
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const u0 = i/n, u1 = (i + 1)/n, v0 = j/n, v1 = (j + 1)/n;
+    for (const s of [1, -1]) { const a = P(u0, v0, s), b = P(u1, v0, s), d = P(u1, v1, s), e = P(u0, v1, s);
+      // face the side the belly points to with the front faces, the other with the back
+      const nx = (b[1] - a[1])*(e[2] - a[2]) - (b[2] - a[2])*(e[1] - a[1]), ny = (b[2] - a[2])*(e[0] - a[0]) - (b[0] - a[0])*(e[2] - a[2]), nz = (b[0] - a[0])*(e[1] - a[1]) - (b[1] - a[1])*(e[0] - a[0]);
+      const out = (nx*belly[0] + ny*belly[1] + nz*belly[2])*s > 0;
+      if (out) { tri(o, a, b, d); tri(o, a, d, e); } else { tri(o, a, d, b); tri(o, a, e, d); } } }
+  return o;
+};
+const rect = (w, h) => poly([[-w/2, -h/2], [w/2, -h/2], [w/2, h/2], [-w/2, h/2]]);
+function shipParts(k, ud, night){
+  const A = {};
+  const WOOD = G.mat(0x8a5a32, {roughness:0.6}), ROPE = G.mat(0xa8946a, {roughness:1}), IRON = G.mat(0x2e2c2a, {roughness:0.7, metalness:0.25}), WHITE = G.mat(0xe9e4d6, {roughness:0.6}), CANVAS = G.mat(0xcfc3a2, {roughness:0.95});
+  Object.assign(A, {WOOD, ROPE, IRON, WHITE, CANVAS});
+  /* the hull: stations stern to bow {z, b half-beam at the deck, d deck height, w waterline fraction, k draught there, bw bulwark};
+     bands [fa, fb, mat] slice it into paint strakes between two heights (functions of the station) */
+  A.hull = (S, o) => {
+    const wl = o.wl ?? 0.9, dr = st => st.k ?? o.draft;
+    const hb = (st, y) => { const w = st.w ?? wl; if (y >= 0) return st.b*(w + (1 - w)*Math.min(1, y/Math.max(0.2, st.d))); const t = Math.min(1, -y/Math.max(0.05, dr(st))); return st.b*w*(1 - 0.62*t*t); };
+    const cl = (st, y) => Math.max(-dr(st), Math.min(st.d, y));
+    for (const [fa, fb, mat] of o.bands) k.add(loft(S.map(st => { const ya = cl(st, fa(st)), yb = cl(st, fb(st)), a = hb(st, ya), b = hb(st, yb); return [[-a, ya, st.z], [a, ya, st.z], [b, yb, st.z], [-b, yb, st.z]]; })), mat);
+    k.add(loft(S.map(st => { const b = Math.max(0.03, st.b - 0.14); return [[-b, st.d - 0.4, st.z], [b, st.d - 0.4, st.z], [b, st.d + 0.04, st.z], [-b, st.d + 0.04, st.z]]; })), o.deck);
+    for (const s of [1, -1]) { let run = [];
+      const flush = () => { if (run.length > 1) k.add(loft(run.map(st => { const b = st.b, bi = Math.max(0.01, b - 0.16), h = st.bw ?? o.bw ?? 0; return [[s*b, st.d - 0.05, st.z], [s*b, st.d + h, st.z], [s*bi, st.d + h, st.z], [s*bi, st.d - 0.05, st.z]]; })), o.bulwark || o.bands[o.bands.length - 1][2]); run = []; };
+      for (const st of S) { if ((st.bw ?? o.bw ?? 0) > 0) run.push(st); else flush(); } flush(); }
+    ud.len = S[S.length - 1].z - S[0].z; ud.bow = S[S.length - 1].z; ud.stern = S[0].z; ud.beam = 2*Math.max(...S.map(st => st.b));
+    return {hb, at:z => { for (let i = 0; i < S.length - 1; i++) if (z <= S[i + 1].z) { const t = (z - S[i].z)/Math.max(1e-6, S[i + 1].z - S[i].z); return {b:S[i].b + (S[i + 1].b - S[i].b)*t, d:S[i].d + (S[i + 1].d - S[i].d)*t}; } return S[S.length - 1]; }};
+  };
+  A.solid = (cx, cy, cz, hx, hy, hz) => ud.boxes.push([cx, cy, cz, hx, hy, hz]);
+  /* a deckhouse: walls, an overhanging roof, a row of windows down each side and across the front */
+  A.house = (x, y, z, w, h, d, mat, o = {}) => {
+    k.add(box(w, h, d), mat, T(x, y + h/2, z));
+    if (o.roof) k.add(box(w + (o.over ?? 0.5), 0.16, d + (o.over ?? 0.5)), o.roof, T(x, y + h + 0.08, z));
+    const wm = o.win || WINDOW(), wy = y + h*(o.wy ?? 0.62), wh = o.wh ?? h*0.34;
+    if (o.n) { const ww = o.ww ?? d/o.n*0.55; for (let i = 0; i < o.n; i++) { const zz = z - d/2 + (i + 0.5)*d/o.n; k.add(rect(ww, wh), wm, onSide(x + w/2 + 0.03, wy, zz)); k.add(rect(ww, wh), wm, mul(T(x - w/2 - 0.03, wy, zz), RY(-PI/2))); } }
+    if (o.nf) { const ww = o.wwf ?? w/o.nf*0.62; for (let i = 0; i < o.nf; i++) { const xx = x - w/2 + (i + 0.5)*w/o.nf; k.add(rect(ww, wh), wm, T(xx, wy, z + d/2 + 0.03)); if (o.back) k.add(rect(ww, wh), wm, mul(T(xx, wy, z - d/2 - 0.03), RY(PI))); } }
+    if (o.solid !== false) A.solid(x, y + h/2, z, w/2, h/2, d/2);
+  };
+  A.ports = (x, y, z0, z1, n, r = 0.2, m) => { for (let i = 0; i < n; i++) { const zz = z0 + (i + 0.5)*(z1 - z0)/n; k.add(disc(r, 6), m || WINDOW(), onSide(x + 0.03, y, zz)); k.add(disc(r, 6), m || WINDOW(), mul(T(-x - 0.03, y, zz), RY(-PI/2))); } };
+  /* a funnel: base colour, company band, black top, raked aft */
+  A.funnel = (x, y, z, r, h, rake, cols, o = {}) => {
+    const M = mul(T(x, y, z), RX(-rake)), n = o.n || 10, b0 = o.b0 ?? 0.52, b1 = o.b1 ?? 0.74, seg = (a, b, m, rr = r) => k.add(cyl(rr, rr, (b - a)*h, n, false), m, mul(M, T(0, (a + b)/2*h, 0)));
+    seg(0, b0, G.mat(cols[0], {roughness:0.55})); seg(b0, b1, G.mat(cols[1], {roughness:0.55})); seg(b1, 1, G.mat(cols[2], {roughness:0.7}));
+    k.add(cyl(r*1.06, r*1.06, 0.12, n), IRON, mul(M, T(0, h, 0))); k.add(cyl(r*1.05, r*1.05, 0.1, n), IRON, mul(M, T(0, b1*h, 0)));
+    k.add(disc(r*0.9, n), INK(), mul(M, T(0, h + 0.07, 0), RX(-PI/2)));
+    if (o.mark) k.both(o.mark(r*0.5), G.mat(o.markCol || 0xf1e9d6), mul(M, T(0, (b0 + b1)/2*h, 0), RY(PI/2), T(0, 0, r*0.94)));
+    if (o.pipe !== false) k.add(tube([0, h*0.2, r + 0.14], [0, h*1.04, r + 0.14], 0.07, 4), STEEL(), M);
+    const top = [x, y + h*Math.cos(rake) + 0.3, z - h*Math.sin(rake)]; ud.funnels.push(top);
+    A.solid(x, y + h/2, z - h*Math.sin(rake)/2, r, h/2, r + h*Math.sin(rake)/2);
+    return top;
+  };
+  A.mast = (x, y0, z, h, r, mat, rake = 0, solid = true) => {
+    const top = [x, y0 + h*Math.cos(rake), z - h*Math.sin(rake)]; k.add(tube([x, y0, z], top, r, 6, true, r*0.55), mat);
+    if (solid) ud.masts.push([x, y0, z, top[0], top[1], top[2], Math.max(0.5, r + 0.3)]); return top;
+  };
+  A.stay = (a, b, r = 0.045) => k.add(wire(a, b, r), IRON);
+  A.shrouds = (top, z, b, d, n = 2) => { for (const s of [1, -1]) for (let i = 0; i < n; i++) A.stay(top, [s*b, d, z + (i - (n - 1)/2)*1.3 - 0.6]); };
+  /* an open boat in chocks or under davits */
+  A.boat = (x, y, z, len, side, o = {}) => {
+    const w = len*0.17, R = (zz, f, yb) => [[-w*f, 0.5, zz], [w*f, 0.5, zz], [w*f*0.5, yb, zz], [-w*f*0.5, yb, zz]];
+    const M = T(x, y, z); k.add(loft([R(-len/2, 0.55, 0.12), R(-len/4, 1, -0.1), R(len/4, 1, -0.1), R(len/2 - 0.3, 0.5, 0.1), R(len/2, 0.06, 0.32)]), o.hull || WHITE, M);
+    k.add(box(w*1.7, 0.07, len*0.9), o.cover || CANVAS, mul(M, T(0, 0.53, -0.1)));
+    if (o.davits !== false) for (const dz of [-len*0.36, len*0.36]) { k.add(bar([x - side*w*1.3, y - 0.5, z + dz], [x - side*w*1.3, y + 1.5, z + dz], 0.1), IRON); k.add(bar([x - side*w*1.3, y + 1.5, z + dz], [x, y + 1.3, z + dz], 0.1), IRON); k.add(wire([x, y + 1.3, z + dz], [x, y + 0.5, z + dz], 0.03), IRON); }
+  };
+  A.vent = (x, y, z, h, r, yaw = 0, col = 0xe9e4d6) => {
+    k.add(cyl(r*0.7, r*0.7, h, 6, false), G.mat(col), T(x, y + h/2, z));
+    const M = mul(T(x, y + h, z), RY(yaw), RX(PI/2)); k.add(cyl(r*1.25, r*0.75, r*1.5, 8, false), G.mat(col), mul(M, T(0, r*0.4, -r*0.3))); k.add(disc(r*1.2, 8), G.mat(0xb5382c), mul(T(x, y + h, z), RY(yaw), T(0, r*0.3, r*1.1)));
+  };
+  A.rail = (pts, h = 1, both = true, mat = IRON) => {
+    const add = both ? (t, m) => k.both(t, m) : (t, m) => k.add(t, m);
+    for (let i = 0; i < pts.length; i++) { const p = pts[i]; add(tube(p, [p[0], p[1] + h, p[2]], 0.04, 3, false), mat);
+      if (i) { const q = pts[i - 1]; add(bar([q[0], q[1] + h, q[2]], [p[0], p[1] + h, p[2]], 0.07), mat); add(wire([q[0], q[1] + h*0.5, q[2]], [p[0], p[1] + h*0.5, p[2]], 0.025), mat); } }
+  };
+  A.railRun = (x0, x1, y, z0, z1, n, h = 1, both = true) => { const p = []; for (let i = 0; i <= n; i++) p.push([x0 + (x1 - x0)*i/n, y, z0 + (z1 - z0)*i/n]); A.rail(p, h, both); };
+  A.hatch = (y, z, w, d, tarp = 0x7a6a4a) => { k.add(box(w, 0.7, d), IRON, T(0, y + 0.35, z)); k.add(box(w + 0.2, 0.22, d + 0.2), G.mat(tarp, {roughness:0.95}), T(0, y + 0.8, z)); for (const dz of [-d*0.3, 0, d*0.3]) k.add(box(w + 0.3, 0.08, 0.14), WOOD, T(0, y + 0.94, z + dz)); A.solid(0, y + 0.45, z, w/2, 0.5, d/2); };
+  A.winch = (x, y, z) => { k.add(box(1.5, 0.3, 1.1), IRON, T(x, y + 0.15, z)); k.add(cyl(0.34, 0.34, 1.2, 6), G.mat(0x4a4e52, {metalness:0.3}), mul(T(x, y + 0.62, z), RZ(PI/2))); for (const s of [1, -1]) k.add(cyl(0.5, 0.5, 0.1, 8), IRON, mul(T(x + s*0.6, y + 0.62, z), RZ(PI/2))); };
+  A.flag = (x, y, z, w, h, layers) => { let i = 0; for (const [fw, fh, oy, col] of layers) { k.add(SHIP_SAIL([[x, y + oy, z - i*0.001], [x, y + oy, z - fw], [x, y + oy + fh, z - fw], [x, y + oy + fh, z]], [0.25 + i*0.03, 0, 0], 2, 0.03 + i*0.012), G.mat(col, {roughness:0.9})); i++; } };
+  /* navigation lights: port red, starboard green, a white masthead and stern light */
+  A.navLights = (b, y, z, mastTop, sternP) => {
+    k.add(box(0.28, 0.34, 0.5), lamp(0xff3b30), T(b, y, z)); k.add(box(0.28, 0.34, 0.5), lamp(0x3aff6a), T(-b, y, z)); k.both(box(0.1, 0.5, 0.7), IRON, T(b - 0.2, y, z));
+    if (mastTop) k.add(ball(0.24, 6, 3), lamp(0xfff1d0), T(mastTop[0], mastTop[1] - 0.8, mastTop[2] + 0.3));
+    if (sternP) k.add(ball(0.2, 6, 3), lamp(0xfff1d0), T(...sternP));
+    ud.lights.push([b, y, z, 0xff3b30], [-b, y, z, 0x3aff6a]); if (mastTop) ud.lights.push([mastTop[0], mastTop[1] - 0.8, mastTop[2] + 0.3, 0xfff1d0, 1]); if (sternP) ud.lights.push([...sternP, 0xfff1d0]);
+  };
+  /* the landing stage: a timber platform on trestles with a painted ring and an H (or a skull), lamps at the corners */
+  A.pad = (y, z, w, d, o = {}) => {
+    const deck = G.mat(o.deck || 0x9a8056, {roughness:0.9}), paintM = G.mat(o.paint || 0xf2c14e, {roughness:0.7}), r = Math.min(w, d)/2 - 0.5;
+    k.add(box(w, 0.3, d), deck, T(0, y - 0.15, z)); k.add(box(w + 0.3, 0.18, 0.3), IRON, T(0, y - 0.1, z - d/2)); k.add(box(w + 0.3, 0.18, 0.3), IRON, T(0, y - 0.1, z + d/2)); k.both(box(0.3, 0.18, d), IRON, T(w/2, y - 0.1, z));
+    for (let i = 1; i < 6; i++) k.add(box(w - 0.1, 0.02, 0.07), G.mat(0x6a5436, {roughness:1}), T(0, y + 0.012, z - d/2 + i*d/6));
+    k.add(ring(r - 0.55, r, 18), paintM, onTop(0, y + 0.03, z));
+    if (o.skull) k.decal(mul(onTop(0, y + 0.035, z), SC(r*0.62, r*0.62, 1)), skull(G.mat(0x9e1b1b)).slice(2));
+    else { k.both(box(0.5, 0.02, r*0.95), paintM, T(r*0.36, y + 0.035, z)); k.add(box(r*0.72, 0.02, 0.5), paintM, T(0, y + 0.035, z)); }
+    for (const [sx, sz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { if (o.legs) k.add(bar([sx*(w/2 - 0.4), o.legs[0], z + sz*(d/2 - 0.4)], [sx*(w/2 - 0.4), y - 0.3, z + sz*(d/2 - 0.4)], 0.28), o.legMat || WOOD); if (o.braceTo) k.add(bar([sx*(w/2 - 0.5), y - 0.3, z + sz*(d/2 - 0.5)], [sx*o.braceTo[0], o.braceTo[1], z + sz*(d/2 - 2.2)], 0.2), o.legMat || WOOD);
+      k.add(box(0.3, 0.3, 0.3), lamp(o.lamp || 0xffb347), T(sx*(w/2 - 0.15), y + 0.2, z + sz*(d/2 - 0.15))); ud.lights.push([sx*(w/2 - 0.15), y + 0.2, z + sz*(d/2 - 0.15), o.lamp || 0xffb347]); }
+    if (o.sock !== false) { const sx = w/2 - 0.2, sz = z + d/2 - 0.3; k.add(tube([sx, y, sz], [sx, y + 2.6, sz], 0.05, 4), IRON); k.add(tube([sx, y + 2.5, sz], [sx - 1.5, y + 2.3, sz - 0.2], 0.24, 5, false, 0.1), G.mat(0xe0742a, {roughness:0.9})); }
+    ud.pad = {x:0, y, z, r:r + 0.5, w, d}; A.solid(0, y - 0.5, z, w/2, 0.5, d/2);
+  };
+  A.gun = (x, y, z, len, r, yaw = 0, shield) => {
+    const M = mul(T(x, y, z), RY(yaw)); k.add(cyl(0.5, 0.65, 0.7, 8), IRON, mul(M, T(0, 0.35, 0)));
+    if (shield) k.add(loft([[[-1.1, 0.5, -0.5], [1.1, 0.5, -0.5], [1.1, 2.1, -0.5], [-1.1, 2.1, -0.5]], [[-0.8, 0.7, 0.9], [0.8, 0.7, 0.9], [0.7, 1.9, 0.7], [-0.7, 1.9, 0.7]]]), shield, M);
+    k.add(tube([0, 1.3, 0.2], [0, 1.55, 0.2 + len], r, 6), G.mat(0x4a4e52, {metalness:0.35, roughness:0.4}), M);
+  };
+  return A;
+}
+const SHIP_BUILD = {};
+const yf = y => () => y, deckf = (o = 0) => st => st.d + o;
+
+/* Tramp steamer: three-island freighter, black hull, buff upperworks, a tall funnel with the company band, masts and derricks over four hatches. */
+SHIP_BUILD.freighter = (k, ud, A, o) => {
+  const P = o.paint || [0x1b1a1a, 0x8e231c, 0xd9b44a], hullM = G.mat(P[0], {roughness:0.75}), boot = G.mat(0x7a2a20, {roughness:0.8}), deckM = G.mat(0x6a4436, {roughness:0.9}), buff = G.mat(0xd8c9a0, {roughness:0.6}), stripe = G.mat(0xe9e4d6, {roughness:0.6});
+  const S = [{z:-32, b:2.7, d:4.6, w:0.35, k:0.6}, {z:-29, b:3.9, d:4.5, w:0.75, k:2.6}, {z:-23, b:4.6, d:4.4}, {z:-22.95, b:4.6, d:2.6, bw:1}, {z:-7, b:4.8, d:2.6, bw:1}, {z:-6.95, b:4.8, d:4.4}, {z:7, b:4.8, d:4.4}, {z:7.05, b:4.8, d:2.6, bw:1}, {z:20, b:4.5, d:2.7, bw:1}, {z:20.05, b:4.5, d:4.6, bw:0.5}, {z:26, b:3.3, d:4.9, w:0.8, bw:0.5}, {z:30, b:1.5, d:5.2, w:0.6, bw:0.5}, {z:32.5, b:0.12, d:5.4, w:0.5, k:3.2, bw:0.5}];
+  A.hull(S, {draft:3.6, bands:[[yf(-9), yf(0.5), boot], [yf(0.5), deckf(-0.45), hullM], [deckf(-0.45), deckf(), stripe]], deck:deckM, bulwark:hullM});
+  A.solid(0, 1.2, -1, 4.8, 2.6, 30); A.solid(0, 3.4, 26, 3.4, 1.6, 6); A.solid(0, 3.5, -27.5, 4.2, 1.2, 5);
+  // centre castle: accommodation, boat deck, wheelhouse with bridge wings
+  A.house(0, 4.4, 0, 7.8, 2.5, 12.4, A.WHITE, {roof:G.mat(0x8a7a5a, {roughness:0.9}), over:1.6, n:7, wh:0.7, ww:0.5});
+  A.house(0, 7.06, 3.4, 5.2, 2.3, 3.6, A.WOOD, {roof:A.WHITE, over:0.7, n:2, nf:5, wh:0.9, wy:0.6});
+  k.both(box(2.6, 0.14, 2.2), A.WHITE, T(3.6, 7.1, 3.6)); k.both(box(0.1, 1, 2.2), A.CANVAS, T(4.85, 7.6, 3.6)); k.both(box(2.4, 1, 0.1), A.CANVAS, T(3.7, 7.6, 4.7));
+  A.railRun(4.6, 4.6, 7.06, -6, 2.4, 5); A.railRun(2.5, 2.5, 9.5, 1.8, 5, 2, 0.9);
+  const ft = A.funnel(0, 7.0, -2.2, 1.35, 7.4, 0.07, [P[0], P[1], 0x151312], {mark:r => star(r*1.3, r*0.55), markCol:P[2]});
+  k.both(wire([0, ft[1] - 1.5, ft[2]], [3.6, 7.2, -5.6], 0.035), A.IRON);
+  A.boat(3.9, 7.7, -3.6, 6, 1); A.boat(-3.9, 7.7, -3.6, 6, -1);
+  for (const [x, z, yw] of [[2.3, 0.6, 0], [-2.3, 0.6, 0], [1.6, -5.2, PI], [-1.6, -5.2, PI]]) A.vent(x, 7.06, z, 1.9, 0.42, yw, 0xd8c9a0);
+  // masts, derricks and hatches in the two well decks
+  for (const [mz, hz] of [[13.6, [10.3, 17]], [-15, [-11.2, -18.9]]]) {
+    k.add(box(3, 1.7, 2.4), buff, T(0, 3.45, mz)); A.solid(0, 3.45, mz, 1.5, 0.85, 1.2);
+    const top = A.mast(0, 4.2, mz, 13.6, 0.3, buff); k.add(box(3.4, 0.16, 0.3), buff, T(0, 13.2, mz)); k.add(cyl(0.5, 0.5, 0.12, 8), buff, T(0, 11, mz));
+    for (const s of [1, -1]) { k.add(tube([s*0.7, 4.5, mz + s*0.5], [s*1.3, 10.6, mz + s*6.3], 0.16, 5, true, 0.1), buff); A.stay([0, 12.9, mz], [s*1.3, 10.6, mz + s*6.3], 0.03); A.winch(s*1.9, 2.6, mz + s*0.2); }
+    A.shrouds([0, top[1] - 1.2, mz], mz, 4.7, 3.6, 2);
+    for (const z of hz) A.hatch(2.6, z, 4.6, 4.8);
+  }
+  A.stay([0, 17.4, 13.6], [0, 6.2, 31.5]); A.stay([0, 17.4, 13.6], [0, 17.4, -15], 0.03);
+  // fo'c'sle: windlass, anchors, jackstaff
+  A.winch(0, 4.7, 24); k.both(box(0.5, 0.9, 1.3), A.IRON, mul(T(2.1, 4.1, 29.3), RY(-0.33))); k.add(tube([0, 5.3, 31.6], [0, 7.6, 31.9], 0.05, 4), A.IRON);
+  A.railRun(4.45, 0.3, 4.75, 20.2, 32, 6, 0.9); A.railRun(4.7, 4.7, 4.4, 5.5, 6.8, 1);
+  if (o.pad) { A.pad(6.6, -28, 12, 11.4, {legs:[4.4], braceTo:[4.2, 3.2]}); k.add(bar([0, 4.4, -23.6], [0, 6.4, -22.2], 0.5, 1.2), A.WOOD); }
+  else { A.house(0, 4.45, -27, 5.4, 2.2, 5.4, A.WHITE, {roof:G.mat(0x8a7a5a), n:3, wh:0.6}); A.railRun(4.4, 2.6, 4.5, -23.2, -31.8, 5, 0.9); k.add(tube([0, 4.6, -31.6], [0, 8.4, -32.6], 0.05, 4), A.IRON); A.flag(0, 6.6, -32.2, 0, 0, [[2.1, 1.3, 0, P[1]], [0.9, 0.5, 0.7, 0xf1e9d6]]); A.stay([0, 17.2, -15], [0, 6.8, -27]); }
+  A.navLights(4.9, 7.9, 4.7, [0, 17.8, 13.6], [0, o.pad ? 5 : 6.9, -32.3]); ud.top = 18.2;
+};
+
+/* Harbour tug: beamy and low, a varnished wheelhouse, a funnel far too tall for her, tyres along the rail and a rope pudding on the stem. */
+SHIP_BUILD.tug = (k, ud, A, o) => {
+  const P = o.paint || [0x1d1c1b, 0xb5382c, 0xe9e4d6], hullM = G.mat(P[0], {roughness:0.8}), boot = G.mat(0x6a2620), deckM = G.mat(0x7a6a52, {roughness:0.95}), red = G.mat(P[1], {roughness:0.7});
+  const S = [{z:-12, b:2.5, d:1.4, w:0.6, k:1}, {z:-9, b:3.2, d:1.25}, {z:-2, b:3.35, d:1.3}, {z:4, b:3.25, d:1.7}, {z:8, b:2.5, d:2.3, w:0.8}, {z:11, b:1.15, d:2.8, w:0.6}, {z:12.3, b:0.16, d:3, w:0.5}];
+  A.hull(S, {draft:2.4, bw:0.75, bands:[[yf(-9), yf(0.35), boot], [yf(0.35), deckf(-0.5), hullM], [deckf(-0.5), deckf(), red]], deck:deckM, bulwark:hullM});
+  A.solid(0, 0.4, 0, 3.3, 1.9, 12);
+  for (const z of [-8, -4.5, -1, 2.5, 6]) { const b = z > 4 ? 3.05 : 3.42; k.both(torus(0.52, 0.17, 8, 4), INK(), mul(T(b + 0.14, z > 4 ? 1.5 : 0.95, z), RY(PI/2 + (z > 4 ? -0.3 : 0)))); }
+  k.add(ball(1, 7, 4), A.ROPE, mul(T(0, 2.5, 12.1), SC(1.5, 0.95, 0.75))); k.both(ball(0.6, 6, 3), A.ROPE, T(1.5, 2.3, 10.9));
+  A.house(0, 1.35, 1.6, 4.3, 2.1, 7.2, A.WHITE, {solid:true}); A.ports(2.15, 2.5, -1.6, 4.8, 4, 0.24);
+  A.house(0, 3.45, 3.4, 3.3, 2.1, 3.2, A.WOOD, {roof:A.WHITE, over:0.7, n:2, nf:3, back:true, wh:0.85, wy:0.58});
+  A.funnel(0, 3.45, -0.6, 0.78, 4.3, 0.05, [P[0], P[1], 0x151312], {b0:0.45, b1:0.7, mark:r => rect(r*1.5, r*0.5), markCol:P[2]});
+  const mt = A.mast(0, 5.7, 3, 2.7, 0.1, A.WOOD, 0, false); k.add(ball(0.42, 6, 3), lamp(0xfff1d0), T(0, 6.0, 4.5)); k.add(box(0.5, 0.5, 0.5), A.IRON, T(0, 5.9, 4.3)); ud.lights.push([0, 6, 4.6, 0xfff1d0, 1]);
+  A.vent(1.3, 3.45, -2, 1.3, 0.3, 0, P[1]); A.vent(-1.3, 3.45, -2, 1.3, 0.3, 0, P[1]);
+  // the towing deck: bitts, hook, two tow beams, a coil of hawser
+  for (const z of [-5.2, -8.2]) { k.both(bar([2.9, 1.3, z], [2.2, 2.9, z], 0.2), A.IRON); k.add(bar([-2.2, 2.9, z], [2.2, 2.9, z], 0.22), A.IRON); }
+  k.both(cyl(0.2, 0.2, 1.1, 6), A.IRON, T(0.6, 1.85, -3.4)); k.add(box(1.7, 0.2, 0.2), A.IRON, T(0, 2.1, -3.4)); k.add(torus(0.75, 0.2, 8, 4), A.ROPE, mul(T(-1.3, 1.5, -10), RX(PI/2))); k.add(torus(0.5, 0.2, 8, 4), A.ROPE, mul(T(-1.3, 1.8, -10), RX(PI/2)));
+  k.add(wire([0, 2.1, -3.4], [0, 1.9, -11.8], 0.07), A.ROPE);
+  A.navLights(2.2, 4.9, 3.4, mt, [0, 2.3, -11.9]); ud.top = 8.5;
+};
+
+/* Coastal packet: a white two-decker with lit saloon windows, two raked funnels, six boats under davits and a sun deck aft. */
+SHIP_BUILD.steamer = (k, ud, A, o) => {
+  const P = o.paint || [0xe9e4d6, 0x1f4d7a, 0xe2c27a], hullM = G.mat(P[0], {roughness:0.6}), boot = G.mat(0x2f5d3a, {roughness:0.8}), band = G.mat(P[1], {roughness:0.6}), deckM = G.mat(0xb89a6a, {roughness:0.9});
+  const S = [{z:-30, b:2.8, d:3.6, w:0.4, k:0.7}, {z:-27, b:4.2, d:3.4, w:0.8, k:2.4}, {z:-18, b:4.9, d:3.2}, {z:14, b:4.9, d:3.2}, {z:22, b:3.8, d:3.6, w:0.8}, {z:27, b:2, d:4, w:0.6}, {z:30.5, b:0.12, d:4.3, w:0.5}];
+  A.hull(S, {draft:3.2, bw:0.9, bands:[[yf(-9), yf(0.45), boot], [yf(0.45), deckf(-0.5), hullM], [deckf(-0.5), deckf(-0.15), band], [deckf(-0.15), deckf(), hullM]], deck:deckM, bulwark:hullM});
+  A.solid(0, 1, 0, 4.9, 2.6, 30); A.ports(4.75, 1.9, -24, 20, 16, 0.2);
+  A.house(0, 3.2, -5, 8.4, 2.5, 38, A.WHITE, {n:17, wh:1.1, ww:1.25, nf:4, back:true});
+  k.add(box(10.2, 0.2, 39), deckM, T(0, 5.8, -5)); k.add(box(10.3, 0.12, 39.1), A.WHITE, T(0, 5.66, -5));
+  for (let z = -23.5; z <= 13.5; z += 3.7) k.both(tube([4.95, 3.3, z], [4.95, 5.6, z], 0.06, 4, false), A.WHITE);
+  A.railRun(5, 5, 5.9, -24.4, 14.4, 12, 1);
+  A.house(0, 5.9, -1, 6.8, 2.4, 22, A.WHITE, {n:9, wh:1, ww:1.4, nf:3, back:true});
+  k.add(box(8.6, 0.18, 23.4), G.mat(0x8a7a5a, {roughness:0.9}), T(0, 8.4, -1)); A.solid(0, 8.4, -1, 4.3, 0.2, 11.7);
+  A.house(0, 8.5, 8.2, 4.8, 2.3, 3.8, A.WOOD, {roof:A.WHITE, over:0.8, n:2, nf:5, wh:0.9});
+  k.both(box(2.2, 0.12, 1.8), A.WHITE, T(3.2, 8.56, 8.6)); k.both(box(0.08, 0.9, 1.8), A.CANVAS, T(4.3, 9.05, 8.6));
+  for (const z of [2.2, -6.4]) A.funnel(0, 8.5, z, 1.15, 6, 0.13, [P[2], P[1], 0x151312], {b0:0.5, b1:0.72, mark:r => disc(r*0.8, 10)});
+  for (const z of [4.2, -2.4, -9]) { A.boat(3.75, 9.1, z, 5.4, 1); A.boat(-3.75, 9.1, z, 5.4, -1); }
+  for (const [x, z] of [[1.9, 5.3], [-1.9, 5.3], [1.9, -2.4], [-1.9, -2.4]]) A.vent(x, 8.5, z, 1.6, 0.36, 0, P[2]);
+  const f = A.mast(0, 3.4, 19.5, 14.5, 0.24, A.WOOD, 0.06); A.stay(f, [0, 4.6, 29.8]); A.shrouds([f[0], f[1] - 2, f[2]], 19, 4.3, 4.2, 2); k.add(tube([0, 5, 19.2], [0, 9, 26], 0.12, 5), A.WOOD);
+  const m = A.mast(0, 8.5, -11, 9.6, 0.2, A.WOOD, 0.08); A.stay(f, m, 0.03); A.shrouds([m[0], m[1] - 2, m[2]], -11, 4.2, 8.5, 2);
+  A.winch(0, 3.7, 23.5); A.railRun(4.6, 0.3, 4.2, 15, 30, 6, 0.9);
+  if (o.pad) { k.add(box(10.6, 0.3, 12.4), deckM, T(0, 6.02, -18.4)); A.pad(6.3, -18.4, 11.6, 11.6, {paint:0x1f4d7a, sock:true}); A.railRun(4.9, 4.9, 3.3, -25, -29, 2, 0.9); }
+  else { // the sun deck: a striped awning and deck chairs
+    for (let i = 0; i < 6; i++) k.add(box(9.4/6, 0.08, 10), G.mat(i % 2 ? P[1] : 0xe9e4d6, {roughness:0.95}), T(-3.92 + i*9.4/6, 8.3, -18.3));
+    for (const [x, z] of [[4.6, -13.6], [-4.6, -13.6], [4.6, -23.2], [-4.6, -23.2]]) k.add(tube([x, 5.9, z], [x, 8.3, z], 0.06, 4, false), A.WHITE);
+    for (const [x, z] of [[2, -16], [-2.4, -18], [1.2, -21], [-3, -21.5]]) k.add(box(0.7, 0.5, 1.5), G.mat(0xb5382c), mul(T(x, 6.2, z), RX(-0.3))); A.solid(0, 7.1, -18.3, 4.7, 1.3, 5); }
+  k.add(tube([0, 3.6, -29.6], [0, 7.4, -30.6], 0.05, 4), A.IRON); A.flag(0, 5.6, -30.2, 0, 0, [[2.2, 1.4, 0, P[1]], [2.2, 0.45, 0.48, 0xf1e9d6]]);
+  A.navLights(4.4, 9.4, 8.6, f, [0, 4.5, -30.2]); ud.top = 18.4;
+};
+
+/* Trawler: a green sea-boat, wheelhouse aft, gallows and winch for the trawl, a rust-red steadying sail on the mizzen. */
+SHIP_BUILD.trawler = (k, ud, A, o) => {
+  const P = o.paint || [0x2f5d4a, 0xe9e4d6, 0x9a4a2a], hullM = G.mat(P[0], {roughness:0.8}), boot = G.mat(0x6a2620), white = G.mat(P[1], {roughness:0.7}), deckM = G.mat(0x8a7452, {roughness:0.95});
+  const S = [{z:-10, b:2.2, d:1.5, w:0.6, k:1}, {z:-6, b:2.8, d:1.3}, {z:2, b:2.9, d:1.4}, {z:6, b:2.3, d:2, w:0.8}, {z:9, b:1, d:2.5, w:0.6}, {z:10.3, b:0.14, d:2.7, w:0.5}];
+  A.hull(S, {draft:2.2, bw:0.7, bands:[[yf(-9), yf(0.3), boot], [yf(0.3), deckf(-0.35), hullM], [deckf(-0.35), deckf(), white]], deck:deckM, bulwark:hullM});
+  A.solid(0, 0.4, 0, 2.9, 1.9, 10);
+  A.house(0, 1.35, -5.2, 2.7, 2.2, 3, white, {roof:G.mat(0xb5382c), over:0.5, n:2, nf:3, back:true, wh:0.7, wy:0.64});
+  A.funnel(0, 3.6, -6, 0.3, 1.9, 0.05, [0x1d1c1b, P[2], 0x151312], {n:6, pipe:false});
+  k.add(torus(0.32, 0.09, 8, 4), G.mat(0xd94f2a), onSide(1.42, 2.4, -5.2)); k.add(box(0.36, 0.3, 0.6), lamp(0xfff1d0), T(0, 3.85, -4.2)); ud.lights.push([0, 3.85, -4.1, 0xfff1d0, 1]);
+  const f = A.mast(0, 1.4, 3.6, 8.2, 0.16, A.WOOD); k.add(tube([0, 2.4, 3.3], [0, 4.6, -2.6], 0.1, 5), A.WOOD); A.stay(f, [0, 2.9, 9.9]); A.stay(f, [0, 4.6, -2.6], 0.03); A.shrouds([0, f[1] - 1.5, 3.6], 3.4, 2.75, 2.1, 2);
+  const m = A.mast(0, 3.6, -7.2, 4.8, 0.11, A.WOOD, 0, false); k.add(tube([0, 4.4, -7.3], [0, 4.2, -10.6], 0.07, 4), A.WOOD);
+  k.add(SHIP_SAIL([[0, 4.5, -7.4], [0, 4.3, -10.5], [0, 6.1, -9.2], [0, 8.1, -7.4]], [0.35, 0, 0], 2), G.mat(P[2], {roughness:0.95}));
+  A.hatch(1.4, 0.6, 2.2, 2.2, 0x5a5648); A.winch(0, 1.4, -2.2);
+  for (const z of [5.2, -2.6]) { k.add(bar([2.75, 1.4, z - 0.6], [2.6, 3.9, z], 0.16), A.IRON); k.add(bar([2.75, 1.4, z + 0.6], [2.6, 3.9, z], 0.16), A.IRON); k.add(torus(0.22, 0.07, 6, 3), A.IRON, mul(T(2.6, 3.7, z), RY(PI/2))); }
+  k.add(ball(1, 7, 3), G.mat(0x3a6a5a, {roughness:1}), mul(T(-1.2, 1.75, 3.6), SC(1.2, 0.45, 1.7))); for (const [x, y, z] of [[-1.6, 2.1, 3], [-0.8, 2.2, 4.2], [-1.3, 2.15, 4.9]]) k.add(ball(0.2, 5, 3), G.mat(0xe0742a), T(x, y, z));
+  for (const [x, z] of [[1.3, -0.2], [1.5, 2.5], [0.2, 6]]) { k.add(box(0.9, 0.36, 0.6), G.mat(0xc8b48a), T(x, 1.62, z)); k.add(box(0.8, 0.05, 0.5), STEEL(), T(x, 1.81, z)); }
+  A.navLights(1.45, 3.2, -4.6, f, [0, 2.3, -9.9]); ud.top = 9.8;
+};
+
+/* Navy gunboat: grey, raised fo'c'sle with a shielded gun, open bridge, tripod mast with a spotting top, pom-poms aft. */
+SHIP_BUILD.gunboat = (k, ud, A, o) => {
+  const P = o.paint || [0x7d8791, 0x5a626c, 0xe8edf2], grey = G.mat(P[0], {roughness:0.65}), dk = G.mat(P[1], {roughness:0.7}), boot = G.mat(0x26221f), deckM = G.mat(0x565a60, {roughness:0.9}), g = ud.group;
+  const S = [{z:-27, b:2.4, d:2.4, w:0.5, k:0.8}, {z:-24, b:3.4, d:2.3}, {z:-5, b:3.9, d:2.3}, {z:9.9, b:3.8, d:2.4}, {z:9.95, b:3.8, d:3.9}, {z:18, b:3, d:4.2, w:0.75}, {z:24, b:1.4, d:4.6, w:0.55}, {z:27.6, b:0.1, d:4.9, w:0.4, k:2}];
+  A.hull(S, {draft:2.6, bands:[[yf(-9), yf(0.3), boot], [yf(0.3), deckf(), grey]], deck:deckM});
+  A.solid(0, 0.9, 0, 3.9, 2.4, 26.5); A.solid(0, 3.2, 17, 3, 1.3, 7);
+  // pennant bars on the bow instead of a number
+  for (const dz of [0, 0.9]) { k.add(rect(0.5, 1.5), G.mat(P[2]), mul(T(2.62, 2.9, 21.2 + dz), RY(PI/2 - 0.3))); k.add(rect(0.5, 1.5), G.mat(P[2]), mul(T(-2.62, 2.9, 21.2 + dz), RY(-PI/2 + 0.3))); }
+  // the forward gun: a turret Group that can train
+  const tur = new THREE.Group(), tk = new Kit(), TA = shipParts(tk, {boxes:[], masts:[], funnels:[], lights:[]}); TA.gun(0, 0, 0, 4.6, 0.16, 0, grey); shipMesh(tk, tur); tur.position.set(0, 4.25, 16.5); g.add(tur); ud.turrets.push(tur);
+  k.add(cyl(1.5, 1.5, 0.2, 10), dk, T(0, 4.25, 16.5)); A.winch(0, 4.5, 22.5); A.railRun(3.7, 0.3, 4.1, 10.2, 27, 7, 0.9);
+  A.house(0, 2.35, 6.4, 5.4, 2.5, 6.4, grey, {nf:0}); A.ports(2.7, 3.7, 3.6, 9.2, 3, 0.22);
+  A.house(0, 4.85, 7.4, 4.2, 2.1, 3.4, grey, {roof:dk, over:0.6, n:2, nf:5, wh:0.6, wy:0.66});
+  k.both(box(2.2, 0.12, 2), dk, T(3.1, 4.9, 7.2)); k.both(box(0.08, 1, 2), grey, T(4.2, 5.4, 7.2)); k.both(box(2.2, 1, 0.08), grey, T(3.1, 5.4, 8.2));
+  k.add(cyl(0.45, 0.45, 0.6, 8), dk, mul(T(0, 7.5, 7.6), RX(PI/2))); k.add(disc(0.4, 8), lamp(0xdfefff), T(0, 7.5, 7.92)); k.add(box(0.3, 0.5, 0.3), dk, T(0, 7.1, 7.6));
+  // tripod mast with spotting top, yard and signal halyards
+  const mt = A.mast(0, 4.85, 4.4, 12, 0.22, grey); for (const s of [1, -1]) k.add(tube([s*1.9, 4.85, 2.4], [0, 13.2, 4.3], 0.13, 5), grey);
+  k.add(cyl(1.05, 0.85, 1.1, 8), grey, T(0, 13.6, 4.4)); k.add(cyl(1.15, 1.15, 0.12, 8), dk, T(0, 14.2, 4.4)); k.add(box(5.6, 0.14, 0.14), grey, T(0, 15.4, 4.4));
+  for (const [x, c] of [[2.2, 0xb5382c], [2.2, 0xf2c14e], [-2.2, 0x1f4d7a]]) k.add(SHIP_SAIL([[x, 13.6 - (c === 0xf2c14e ? 1.1 : 0), 4.4], [x, 13.6 - (c === 0xf2c14e ? 1.1 : 0), 3.5], [x, 14.4 - (c === 0xf2c14e ? 1.1 : 0), 3.5], [x, 14.4 - (c === 0xf2c14e ? 1.1 : 0), 4.4]], [0.1, 0, 0], 1), G.mat(c)); A.stay([2.2, 15.4, 4.4], [2.2, 5, 4.4], 0.025); A.stay([-2.2, 15.4, 4.4], [-2.2, 5, 4.4], 0.025);
+  A.funnel(0, 2.35, -2.8, 1.1, 7.2, 0.1, [P[0], P[0], 0x1d1c1b], {b0:0.6, b1:0.8}); for (const y of [6.1, 6.6]) k.add(cyl(1.14, 1.14, 0.2, 10, false), G.mat(P[2]), mul(T(0, 2.35, -2.8), RX(-0.1), T(0, y - 2.35, 0)));
+  A.vent(1.9, 2.35, 0.4, 2, 0.4, 0, P[0]); A.vent(-1.9, 2.35, 0.4, 2, 0.4, 0, P[0]);
+  A.boat(3.3, 3.3, -8.4, 5.6, 1, {hull:grey}); A.boat(-3.3, 3.3, -8.4, 5.6, -1, {hull:grey});
+  // pom-pom on a bandstand, the after gun, depth charges and the ensign
+  k.add(cyl(1.9, 1.5, 1.2, 10), grey, T(0, 2.95, -14.5)); k.add(cyl(2, 2, 0.14, 10), dk, T(0, 3.6, -14.5)); A.solid(0, 3, -14.5, 1.9, 0.8, 1.9);
+  { const M = mul(T(0, 3.65, -14.5), RY(PI)); k.add(box(1, 0.8, 1), dk, mul(M, T(0, 0.5, 0))); for (const s of [1, -1]) for (const y of [0.55, 0.85]) k.add(tube([s*0.25, y, 0.3], [s*0.25, y + 0.9, 1.9], 0.05, 4), G.mat(0x3a3e42, {metalness:0.3}), M); }
+  A.gun(0, 2.3, -20.5, 3.2, 0.12, PI, grey);
+  for (const s of [1, -1]) { k.add(box(0.9, 0.5, 2.6), dk, T(s*1.4, 2.6, -25.3)); for (let i = 0; i < 3; i++) k.add(cyl(0.3, 0.3, 0.8, 6), G.mat(0x4a4e52), mul(T(s*1.4, 3.1, -24.4 - i*0.8), RZ(PI/2))); }
+  A.railRun(3.5, 2.5, 2.4, -22, -26.8, 3, 0.9); A.railRun(3.9, 3.6, 2.35, -4, -21, 6, 0.9);
+  k.add(tube([0, 2.4, -26.8], [0, 6.2, -27.8], 0.05, 4), A.IRON); A.flag(0, 4.5, -27.4, 0, 0, [[2.4, 1.5, 0, 0xe8edf2], [1.1, 0.75, 0.75, 0x2a3a52], [2.4, 0.2, 0.3, 0xb5382c]]);
+  A.navLights(3.3, 6, 7.2, mt, [0, 3, -27]); ud.top = 17.2;
+};
+
+/* Corsair schooner: a fast two-master, teal-black with a red sheer strake, blood-red gaff sails, a swivel gun forward. */
+SHIP_BUILD.schooner = (k, ud, A, o) => {
+  const P = o.paint || [0x0f3b55, 0xd94f4f, 0x8e2a22], hullM = G.mat(P[0], {roughness:0.75}), copper = G.mat(0x3a7a6a, {roughness:0.8}), red = G.mat(P[1], {roughness:0.7}), deckM = G.mat(0xb09266, {roughness:0.95}), sailM = G.mat(P[2], {roughness:0.95}), spar = G.mat(0xa87a48, {roughness:0.7});
+  const S = [{z:-16, b:1.9, d:2.5, w:0.4, k:0.5}, {z:-13, b:2.9, d:2.2, w:0.8, k:1.8}, {z:-4, b:3.5, d:1.9}, {z:5, b:3.4, d:2}, {z:11, b:2.5, d:2.4, w:0.8}, {z:16, b:1, d:2.9, w:0.5}, {z:18.6, b:0.1, d:3.2, w:0.4, k:1.6}];
+  A.hull(S, {draft:2.6, bw:0.65, bands:[[yf(-9), yf(0.3), copper], [yf(0.3), deckf(-0.4), hullM], [deckf(-0.4), deckf(), red]], deck:deckM, bulwark:hullM});
+  A.solid(0, 0.7, 0, 3.4, 2.1, 16); A.solid(0, 1.6, 17, 1.2, 1.4, 2);
+  k.add(tube([0, 3, 17.4], [0, 4.7, 26.2], 0.2, 6, true, 0.1), spar); A.stay([0, 4.7, 26.2], [0, 0.6, 18.4], 0.05);
+  const fz = 7, mz = -4, ft = A.mast(0, 2, fz, 21, 0.26, spar, 0.04), mt = A.mast(0, 1.9, mz, 24, 0.28, spar, 0.05);
+  // fore and main gaff sails with their booms and gaffs
+  const gaff = (tack, clew, peak, throat) => { k.add(SHIP_SAIL([tack, clew, peak, throat], [0.9, 0, 0], 3), sailM); k.add(tube([tack[0], tack[1] - 0.25, tack[2]], [clew[0], clew[1] - 0.25, clew[2] - 0.5], 0.13, 5), spar); k.add(tube(throat, [peak[0], peak[1] + 0.15, peak[2] - 0.4], 0.1, 5), spar); };
+  gaff([0, 4.6, fz - 0.6], [0, 4.9, mz + 1.2], [0, 18.6, mz + 2.2], [0, 15.8, fz - 1.1]);
+  gaff([0, 4.6, mz - 0.6], [0, 5.1, -18], [0, 21.6, -13.4], [0, 18.2, mz - 1.3]);
+  k.add(SHIP_SAIL([[0, 3.7, 17.6], [0, 4.4, 8.6], [0, 10, 8.3], [0, 16.4, 7.6]], [0.6, 0, 0], 3), sailM); k.add(SHIP_SAIL([[0, 4.9, 25.6], [0, 5, 17.4], [0, 12, 12.6], [0, 20.4, 6.6]], [0.6, 0, 0], 3), sailM);
+  A.stay([0, 20.8, 6.4], [0, 4.7, 26]); A.stay([0, 16.8, 7.4], [0, 3.6, 18]); A.stay(ft, mt, 0.03);
+  A.shrouds([0, 16, fz - 0.6], fz, 3.3, 2.6, 2); A.shrouds([0, 17, mz - 0.7], mz, 3.5, 2.5, 2);
+  A.flag(mt[0], mt[1] - 2.2, mt[2] - 0.2, 0, 0, [[2.6, 1.6, 0, P[1]], [0.9, 0.9, 0.35, 0xf1e9d6]]);
+  // deck: cabin trunk, wheel, swivel gun, hatch, contraband
+  A.house(0, 1.95, -8.4, 3.2, 1, 3.4, A.WOOD, {roof:G.mat(0x6a5436), over:0.3, n:3, wh:0.3, wy:0.55, ww:0.5, solid:false});
+  k.add(torus(0.55, 0.06, 8, 3), A.WOOD, T(0, 3, -11.6)); k.add(box(0.5, 0.9, 0.5), A.WOOD, T(0, 2.5, -11.9)); k.add(box(0.5, 0.36, 0.3), lamp(0xffb347), T(0, 3.1, -9.9));
+  A.gun(0, 2.3, 12.4, 2.2, 0.09, 0); A.hatch(1.95, 1.6, 2, 2.4, 0x5a5648);
+  for (const [x, z, c] of [[1.9, 3.2, 0x8a6a44], [-2, -1, 0x8a6a44], [-1.6, 0, 0x6a4a2e], [1.7, -6.3, 0x7a5a3a]]) k.add(box(1, 0.9, 1), G.mat(c), T(x, 2.45, z));
+  A.navLights(3.2, 3.4, 5, null, [0, 3.2, -15.9]); ud.lights.push([0, 3.1, -9.8, 0xffb347]); ud.top = 26;
+};
+
+/* Brethren galleon: an old three-decker kept afloat with boiler plate and spite. High stern castle with a lit gallery, a beak with
+   a skull on it, black courses and blood-red topsails, broadside guns in a red strake, a stovepipe from the galley. */
+SHIP_BUILD.galleon = (k, ud, A, o) => {
+  const P = o.paint || [0x1c1a1a, 0x9e1b1b, 0xe8e0cc], tim = G.mat(0x3a2e24, {roughness:0.9}), blk = G.mat(P[0], {roughness:0.85}), red = G.mat(P[1], {roughness:0.75}), bone = G.mat(P[2], {roughness:0.85}), white = G.mat(0x9a927c, {roughness:0.9}), deckM = G.mat(0x6a543a, {roughness:0.95}), spar = G.mat(0x5a4632, {roughness:0.8}), gold = G.mat(0xb88a2a, {roughness:0.45, metalness:0.4}), bronze = G.mat(0x8a6a3a, {roughness:0.4, metalness:0.4});
+  const S = [{z:-22, b:3.8, d:8.6, w:0.5, k:1.2, bw:0.9}, {z:-18, b:4.6, d:8.6, w:0.8, k:3, bw:0.9}, {z:-14, b:5.1, d:8.6, bw:0.9}, {z:-13.95, b:5.1, d:6.4, bw:0.9}, {z:-6, b:5.4, d:6.4, bw:0.9}, {z:-5.95, b:5.4, d:4.2, bw:1.1}, {z:10, b:5.2, d:4.2, bw:1.1}, {z:10.05, b:5.2, d:6, bw:0.9}, {z:16, b:3.8, d:6.2, w:0.8, bw:0.9}, {z:16.05, b:3.6, d:4.6, w:0.8, bw:0.6}, {z:20, b:1.8, d:4.8, w:0.6, bw:0.6}, {z:22.6, b:0.15, d:5, w:0.5, k:2.5, bw:0.6}];
+  A.hull(S, {draft:4, bands:[[yf(-9), yf(0.4), white], [yf(0.4), yf(2.3), tim], [yf(2.3), yf(3.5), red], [yf(3.5), deckf(-0.5), blk], [deckf(-0.5), deckf(), bone]], deck:deckM, bulwark:red});
+  A.solid(0, 0.6, 2, 5.4, 3.6, 20); A.solid(0, 5.4, -10, 5.3, 1.2, 4); A.solid(0, 6.4, -18, 4.9, 2.2, 4.2); A.solid(0, 5.2, 13, 4.8, 1, 3);
+  // the broadside: lids up, bronze muzzles run out
+  for (let i = 0; i < 7; i++) { const z = -11 + i*3.4, b = z > 9 ? 4.95 : 5.18; k.both(box(0.12, 0.8, 0.9), INK(), T(b + 0.02, 2.9, z)); k.both(box(0.3, 0.08, 0.9), red, mul(T(b + 0.22, 3.36, z), RZ(0.5))); k.both(tube([b - 0.2, 2.9, z], [b + 0.9, 2.9, z], 0.16, 6), bronze); }
+  for (const z of [-3, 1, 5]) k.both(tube([4.9, 5.1, z], [6, 5.25, z], 0.14, 6), bronze);
+  // stern castle: gallery windows, quarter galleries, lanterns
+  for (const [y, n, w] of [[7.2, 5, 5.6], [5.2, 4, 4.6]]) for (let i = 0; i < n; i++) k.add(rect(w/n*0.7, 1.1), WINDOW(), mul(T(-w/2 + (i + 0.5)*w/n, y, -22.06 + (8.6 - y)*0.06), RY(PI)));
+  k.add(box(8, 0.3, 0.5), gold, T(0, 8.1, -22.1)); k.add(box(7, 0.3, 0.5), gold, T(0, 6.2, -22.1)); k.add(box(6, 0.3, 0.5), gold, T(0, 4.3, -22));
+  k.both(box(1, 2.6, 3.4), blk, T(4.9, 6.2, -19.6)); k.both(box(1.1, 0.25, 3.6), gold, T(4.9, 7.6, -19.6)); for (const z of [-20.4, -18.8]) k.both(rect(0.9, 1), WINDOW(), onSide(5.42, 6.3, z));
+  A.ports(4.9, 7.3, -17.5, -6.5, 4, 0.28); A.ports(5.25, 5.4, -13, -7, 3, 0.28);
+  for (const x of [-2.6, 0, 2.6]) { k.add(tube([x, 9.4, -22], [x, 10.6, -22.6], 0.07, 4), A.IRON); k.add(cyl(0.42, 0.3, 0.95, 6), lamp(0xffb347), T(x, 11.1, -22.6)); k.add(cyl(0.1, 0.5, 0.3, 6), gold, T(x, 11.7, -22.6)); ud.lights.push([x, 11.1, -22.6, 0xffb347, 1]); }
+  // ladders between the decks, the capstan, the galley stovepipe, gratings
+  for (const s of [1, -1]) { k.add(box(1.2, 0.2, 2.4), spar, mul(T(s*3.4, 5.3, -5), RX(-0.72))); k.add(box(1.2, 0.2, 2.2), spar, mul(T(s*3.2, 5.1, 9.2), RX(0.7))); k.add(box(1.2, 0.2, 2.4), spar, mul(T(s*3.2, 7.5, -13), RX(-0.72))); }
+  k.add(cyl(0.7, 0.9, 1.3, 8), spar, T(0, 4.9, 6)); k.add(box(3.2, 0.14, 4), INK(), T(0, 4.32, 1.4)); k.add(box(3.4, 0.2, 0.3), spar, T(0, 4.4, 3.5)); k.add(box(3.4, 0.2, 0.3), spar, T(0, 4.4, -0.7));
+  A.funnel(2.6, 6.4, -8.6, 0.36, 3.4, 0.06, [0x2a2826, 0x2a2826, 0x151312], {n:6, pipe:false}); k.add(cyl(0.55, 0.36, 0.5, 6), A.IRON, T(2.6, 9.9, -8.8));
+  k.add(torus(0.8, 0.07, 8, 3), spar, T(0, 7.9, -9.6)); k.add(box(0.6, 1.3, 0.6), spar, T(0, 7.1, -9.9));
+  // beakhead and figurehead, bowsprit
+  k.add(loft([[[-1.2, 3.4, 21.6], [1.2, 3.4, 21.6], [1, 4.9, 21.6], [-1, 4.9, 21.6]], [[-0.5, 4.6, 26], [0.5, 4.6, 26], [0.5, 5.6, 26], [-0.5, 5.6, 26]], [[-0.15, 5.9, 29], [0.15, 5.9, 29], [0.15, 6.5, 29], [-0.15, 6.5, 29]]]), red);
+  k.both(box(0.12, 0.25, 7.6), gold, mul(T(0.72, 5.4, 25.3), RX(-0.24), RY(-0.13))); k.add(ball(0.75, 7, 4), bone, mul(T(0, 6.5, 29.3), SC(1, 1.1, 1))); for (const s of [1, -1]) k.add(ball(0.2, 5, 3), INK(), T(s*0.3, 6.65, 29.95)); k.add(box(0.7, 0.5, 0.5), bone, T(0, 5.85, 29.4));
+  k.add(tube([0, 5.6, 19], [0, 11.6, 33.5], 0.3, 6, true, 0.14), spar); ud.masts.push([0, 5.6, 19, 0, 11.6, 33.5, 0.8]);
+  // masts, tops, yards and sails
+  const sq = (z, y0, y1, w0, w1, m, n = 3) => { k.add(SHIP_SAIL([[w0, y0, z], [-w0, y0, z], [-w1, y1, z], [w1, y1, z]], [0, 0, 1.5], n), m); k.add(tube([w1 + 0.9, y1 + 0.15, z - 0.1], [-w1 - 0.9, y1 + 0.15, z - 0.1], 0.2, 6, true, 0.2), spar); };
+  const rig = (z, y0, h, wC, wT, top3) => {
+    const top = A.mast(0, y0, z, h, 0.42, spar, 0.02), yT = y0 + h*0.52;
+    k.add(cyl(1.5, 1.1, 0.5, 8), spar, T(0, yT, z - 0.2)); k.add(cyl(1.6, 1.6, 0.1, 8), tim, T(0, yT + 0.3, z - 0.2));
+    sq(z + 0.5, y0 + 2.6, yT - 1.2, wC, wC*0.92, blk, 4); sq(z + 0.4, yT + 1.2, y0 + h*0.86, wC*0.86, wT, G.mat(P[1], {roughness:0.95}));
+    if (top3) sq(z + 0.3, y0 + h*0.88, y0 + h*0.985, wT*0.9, wT*0.55, blk, 2);
+    A.shrouds([0, yT, z - 0.2], z - 0.8, 5.3, y0 + 0.6, 3); for (const s of [1, -1]) A.stay([s*1.4, yT + 0.3, z - 0.2], [0, y0 + h*0.86, z - 0.3], 0.04);
+    return top;
+  };
+  const f = rig(12.4, 6, 25, 6.4, 4.4), m = rig(-1.4, 4.2, 32, 7.6, 5, true);
+  k.decal(mul(T(0, 13.2, 0.95), SC(3.6, 3.6, 1)), skull(red).slice(2), false, 0.03);
+  A.stay(f, [0, 11.4, 33]); A.stay(m, [0, 20, 12.2]); A.stay([0, 19, 12.2], [0, 8.8, 26.5]);
+  A.flag(m[0], m[1] - 2.6, m[2] - 0.4, 0, 0, [[3.4, 2.1, 0, 0x111111], [1.1, 1.1, 0.5, P[2]]]);
+  { const t = A.mast(0, 8.6, -16.6, 17, 0.3, spar, 0.05);
+    k.add(tube([0, 11.5, -11.2], [0, 22.5, -22], 0.16, 5), spar); k.add(SHIP_SAIL([[0, 11.7, -11.4], [0, 10.4, -21.6], [0, 22.2, -21.7], [0, 17, -16.6]], [1, 0, 0], 3), G.mat(P[1], {roughness:0.95})); A.shrouds([0, 19, -17], -17, 4.7, 9.2, 2); A.stay(m, t, 0.04); }
+  k.add(cyl(0.9, 0.7, 0.9, 8), A.IRON, T(0, 6.6, 13.5)); k.add(tube([0, 7.2, 13.5], [0, 8.4, 15.4], 0.07, 4), G.mat(0x3a3e42)); 
+  A.navLights(5.3, 7.4, -4, null, null); ud.top = 37;
+};
+
+/* Motor yacht: white clipper-bowed hull with a gold cove line, mahogany deckhouse, a buff funnel and two raked pole masts. */
+SHIP_BUILD.yacht = (k, ud, A, o) => {
+  const P = o.paint || [0xf1ede2, 0xdba63e, 0xe2c27a], hullM = G.mat(P[0], {roughness:0.45}), boot = G.mat(0x1f5a4a, {roughness:0.7}), gold = G.mat(P[1], {roughness:0.4, metalness:0.35}), deckM = G.mat(0xc2a878, {roughness:0.85}), mah = G.mat(0x6a3420, {roughness:0.45}), spar = G.mat(0xb8884a, {roughness:0.55});
+  const S = [{z:-23, b:1.7, d:2.7, w:0.3, k:0.3}, {z:-19, b:3.1, d:2.4, w:0.75, k:1.6}, {z:-9, b:3.9, d:2.2}, {z:7, b:4, d:2.3}, {z:15, b:3, d:2.7, w:0.8}, {z:21, b:1.4, d:3.2, w:0.5}, {z:25, b:0.1, d:3.6, w:0.35, k:1.2}];
+  A.hull(S, {draft:2.6, bw:0.5, bands:[[yf(-9), yf(0.35), boot], [yf(0.35), deckf(-0.55), hullM], [deckf(-0.55), deckf(-0.38), gold], [deckf(-0.38), deckf(), hullM]], deck:deckM, bulwark:hullM});
+  A.solid(0, 0.6, 0, 3.9, 2.2, 23); A.ports(3.75, 1.3, -16, 12, 9, 0.19);
+  k.add(tube([0, 3.5, 24.4], [0, 4.5, 29.4], 0.13, 5, true, 0.06), spar); k.both(box(0.08, 0.3, 4.2), gold, mul(T(0.62, 3.1, 22.6), RY(-0.3), RX(-0.08)));
+  A.house(0, 2.3, 1.5, 5.2, 2.1, 17, mah, {roof:G.mat(0xf1ede2, {roughness:0.5}), over:0.9, n:8, wh:0.95, ww:1.3, nf:4, back:true, wy:0.58});
+  A.house(0, 4.55, 6.2, 3.8, 2, 4, G.mat(0xf1ede2, {roughness:0.5}), {roof:mah, over:0.7, n:2, nf:4, wh:0.85, wy:0.6});
+  A.funnel(0, 4.5, -0.6, 0.85, 3.9, 0.17, [P[2], P[2], P[2]], {b0:0.6, b1:0.72, mark:r => star(r*1.2, r*0.5), markCol:0x1f5a4a});
+  A.vent(1.5, 4.55, 2.6, 1.2, 0.3, 0, P[2]); A.vent(-1.5, 4.55, 2.6, 1.2, 0.3, 0, P[2]);
+  A.boat(3.1, 5, -4.2, 5, 1, {hull:mah, cover:G.mat(0xf1ede2)}); A.boat(-3.1, 5, -4.2, 5, -1, {hull:G.mat(0xf1ede2), cover:G.mat(0x1f5a4a)});
+  const f = A.mast(0, 2.5, 13.6, 15, 0.18, spar, 0.1), m = A.mast(0, 4.5, -5.6, 12.6, 0.16, spar, 0.12); A.stay(f, [0, 4.4, 29]); A.stay(f, m, 0.03); A.shrouds([f[0], f[1] - 2, f[2]], 13, 3.2, 2.9, 2); A.shrouds([m[0], m[1] - 2, m[2]], -6.2, 3.7, 2.8, 2);
+  A.flag(m[0], m[1] - 1.5, m[2] - 0.1, 0, 0, [[1.8, 0.9, 0, 0x1f5a4a], [0.6, 0.5, 0.2, P[1]]]);
+  A.railRun(3.9, 3, 2.75, 7.5, 15.5, 4, 0.8); A.railRun(2.9, 0.3, 3.3, 16, 24.4, 4, 0.8); A.winch(0, 3.1, 19.5);
+  if (o.pad) { A.pad(3.7, -15.8, 10.6, 11.6, {paint:0x1f5a4a, deck:0xc2a878, legs:null, braceTo:[3, 2.4], legMat:G.mat(0xf1ede2), lamp:0x5fe0d0}); A.stay(m, [0, 3.8, -10.2]); }
+  else { for (let i = 0; i < 6; i++) k.add(box(1.05, 0.07, 8), G.mat(i % 2 ? 0x1f5a4a : 0xf1ede2, {roughness:0.95}), T(-2.62 + i*1.05, 4.9, -13)); for (const [x, z] of [[3.1, -9.2], [-3.1, -9.2], [2.9, -16.8], [-2.9, -16.8]]) k.add(tube([x, 2.3, z], [x, 4.9, z], 0.05, 4, false), gold);
+    for (const [x, z] of [[1.4, -12], [-1.4, -12.6], [0.2, -15.4]]) { k.add(box(0.8, 0.45, 1.4), G.mat(0xd8c9a0), mul(T(x, 2.65, z), RX(-0.25))); } k.add(cyl(0.6, 0.6, 0.7, 8), mah, T(-0.2, 2.65, -13.6)); A.railRun(3.5, 1.6, 2.5, -9.5, -22.6, 5, 0.8); A.solid(0, 3.7, -13, 3.2, 1.3, 4); }
+  k.add(tube([0, 2.8, -22.6], [0, 5.6, -23.5], 0.04, 4), gold); A.flag(0, 4.2, -23.1, 0, 0, [[1.7, 1, 0, 0xb5382c], [0.75, 0.5, 0.5, 0x1f3b6b]]);
+  A.navLights(2.7, 5.2, 6.4, f, [0, 3.4, -22.9]); ud.top = 17.6;
+};
+G.SHIP_KINDS = Object.keys(SHIP_BUILD);
+/* One mesh for all the paint (vertex colours), one for lit windows, one for lamps: a ship costs three or four draw calls. */
+function shipMesh(k, g){
+  const sp = [], sc = [], lp = [], lc = [], col = new THREE.Color();
+  for (const [mat, a] of k.b) {
+    if (!a.length) continue;
+    const basic = mat.isMeshBasicMaterial, glow = !basic && mat.emissive && mat.emissive.getHex && mat.emissive.getHex() !== 0;
+    if (glow || mat.transparent) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a), 3)); geo.computeVertexNormals(); g.add(new THREE.Mesh(geo, mat)); continue; }
+    const P = basic ? lp : sp, C = basic ? lc : sc; col.copy(mat.color);
+    for (let i = 0; i < a.length; i += 3) { P.push(a[i], a[i + 1], a[i + 2]); C.push(col.r, col.g, col.b); }
+  }
+  const mk = (P, C, m, shadow) => { if (!P.length) return; const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3)); geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(C), 3)); geo.computeVertexNormals(); const me = new THREE.Mesh(geo, m); me.castShadow = me.receiveShadow = shadow; g.add(me); };
+  mk(sp, sc, G.mat(0xffffff, {vertexColors:true, roughness:0.7}), true);
+  mk(lp, lc, SHIP_LAMP || (SHIP_LAMP = new THREE.MeshBasicMaterial({color:0xffffff, vertexColors:true})), false);
+  return g;
+}
+let SHIP_LAMP = null;
+G.SHIP_KINDS = Object.keys(SHIP_BUILD);
+G.buildShip = (kind, o = {}) => {
+  const g = new THREE.Group(), k = new Kit(), ud = g.userData = {kind, boxes:[], masts:[], funnels:[], lights:[], turrets:[], pad:null, group:g};
+  const A = shipParts(k, ud, o.night);
+  (SHIP_BUILD[kind] || SHIP_BUILD.freighter)(k, ud, A, o);
+  shipMesh(k, g);
+  if (o.night) { const F = new G.Fittings({day:0}); for (const L of ud.lights) F.halo([L[0], L[1], L[2]], L[3], !!L[4]); F.build(g); }
+  delete ud.group; ud.radius = Math.hypot(ud.len/2 + 6, ud.top);
+  return g;
+};
+/* ==== SHIPS END ==== */
 G.KIT = {Kit, box, cyl, bar, ball, lathe, loft, lamp, T, RX, RY, RZ, mul, xf};
 })();

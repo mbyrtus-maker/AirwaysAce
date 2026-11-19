@@ -358,7 +358,7 @@ Object.assign(UI, {
     // the moving parts: selection, the Margaret, treasure tallies
     for (const g of $('cMap').querySelectorAll('.rg')) { const R = G.REGIONS[g.dataset.id]; g.classList.toggle('sel', R === sel); g.classList.toggle('here', R === here); g.querySelector('.rt').textContent = `treasure ${R.treasures.filter(t => O.found[t.id]).length}/${R.treasures.length}`; }
     $('cShip').setAttribute('transform', `translate(${here.chart[0] + 66} ${here.chart[1] - 26})`);
-    const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid);
+    const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid && (!G.jobOpen || G.jobOpen(j)));
     const night = G.timeOfDay() === 'night', move = sel !== here ? UI.travelCost(here, sel) : null;
     const head = {halcyon:'HOME WATERS QUIET; CAFÉ DOES BRISK TRADE', badlands:'BANDITS PLAGUE RED MESA; RACE PURSES SWELL', frostback:'MAIL GETS THROUGH DESPITE SNOW', keys:'NAVY HELPLESS AS CORSAIRS RULE THE KEYS', calavera:'PIRATE BRETHREN DENY "KING" RUMOURS; VOLCANO RUMBLES', rustwater:'GHOST PLANES OVER GANTRY? CITY HALL SAYS NONSENSE'}[sel.id];
     $('cSide').innerHTML = `<div class="np-mast"><span>Day ${O.day}</span><b>THE CHART TABLE</b><span>${esc(G.timeLabel())}</span></div>
