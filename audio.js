@@ -60,10 +60,10 @@ const A = G.audio = {
     }
   },
   thr(k, gap){ const n = performance.now(); if (n - (this.last[k] || 0) < gap) return true; this.last[k] = n; return false; },
-  one(k, gain = 1, rate = 1, offset = 0){
+  one(k, gain = 1, rate = 1, offset = 0, dest = null){
     const c = this.ctx, b = this.buf[k]; if (!c || !b || gain < 0.01) return;
     const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain;
-    s.connect(g).connect(this.sfxBus); s.start(0, (this.trim[k] ? this.trim[k].s : 0) + offset);
+    s.connect(g).connect(dest || this.sfxBus); s.start(0, (this.trim[k] ? this.trim[k].s : 0) + offset);
   },
   att(pos, range = 1500){ const g = G.game; if (!g || !g.camera) return 0.5; return Math.max(0, 1 - g.camera.position.distanceTo(pos)/range)**1.6; },
 
@@ -112,12 +112,21 @@ const A = G.audio = {
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
   /* caliber sets the voice: the .30 a quick high crack, the .70 a slow deep thump */
-  // the gunshot recording is nearly all below 200 Hz, so pitching it far down sends it under what speakers can play: the heavy guns
-  // keep a moderate pitch and get their weight from a short, sped-up small explosion layered under each shot instead
-  calPitch(def){ return 0.76 + ((def.pitch || 1) - 0.75)*0.85; },
-  playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def), heavy = Math.max(0, Math.min(1, (0.98 - p)/0.22));
-    this.one('gunshot', 0.4 + 0.25*heavy, p*(0.97 + Math.random()*0.06)); this.one('guntail', 0.06 + 0.3*heavy, p*(0.96 + Math.random()*0.08));
-    if (heavy > 0.05) this.one('boomsmall', 0.28*heavy, 1.75 + Math.random()*0.15); },
+  // a cannon's voice for the heavy guns: the recordings are nearly all below 100 Hz, which small speakers can't play, so the heavy
+  // shots go through a bus that lifts the low-mids and drives a soft saturator; its harmonics let the ear hear the deep fundamental
+  heavyBus(){
+    if (this._heavy) return this._heavy; const c = this.ctx;
+    const eq = c.createBiquadFilter(); eq.type = 'peaking'; eq.frequency.value = 170; eq.Q.value = 0.8; eq.gain.value = 11;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 0.5;
+    const ws = c.createWaveShaper(), N = 1024, cv = new Float32Array(N); for (let i = 0; i < N; i++) { const x = i/(N - 1)*2 - 1; cv[i] = Math.tanh(x*2.6)/Math.tanh(2.6); } ws.curve = cv; ws.oversample = '2x';
+    const out = c.createGain(); out.gain.value = 0.7;
+    eq.connect(ws).connect(lp).connect(out).connect(this.sfxBus); return (this._heavy = eq);
+  },
+  calPitch(def){ return 0.5 + ((def.pitch || 1) - 0.75)*1.5; },   // .70 0.5, .60 0.73, .50 0.88, .40 0.97, .30 1.1
+  playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def), heavy = Math.max(0, Math.min(1, (0.9 - p)/0.4)), r = 0.97 + Math.random()*0.06;
+    const bus = heavy > 0.05 ? this.heavyBus() : null;
+    this.one('gunshot', 0.42 + 0.2*heavy, p*r, 0, bus); this.one('guntail', 0.06 + 0.3*heavy, p*r, 0, bus);
+    if (heavy > 0.3) this.one('boomsmall', 0.4*heavy, 0.9 + Math.random()*0.1, 0, bus); },
   shot(pos, pitch){ const a = this.att(pos, 1200); if (a < 0.02 || this.thr('shot', 55)) return; this.one('gunshot', a*0.5, pitch*(0.95 + Math.random()*0.1)); },
   rocket(a = 1){ this.one('rocket', 0.6*a, 0.95 + Math.random()*0.1); },
   boom(pos, big){ const a = this.att(pos, big ? 3500 : 2200); if (a < 0.02 || this.thr(big ? 'boomB' : 'boomS', 60)) return; this.one(big ? 'boom' : 'boomsmall', (big ? 1 : 0.8)*a + 0.08, big ? 0.9 + Math.random()*0.15 : 1.05 + Math.random()*0.2); },
