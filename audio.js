@@ -18,7 +18,7 @@ const A = G.audio = {
         const pr = c.decodeAudioData(u8.buffer, ok, () => {}); if (pr && pr.then) pr.then(ok).catch(() => {});
       }
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
-      if (typeof fetch === 'function') fetch('sounds/turbine.mp3').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
+      if (typeof fetch === 'function') fetch('sounds/turbine.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : 1; },
