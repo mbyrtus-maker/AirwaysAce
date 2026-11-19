@@ -2051,5 +2051,166 @@ G.buildSkullRock = () => {
   return g;
 };
 /* the geometry kit, for scenery built in other files (Rustwater's city, bridges and balloons) */
+/* ---------- Cíbola, the city in the mesa ----------
+   A Spanish-colonial town gone Deco, crowded along one side of the runway: back-to-back rows of stucco and adobe houses on a paseo and
+   two back streets, a market plaza with a fountain, a mission church, a cantina, pueblo terraces stepping up the cavern wall, and
+   El Topo's Palace, a tower with a gilded dome standing as tall as the roof allows. Built in the cavern's own frame (x along the axis
+   towards the gate, z across, the floor at y = 0) into one Kit, so it is one mesh per material. Returns the group and the footprints
+   to make solid: {x, z, w, d, yaw, top}. o: rx, rz, ceil(x, z) (height of the roof you can hit), pillars [{lx, lz, r}]. */
+G.buildCibolaCity = (o = {}) => {
+  const g = new THREE.Group(), k = new Kit(), rr = G.rng(1540), pick = a => a[Math.floor(rr()*a.length)], ri = (a, b) => a + rr()*(b - a);
+  const rx = o.rx || 330, rz = o.rz || 230, ceil = o.ceil || (() => 95), pillars = o.pillars || [], solids = [], bulbs = [], bulbs2 = [], taken = [];
+  const M = (hex, r = 0.9) => G.mat(hex, {roughness:r});
+  const WALLS = [0xe6d8bc, 0xdcc39a, 0xd2a878, 0xe0cfa6, 0xcf9c6c, 0xd8b488].map(h => M(h)), ADOBE = [0xc28a5c, 0xb67a4e, 0xcf9a68].map(h => M(h, 0.95)), TILE = [M(0xa6452b, 0.8), M(0x8f3a26, 0.8)];
+  const wood = M(0x4a3424), trim = M(0xefe4c8), turq = M(0x2f8f8a, 0.7), stone = M(0x8f7a62, 0.95), pave = M(0x8a6e52, 1), flag = M(0xb39a78, 1), red = M(0xb5382c), yel = M(0xe0b040);
+  const lit = G.mat(0x3b3424, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:1.0}), unlit = M(0x2b2118, 0.5);
+  const gold = G.mat(0xd9a82e, {roughness:0.3, metalness:0.4, emissive:0xff9a20, emissiveIntensity:0.3}), glow = lamp(0xffd27a), pink = lamp(0xff4f8a), aqua = lamp(0x4fe0d0);
+  const rect = (w, h) => { const a = []; quad(a, [-w/2, -h/2, 0], [w/2, -h/2, 0], [w/2, h/2, 0], [-w/2, h/2, 0]); return a; };
+  const at = (B, x, y, z) => [B[0]*x + B[1]*y + B[2]*z + B[3], B[4]*x + B[5]*y + B[6]*z + B[7], B[8]*x + B[9]*y + B[10]*z + B[11]];
+  const face = (B, f, w, d) => mul(B, RY(f*PI/2), T(0, 0, (f % 2 ? w : d)/2));                          // a wall of a w x d block: 0 front (+z), 1 +x, 2 back, 3 -x
+  const dome = (r, h, n = 10, m = 4) => { const rings = []; for (let i = 0; i <= m; i++) { const a = i/m*PI/2, ring = []; for (let j = 0; j < n; j++) { const t = (j + 0.5)*2*PI/n; ring.push([Math.cos(t)*r*Math.max(0.02, Math.cos(a)), Math.sin(a)*h, Math.sin(t)*r*Math.max(0.02, Math.cos(a))]); } rings.push(ring); } return loft(rings); };
+  const inside = (x, z, m = 0) => Math.hypot(x/(rx - m), z/(rz - m)) < 0.955 && pillars.every(q => Math.hypot(x - q.lx, z - q.lz) > q.r*2.9 + 4 + m);
+  const fits = (x0, x1, z0, z1, m = 2) => inside(x0, z0, m) && inside(x1, z0, m) && inside(x0, z1, m) && inside(x1, z1, m) && inside((x0 + x1)/2, (z0 + z1)/2, m + Math.hypot(x1 - x0, z1 - z0)*0.3) && !taken.some(t => x0 < t[1] && x1 > t[0] && z0 < t[3] && z1 > t[2]);
+  const roofOver = (x, z, r) => Math.min(ceil(x, z), ceil(x - r, z - r), ceil(x + r, z - r), ceil(x - r, z + r), ceil(x + r, z + r));
+  const solid = (x, z, w, d, yaw, top) => solids.push({x, z, w, d, yaw, top});
+  /* windows on one wall: a row a floor, most of them lit */
+  const windows = (F, fw, y0, floors, fh, pl = 0.62, ww = 1.15, wh = 1.7) => { const n = Math.max(1, Math.floor((fw - 1)/3.3));
+    for (let fl = 0; fl < floors; fl++) for (let i = 0; i < n; i++) { if (rr() < 0.16) continue; k.add(rect(ww, wh), rr() < pl ? lit : unlit, mul(F, T((i + 0.5 - n/2)*fw/n*0.92, y0 + fl*fh + fh*0.56, 0.05))); } };
+  /* a town house: stucco under tiles or a flat roof, or an adobe block with its roof beams poking out. Front is local +z. */
+  const house = (X, Z, w, d, floors, yaw, h2 = {}) => {
+    const B = mul(T(X, 0, Z), RY(yaw)), fh = 3.5, h = floors*fh + 0.7, pueblo = h2.pueblo ?? rr() < 0.28, wall = h2.wall || (pueblo ? pick(ADOBE) : pick(WALLS)), sides = h2.sides || [0, 2];
+    k.add(box(w, h, d), wall, mul(B, T(0, h/2, 0))); let top = h;
+    const tiled = !pueblo && (h2.tiled ?? rr() < 0.55);
+    if (tiled) { const along = w >= d, L = (along ? w : d)/2 + 0.6, S = (along ? d : w)/2 + 0.6, rh = Math.min(3.4, S*0.5), hip = rr() < 0.4 ? Math.min(L - 0.6, S*0.8) : 0;
+      k.add(loft([[[-L, 0, -S], [L, 0, -S], [L, 0, S], [-L, 0, S]], [[-(L - hip), rh, -0.12], [L - hip, rh, -0.12], [L - hip, rh, 0.12], [-(L - hip), rh, 0.12]]]), pick(TILE), mul(B, T(0, h, 0), RY(along ? 0 : PI/2))); top = h + rh; }
+    else { if (!pueblo) k.add(box(w + 0.5, 0.5, d + 0.5), rr() < 0.5 ? trim : TILE[0], mul(B, T(0, h - 0.05, 0)));
+      if (rr() < 0.4) { const pw = ri(2.6, 4), px = ri(-1, 1)*(w/2 - pw/2 - 0.4), pz = ri(-1, 1)*(d/2 - pw/2 - 0.4); k.add(box(pw, 2.5, pw), wall, mul(B, T(px, h + 1.25, pz))); k.add(rect(0.9, 1.9), wood, mul(B, T(px, h + 1, pz + pw/2 + 0.04))); top = h + 2.5; }   // a stair hut on the roof
+      if (pueblo) { const n = Math.min(5, Math.floor(w/2.6)); for (let i = 0; i < n; i++) k.add(box(0.3, 0.3, 1.1), wood, mul(B, T((i + 0.5 - n/2)*w/n, h - 0.9, d/2 + 0.3))); } }
+    for (const f of sides) windows(face(B, f, w, d), f % 2 ? d : w, 0, floors, fh, f === 0 ? 0.7 : 0.5);
+    const F0 = face(B, 0, w, d), dx = ri(-0.3, 0.3)*w;
+    k.add(rect(1.5, 2.5), rr() < 0.4 ? turq : wood, mul(F0, T(dx, 1.25, 0.08)));
+    if (h2.arcade ?? (floors > 1 && rr() < 0.3)) { const n = Math.max(2, Math.round(w/3.4));   // a portal: a tiled lean-to on posts along the street
+      k.add(box(w, 0.3, 2.7), pick(TILE), mul(F0, T(0, 3.25, 1.3), RX(0.14))); for (let i = 0; i <= n; i++) k.add(box(0.34, 3.1, 0.34), wood, mul(F0, T(-w/2 + 0.3 + i*(w - 0.6)/n, 1.55, 2.4))); }
+    else if (floors > 1 && rr() < 0.45) { const bw = Math.min(w - 1.5, ri(3.5, 7)), bx = ri(-1, 1)*(w - bw)/2*0.8, by = fh + 0.25 + (floors > 2 && rr() < 0.4 ? fh : 0);   // a balcony
+      k.add(box(bw, 0.22, 1.2), wood, mul(F0, T(bx, by, 0.6))); k.add(box(bw, 0.12, 0.1), wood, mul(F0, T(bx, by + 1, 1.15))); for (const e of [-1, 1]) k.add(box(0.12, 1, 0.12), wood, mul(F0, T(bx + e*(bw/2 - 0.06), by + 0.5, 1.15)));
+      k.add(rect(1.2, 2.1), lit, mul(F0, T(bx, by + 1.2, 0.07))); }
+    else if (rr() < 0.4) k.add(box(Math.min(w - 1, 3.6), 0.12, 1.7), pick([red, turq, yel, trim]), mul(F0, T(dx, 2.9, 0.8), RX(0.42)));   // a shop awning
+    if (rr() < 0.55) bulbs.push(at(F0, dx + 1.3, 2.9, 0.5));
+    solid(X, Z, w, d, yaw, top); return top;
+  };
+
+  /* ----- the plan ----- */
+  const PX0 = -18, PX1 = 46, PZ0 = 96, PZ1 = 126, TX = -40, TZ = 111, CX = 65, CZ = 111;   // plaza, tower, church
+  taken.push([TX - 18, PX0, PZ0, PZ1], [PX0, PX1, PZ0 - 0.5, PZ1 + 0.5], [PX1, CX + 17, PZ0, PZ1]);
+
+  /* El Topo's Palace: an arcaded podium, a ribbed Deco shaft, two setbacks, a lit lantern and a gilded dome */
+  { const H = Math.min(70, roofOver(TX, TZ, 9) - 14), s = H/70, Y = v => v*s, B = T(TX, 0, TZ), cream = WALLS[0], ochre = WALLS[1];
+    const pw = 30, ph = Y(11.5), sw = 17, s0 = ph, s1 = Y(44), uw = 12.5, u1 = Y(53.5), l1 = Y(60);
+    k.add(box(pw, ph, pw), cream, mul(B, T(0, ph/2, 0))); k.add(box(pw + 0.8, 0.7, pw + 0.8), TILE[0], mul(B, T(0, ph, 0)));
+    for (let f = 0; f < 4; f++) { const F = face(B, f, pw, pw); windows(F, pw, Y(3.6), 2, Y(3.6), 0.85, 1.4, 2);
+      k.add(box(pw, 0.3, 3), TILE[1], mul(F, T(0, Y(3.7), 1.45), RX(0.14))); for (let i = 0; i <= 8; i++) k.add(box(0.45, Y(3.6), 0.45), trim, mul(F, T(-pw/2 + 0.4 + i*(pw - 0.8)/8, Y(1.8), 2.7)));   // the arcade
+      for (let i = 0; i < 8; i++) k.add(rect(2.3, Y(2.6)), i % 2 ? lit : unlit, mul(F, T(-pw/2 + (i + 0.5)*pw/8, Y(1.5), 0.05)));
+      const c = at(mul(B, RY(f*PI/2)), pw/2 - 2.2, 0, pw/2 - 2.2); k.add(cyl(1.9, 1.9, Y(3), 8), cream, T(c[0], ph + Y(1.5), c[2])); k.add(dome(2.2, 2.2, 8, 3), gold, T(c[0], ph + Y(3), c[2]));   // a cupola on each corner
+      bulbs.push([c[0], ph + Y(3) + 2.6, c[2]]); }
+    k.add(box(sw, s1 - s0, sw), ochre, mul(B, T(0, (s0 + s1)/2, 0))); k.add(box(sw + 0.7, 0.6, sw + 0.7), TILE[0], mul(B, T(0, s0 + (s1 - s0)*0.5, 0)));
+    for (let f = 0; f < 4; f++) { const F = face(B, f, sw, sw), nf = Math.floor((s1 - s0 - 2)/3.5);
+      for (let i = 0; i < 4; i++) k.add(box(0.9, s1 - s0 + (i === 0 || i === 3 ? 2.5 : 4.2), 0.55), trim, mul(F, T(-sw/2 + 0.45 + i*(sw - 0.9)/3, (s0 + s1)/2 + 1.2, 0.2)));   // the ribs run up past the parapet
+      for (let c = 0; c < 3; c++) for (let fl = 0; fl < nf; fl++) k.add(rect(2.4, 2.1), rr() < 0.72 ? lit : unlit, mul(F, T(-sw/2 + 0.45 + (c + 0.5)*(sw - 0.9)/3, s0 + 2.4 + fl*3.5, 0.05))); }
+    k.add(box(sw + 0.5, 0.8, sw + 0.5), trim, mul(B, T(0, s1, 0)));
+    k.add(box(uw, u1 - s1, uw), cream, mul(B, T(0, (s1 + u1)/2, 0))); k.add(box(uw + 0.6, 0.7, uw + 0.6), gold, mul(B, T(0, u1, 0)));
+    for (let f = 0; f < 4; f++) { const F = face(B, f, uw, uw); for (let c = 0; c < 3; c++) k.add(rect(2, u1 - s1 - 3.2), glow, mul(F, T((c - 1)*3.6, (s1 + u1)/2 + 0.2, 0.05)));
+      for (const e of [-1, 1]) { const c = at(mul(B, RY(f*PI/2)), e*(sw/2 - 1.3), 0, sw/2 - 1.3); if (e > 0) { k.add(box(2.2, Y(5), 2.2), cream, T(c[0], s1 + Y(2.5), c[2])); k.add(cyl(0, 1.7, 2.4, 4), gold, mul(T(c[0], s1 + Y(5) + 1.2, c[2]), RY(PI/4))); bulbs.push([c[0], s1 + Y(5) + 2.9, c[2]]); } } }
+    k.add(cyl(5.1, 5.1, l1 - u1, 8), cream, mul(B, T(0, (u1 + l1)/2, 0))); for (let i = 0; i < 8; i++) k.add(rect(2.3, l1 - u1 - 2), glow, mul(B, RY(i*PI/4), T(0, (u1 + l1)/2, 5.1*Math.cos(PI/8) + 0.05)));   // the lantern, lit from within
+    k.add(cyl(6, 6, 0.7, 8), gold, mul(B, T(0, l1, 0))); k.add(dome(5.3, Y(6.2), 12, 5), gold, mul(B, T(0, l1 + 0.3, 0)));
+    k.add(cyl(0.12, 0.5, H - l1 - Y(6.2), 6), gold, mul(B, T(0, (H + l1 + Y(6.2))/2, 0))); k.add(ball(0.7, 6, 4), lamp(0xffe9a8), mul(B, T(0, H - 0.4, 0)));
+    for (let i = 0; i < 16; i++) { const a = i/16*2*PI; bulbs.push([TX + Math.cos(a)*6.3, l1 + 0.9, TZ + Math.sin(a)*6.3]); }
+    for (let i = 0; i < 24; i++) { const u = (i % 6 + 0.5)/6 - 0.5, f = Math.floor(i/6), c = at(mul(B, RY(f*PI/2)), u*(sw + 0.6), 0, sw/2 + 0.5); bulbs.push([c[0], s1 + 0.9, c[2]]); }
+    for (let i = 0; i < 40; i++) { const u = (i % 10 + 0.5)/10 - 0.5, f = Math.floor(i/10), c = at(mul(B, RY(f*PI/2)), u*(pw + 0.8), 0, pw/2 + 0.6); bulbs.push([c[0], ph + 0.9, c[2]]); }
+    k.add(box(13, 3, 0.4), M(0x2a1c18), mul(B, T(pw/2 - 0.1, ph + 2.6, 0), RY(PI/2))); k.add(box(13.6, 0.25, 0.5), pink, mul(B, T(pw/2 - 0.1, ph + 4.2, 0), RY(PI/2))); k.add(box(13.6, 0.25, 0.5), pink, mul(B, T(pw/2 - 0.1, ph + 1, 0), RY(PI/2)));
+    g.userData.signs = [{text:'EL TOPO PALACE', w:12, h:1.5, x:TX + pw/2 + 0.2, y:ph + 2.6, z:TZ, yaw:PI/2}];
+    solid(TX, TZ, pw + 2, pw + 2, 0, ph + 0.5); solid(TX, TZ, sw, sw, 0, s1 + 4); solid(TX, TZ, uw, uw, 0, u1 + 0.5); solid(TX, TZ, 11, 11, 0, H);
+    g.userData.tower = {x:TX, z:TZ, h:H, w:sw}; const lt = new THREE.PointLight(0xffc070, 0.9, 240, 1.5); lt.position.set(TX + 12, Math.min(H - 6, l1 + 2), TZ - 12); g.add(lt); }
+
+  /* the mission church on the east side of the plaza: curved gable, one bell tower, tiled nave */
+  { const B = mul(T(CX, 0, CZ), RY(-PI/2)), wh = WALLS[0];   // front (+z here) faces the plaza
+    k.add(box(14, 10, 24), wh, mul(B, T(0, 5, -1))); k.add(loft([[[-7.6, 0, -13.4], [7.6, 0, -13.4], [7.6, 0, 11], [-7.6, 0, 11]], [[-0.1, 4, -13.4], [0.1, 4, -13.4], [0.1, 4, 11], [-0.1, 4, 11]]]), TILE[0], mul(B, T(0, 10, 0)));
+    k.add(box(17, 13, 1.4), wh, mul(B, T(0, 6.5, 11.6))); k.add(box(11, 3, 1.4), wh, mul(B, T(0, 14.5, 11.6))); k.add(box(5.5, 2.4, 1.4), wh, mul(B, T(0, 17.2, 11.6))); k.add(cyl(2.75, 2.75, 1.4, 10), wh, mul(B, T(0, 18.3, 11.6), RX(PI/2)));
+    k.add(box(17.5, 0.5, 1.8), TILE[1], mul(B, T(0, 13.1, 11.6))); k.add(box(0.35, 3.4, 0.35), gold, mul(B, T(0, 22.6, 11.6))); k.add(box(1.8, 0.35, 0.35), gold, mul(B, T(0, 23.2, 11.6)));
+    k.add(rect(3.2, 4.8), wood, mul(B, T(0, 2.4, 12.36))); k.add(rect(4.2, 5.4), turq, mul(B, T(0, 2.7, 12.33))); k.add(disc(1.5, 10), lit, mul(B, T(0, 9.6, 12.36))); k.add(rect(1.4, 1.6), unlit, mul(B, T(0, 15, 12.36))); k.add(cyl(0.5, 0.75, 0.9, 6), gold, mul(B, T(0, 14.9, 12.2)));
+    for (let i = 0; i < 3; i++) k.add(box(9 + i*1.6, 0.4, 1.2 + i*1.1), stone, mul(B, T(0, 1 - i*0.4, 12.9 + i*0.55)));
+    for (const f of [1, 3]) windows(face(mul(B, T(0, 0, -1)), f, 14, 24), 24, 3.6, 1, 4, 0.8, 1.1, 2.6);
+    const BT = mul(B, T(-10.2, 0, 8.4)); k.add(box(6, 19, 6), wh, mul(BT, T(0, 9.5, 0))); k.add(box(6.6, 0.6, 6.6), TILE[1], mul(BT, T(0, 19, 0)));
+    for (const [ex, ez] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) k.add(box(1.1, 4.4, 1.1), wh, mul(BT, T(ex*2.2, 21.4, ez*2.2)));
+    k.add(box(5.6, 0.7, 5.6), wh, mul(BT, T(0, 23.9, 0))); k.add(dome(2.9, 3, 8, 3), TILE[0], mul(BT, T(0, 24.2, 0))); k.add(box(0.3, 2.6, 0.3), gold, mul(BT, T(0, 28.4, 0))); k.add(box(1.4, 0.3, 0.3), gold, mul(BT, T(0, 28.9, 0)));
+    k.add(cyl(0.5, 1.15, 1.7, 8), gold, mul(BT, T(0, 21.6, 0))); for (let f = 0; f < 4; f++) { const F = face(BT, f, 6, 6); windows(F, 6, 5, 3, 4.4, 0.5, 0.9, 1.8); }
+    bulbs.push(at(BT, 0, 22.9, 0), at(B, -3.2, 5.6, 12.6), at(B, 3.2, 5.6, 12.6));
+    solid(CX + 0.5, CZ, 26, 15, 0, 14.5); solid(CX - 11.6, CZ, 2.4, 17, 0, 19.5); const c = at(BT, 0, 0, 0); solid(c[0], c[2], 6.4, 6.4, 0, 29.5); }
+
+  /* the plaza: flagstones, a fountain, market stalls under striped awnings */
+  { k.add(box(PX1 - PX0 + 10, 0.24, PZ1 - PZ0), flag, T((PX0 + PX1)/2 + 0.5, 0.1, (PZ0 + PZ1)/2)); const fx = (PX0 + PX1)/2, fz = (PZ0 + PZ1)/2;
+    k.add(cyl(4.4, 4.7, 0.9, 10), stone, T(fx, 0.6, fz)); k.add(cyl(3.8, 3.8, 0.1, 10), turq, T(fx, 1.08, fz)); k.add(cyl(0.45, 0.7, 3, 6), stone, T(fx, 2.4, fz)); k.add(cyl(1.7, 0.5, 0.5, 8), stone, T(fx, 3.9, fz)); k.add(ball(0.5, 6, 4), gold, T(fx, 4.6, fz));
+    const AW = [red, turq, yel, trim];
+    for (let i = 0; i < 10; i++) { const sx = PX0 + 6 + (i % 5)*(PX1 - PX0 - 12)/4, sz = i < 5 ? PZ0 + 5.5 : PZ1 - 5.5, e = i < 5 ? 1 : -1; if (Math.abs(sx - fx) < 5) continue; const B = mul(T(sx, 0, sz), RY(e > 0 ? 0 : PI)), c1 = pick(AW), c2 = pick(AW);
+      for (let j = 0; j < 4; j++) k.add(box(1.05, 0.1, 3.4), j % 2 ? c1 : c2, mul(B, T(-1.58 + j*1.05, 2.9, 0), RX(0.2)));
+      for (const [px, pz, ph] of [[-2, -1.5, 3.2], [2, -1.5, 3.2], [-2, 1.5, 2.6], [2, 1.5, 2.6]]) k.add(box(0.14, ph, 0.14), wood, mul(B, T(px, ph/2, pz)));
+      k.add(box(3.6, 0.9, 1.4), wood, mul(B, T(0, 0.45, 0))); k.add(box(1, 0.5, 0.9), pick([red, yel, M(0x6a8a3a), M(0xd9742a)]), mul(B, T(ri(-1, 1), 1.15, 0))); bulbs.push(at(B, 0, 2.5, 1.6)); }
+    for (const [a, b] of [[[PX0, PZ0], [fx, fz]], [[PX1, PZ0], [fx, fz]], [[PX0, PZ1], [fx, fz]], [[PX1, PZ1], [fx, fz]]]) for (let i = 1; i < 12; i++) { const t = i/12; (i % 3 ? bulbs : bulbs2).push([a[0] + (b[0] - a[0])*t, 9 - 3.2*Math.sin(t*PI/2)*t - 1.2*Math.sin(t*PI), a[1] + (b[1] - a[1])*t]); }
+    k.add(cyl(0.16, 0.2, 9.4, 5), wood, T(fx, 4.7 + 4.6, fz)); for (const [x, z] of [[PX0, PZ0], [PX1, PZ0], [PX0, PZ1], [PX1, PZ1]]) k.add(cyl(0.14, 0.2, 9, 5), wood, T(x, 4.5, z));
+    const lt = new THREE.PointLight(0xffb060, 1.0, 230, 1.5); lt.position.set(fx, 16, fz); g.add(lt); }
+
+  /* pueblo terraces built into the wall: blocks stepping up and back, ladders from roof to roof */
+  { let t = 0.5; while (t < PI - 0.3) { const W = ri(15, 25), ct = Math.cos(t), sn = Math.sin(t), wx = ct*rx*0.965, wz = sn*rz*0.965, nl = Math.hypot(ct/rx, sn/rz), nx = -ct/rx/nl, nz = -sn/rz/nl;
+      const dt = (W + 0.6)/Math.hypot(rx*sn, rz*ct), tm = t + dt/2; t += dt; const cm = Math.cos(tm), sm = Math.sin(tm), ox = cm*rx*0.965, oz = sm*rz*0.965, yaw = Math.atan2(nx, nz);
+      const n = 2 + Math.floor(rr()*2.6), step = ri(5.5, 7.5), front = 7 + (n - 1)*step, fc = [ox + nx*front, oz + nz*front];
+      if (fc[1] < 60 || oz + nz*front - Math.abs(nx)*W/2 < 59 || pillars.some(q => Math.hypot(ox + nx*front/2 - q.lx, oz + nz*front/2 - q.lz) < q.r*2.9 + 6 + Math.hypot(W, front)/2)) continue;
+      const B = mul(T(ox, 0, oz), RY(yaw)), col = pick(ADOBE); let y0 = 0, hw = Math.hypot(W, front + 12)/2;
+      taken.push([ox + nx*(front - 12)/2 - hw*0.8, ox + nx*(front - 12)/2 + hw*0.8, oz + nz*(front - 12)/2 - hw*0.8, oz + nz*(front - 12)/2 + hw*0.8]);
+      for (let i = 0; i < n; i++) { const fz = 7 + (n - 1 - i)*step, y1 = (i + 1)*3.9 + 0.5, w = W - i*ri(0.5, 2.5), bx = i ? ri(-1, 1)*(W - w)/2 : 0, c = i % 2 && rr() < 0.5 ? pick(ADOBE) : col, F = mul(B, T(bx, 0, fz));
+        k.add(box(w, y1, fz + 12), c, mul(B, T(bx, y1/2, (fz - 12)/2)));
+        const nw = Math.max(1, Math.floor(w/3.6)); for (let j = 0; j < nw; j++) { const x = (j + 0.5 - nw/2)*w/nw*0.9; if (rr() < 0.3) k.add(rect(1.3, 2.3), rr() < 0.4 ? turq : wood, mul(F, T(x, y0 + 1.2, 0.05))); else if (rr() < 0.85) k.add(rect(1, 1.2), rr() < 0.65 ? lit : unlit, mul(F, T(x, y0 + 2.2, 0.05))); }
+        for (let j = 0; j < 3; j++) k.add(box(0.3, 0.3, 1.1), wood, mul(F, T((j - 1)*w*0.3, y1 - 0.95, 0.3)));
+        if (i && rr() < 0.6) { const lx = ri(-1, 1)*(w/2 - 1.5); for (const e of [-0.3, 0.3]) k.add(bar([lx + e, y0, 1.7], [lx + e, y1 + 0.9, 0.15], 0.12), wood, F); }
+        if (rr() < 0.7) bulbs.push(at(F, ri(-1, 1)*w*0.35, y0 + 3, 0.5));
+        const c0 = at(B, bx, 0, (fz - 12)/2); solid(c0[0], c0[2], w, fz + 12, yaw, y1); y0 = y1; }
+      if (rr() < 0.4) { const sx = ri(-1, 1)*(W/2 - 2); for (let j = 0; j < 5; j++) k.add(box(2.6, 0.88*(5 - j), 1.05), stone, mul(B, T(sx, 0.44*(5 - j), front + 0.52 + j*1.05))); }   // steps up to the first roof
+    } }
+
+  /* the cantina, facing the plaza across the paseo: neon round the door */
+  { taken.push([3.5, 24.5, 76, 88.5]); const B = T(14, 0, 82.25); house(14, 82.25, 20, 11.5, 2, 0, {arcade:true, wall:WALLS[4], pueblo:false, tiled:false, sides:[0, 1, 2, 3]}); k.add(box(9, 2.2, 0.3), M(0x2a1c18), mul(B, T(0, 9, 5.95))); for (const y of [7.75, 10.25]) k.add(box(9.6, 0.22, 0.4), pink, mul(B, T(0, y, 6))); for (const e of [-1, 1]) k.add(box(0.22, 2.7, 0.4), aqua, mul(B, T(e*4.7, 9, 6)));
+    g.userData.signs.push({text:'CANTINA LA GILA', w:8.4, h:1.05, x:14, y:9, z:88.45, yaw:0}); }
+
+  /* the rows: houses back to back in blocks, between the paseo, two back streets and the cross streets */
+  const cross = []; { let x = -262; while (x < 250) { x += ri(34, 52); cross.push(x); x += 6; } }
+  const ROWS = [[63.5, 75, PI, 1, 2], [76.5, 88, 0, 1, 3], [96, 110, PI, 2, 4], [111.5, 126, 0, 2, 4], [132, 145, PI, 1, 3], [146.5, 159, 0, 1, 3], [165, 177, PI, 1, 3], [178.5, 190, 0, 1, 2], [195.5, 207, PI, 1, 2]];
+  let nHouse = 0;
+  for (const [z0, z1, yaw, f0, f1] of ROWS) { let x = -266, ci = 0, run = [];
+    const flush = () => { run.forEach((h, i) => { const sides = [0, 2]; if (i === 0 || run[i - 1].x1 < h.x0 - 1.5 || run[i - 1].fl < h.fl) sides.push(yaw ? 1 : 3); if (i === run.length - 1 || run[i + 1].x0 > h.x1 + 1.5 || run[i + 1].fl < h.fl) sides.push(yaw ? 3 : 1);
+        house((h.x0 + h.x1)/2, h.zc, h.x1 - h.x0, h.d, h.fl, yaw, {sides, arcade:h.arc}); nHouse++; }); run = []; };
+    while (x < 252) { while (ci < cross.length && cross[ci] + 6 <= x) ci++;
+      if (ci < cross.length && x >= cross[ci] && x < cross[ci] + 6) { flush(); x = cross[ci] + 6; ci++; continue; }
+      let w = ri(10, 19); const lim = ci < cross.length ? cross[ci] : 252; if (x + w > lim - 4) w = lim - x; if (w < 6) { x = lim; continue; }
+      const dz = z1 - z0 - ri(0, 2.5), zc = yaw ? z1 - dz/2 : z0 + dz/2, x0 = x + 0.15, x1 = x + w - 0.15; x += w;
+      if (!fits(x0, x1, zc - dz/2, zc + dz/2)) { flush(); continue; }
+      const near = Math.max(0, 1 - Math.hypot(x0 + w/2 - TX, zc - TZ)/150), fl = Math.max(1, Math.min(Math.round(f0 + rr()*(f1 - f0) + near*near*2.4*rr()), Math.floor((roofOver((x0 + x1)/2, zc, 8) - 22)/3.5), z0 < 70 ? 2 : 6));
+      run.push({x0, x1, zc, d:dz, fl, arc:(z0 === 76.5 || z0 === 96) ? rr() < 0.6 : undefined}); }
+    flush(); }
+
+  /* streets and lamps */
+  const xr = z => (rx - 4)*0.95*Math.sqrt(Math.max(0, 1 - (z/((rz - 4)*0.955))**2));
+  for (const [z, w0] of [[92, 8.4], [129, 6.4], [162, 6.4]]) { let a = -xr(z + 4) + 6, b = xr(z + 4) - 6; for (const q of pillars) if (Math.abs(q.lz - z) < q.r*2.9 + 6) { if (q.lx > 0) b = Math.min(b, q.lx - q.r*2.9 - 4); else a = Math.max(a, q.lx + q.r*2.9 + 4); }
+    k.add(box(b - a, 0.2, w0), pave, T((a + b)/2, 0.06, z)); if (z === 92) g.userData.paseo = {z, a, b};
+    for (let x = a + 8; x < b - 4; x += z === 92 ? 17 : 26) { if (z === 92 && x > PX0 - 4 && x < PX1 + 4) continue; for (let i = 0; i <= 6; i++) (((x/17) | 0) % 3 === 0 && i % 2 ? bulbs2 : bulbs).push([x + (i - 3)*0.25, 7.6 - 1.3*Math.sin(i/6*PI), z + (i - 3)*w0/6]); } }
+  for (const cx of cross) { const z1 = Math.min(212, (rz - 6)*0.955*Math.sqrt(Math.max(0, 1 - ((Math.abs(cx) + 6)/((rx - 6)*0.955))**2)) - 10); if (z1 > 70 && inside(cx + 3, 66, 4) && !(cx + 6 > TX - 18 && cx < CX + 17)) k.add(box(5.2, 0.2, z1 - 61), pave, T(cx + 3, 0, (z1 + 61)/2)); }
+  for (let x = -250; x <= 240; x += 22) if (inside(x, 60, 6)) { k.add(box(0.22, 4.2, 0.22), wood, T(x, 2.1, 60)); k.add(box(0.5, 0.5, 0.5), glow, T(x, 4.4, 60)); }   // a row of lanterns along the field
+  for (const q of pillars) if (q.lz > 0) for (let i = 0; i < 14; i++) { const a = i/14*2*PI, r = q.r*2.1; bulbs.push([q.lx + Math.cos(a)*r, 6.5, q.lz + Math.sin(a)*r]); }   // and round the foot of the pillars that stand in town
+
+  let tris = 0; for (const a of k.b.values()) tris += a.length/9;
+  k.build(g);
+  for (const [list, hex] of [[bulbs, 0xffd890], [bulbs2, 0x5fe0d0]]) { if (!list.length) continue; const im = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.42, 0), new THREE.MeshBasicMaterial({color:hex}), list.length), mx = new THREE.Matrix4();
+    list.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.add(im); tris += list.length*8; }
+  for (const s of g.userData.signs) { const nt = nameTex(s.text, '#ffd76a', '#ff6a8a'); if (!nt) continue; const m = new THREE.Mesh(new THREE.PlaneGeometry(s.w, s.h), new THREE.MeshBasicMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(s.x, s.y, s.z); m.rotation.y = s.yaw; g.add(m); }
+  Object.assign(g.userData, {solids, tris, houses:nHouse, bulbs:bulbs.length + bulbs2.length});
+  return g;
+};
 G.KIT = {Kit, box, cyl, bar, ball, lathe, loft, lamp, T, RX, RY, RZ, mul, xf};
 })();

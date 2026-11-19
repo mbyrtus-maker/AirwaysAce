@@ -66,7 +66,7 @@ const REG = G.REGIONS = {
       {id:'dustdevil', kind:'strip', name:'Dust Devil Field', contact:'kate', at:{want:'flat', x:-1800, z:1200, r:1400}, r:400, yaw:0.2, strip:{sign:'DUST DEVIL FIELD', walls:0xd9b48a, trim:0x6b3a2a, accent:0xc0392b, grass:0x9a7a4a, tar:0x5a4a3a, signCol:'#ffb04a', signGlow:'#ffe3a0'}},
       {id:'silverspur', kind:'hook', name:'Silver Spur Hotel', contact:'pratt', at:{want:'high', x:2200, z:-900, r:1200}, r:330, town:true, tower:{h:104, w:36, walls:0xc9a27a, sign:'SILVER SPUR HOTEL', signCol:'#3a2418', signGlow:'#dba63e'}},
       {id:'copperton', kind:'strip', name:'Copperton', contact:'doc', at:{want:'flat', x:-200, z:-2900, r:1500}, r:420, yaw:1.4, town:18, strip:{sign:'COPPERTON', walls:0xc9a27a, trim:0x6b3a2a, accent:0x2f5d8a, signCol:'#2a1d10', signGlow:'#f2c14e'}},
-      {id:'cibola', kind:'strip', name:'Cíbola', contact:'ramon', at:{want:'cavern'}, cavern:true, town:12, townOff:[-145, 0], townR:80, strip:{sign:'CÍBOLA', walls:0xe0c8a0, trim:0x8e231c, accent:0xd9b44a, grass:0x9a7a4a, tar:0x5a4a3a, signCol:'#dba63e', signGlow:'#ffe3a0'}},
+      {id:'cibola', kind:'strip', name:'Cíbola', contact:'ramon', at:{want:'cavern'}, cavern:true, cityOf:'cibola', townOff:[-145, 0], townR:80, strip:{sign:'CÍBOLA', walls:0xe0c8a0, trim:0x8e231c, accent:0xd9b44a, grass:0x9a7a4a, tar:0x5a4a3a, signCol:'#dba63e', signGlow:'#ffe3a0'}},
       {id:'aguafria', kind:'hook', name:'Agua Fria', contact:'lucia', at:{want:'high', x:2500, z:1000, r:900}, r:330, town:true, tower:{h:88, w:34, walls:0xe0c8a0, sign:'HOTEL AGUA FRIA', signCol:'#6b3a2a', signGlow:'#f2c14e'}}
     ],
     marks:[
@@ -76,8 +76,9 @@ const REG = G.REGIONS = {
       {id:'canyon', kind:'none', name:'the deep canyon', at:{want:'low', x:1600, z:-2600, r:1500, minH:4}},
       {id:'butte', kind:'none', name:'Sentinel Butte', at:{want:'high', x:0, z:0, r:5000}}
     ],
-    // rock: the rough-hewn interior. The gate is an open slot canyon (hw0 at the mouth to hw1 at the mesa wall, half-widths of the cut) ending in a short roofed portal
-    cavern:{id:'cibola', name:'Cíbola', rx:330, rz:230, H:95, rock:true, gate:{id:'cibolagate', name:'the Gate of Cíbola', bw:60, bh:44, shape:'none', cut:66, canyon:{hw0:105, hw1:70, len:58}}},
+    // rock: the rough-hewn interior. The gate is an open slot canyon ending in a short roofed portal: hw0 at the mouth to hw1 at the mesa wall are half-widths of the
+    // terrain cut, cw0 to cw1 the half-widths left clear between the rock walls built inside it (a test of flying, but open to the sky)
+    cavern:{id:'cibola', name:'Cíbola', rx:330, rz:230, H:95, rock:true, gate:{id:'cibolagate', name:'the Gate of Cíbola', bw:44, bh:36, shape:'none', cut:66, canyon:{hw0:92, hw1:70, cw0:51, cw1:28, len:58}}},
     treasures:[
       {id:'b1', name:'Canyon cache', at:'canyon', hint:'Prospectors say a stagecoach went off the rim into the deep canyon south-east. The strongbox is still down there.', reward:{cash:3000}},
       {id:'b2', name:'The Sentinel\'s secret', at:'butte', hint:'On top of Sentinel Butte, the tallest rock in the Badlands, there\'s a tarp over something with wings.', reward:{chassis:'grackle'}},
@@ -758,6 +759,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const cafe = rot(new V3(ud.apron.x + 44, 0, ud.apron.z + 10)); w.addBlocker({x:cafe.x, z:cafe.z, hw:12, hd:12, top:sh + 13});
       site.point = new V3(at.x, sh, at.z); site.yaw = yaw; site.markAt = site.apron.clone().setY(sh + 24);
       if (sd.town) { const o = sd.townOff || [235, -30]; this.buildTown(g, rot(new V3(o[0], 0, o[1])), sd.townR || 140, sd); }
+      if (sd.cityOf && this.cavern) this.buildHiddenCity(g, sd);
       if (this.night) this.anim.push(() => { if (Math.random() < 0.3) g.fx.fire.emit(site.apron.x + (Math.random() - 0.5)*40, sh + 1, site.apron.z + (Math.random() - 0.5)*50, 0, 0.5, 0, 2.2, 0.3, 1, 0.8, 0.45, 0.8, 0, 1, 0); });
     }
     if (sd.kind === 'field') {
@@ -811,6 +813,19 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     }
     T.carsOn(this.night || sd.cavern ? 6 : 12);
     if (!sd.cavern) T.air({x:c.x, z:c.z}, {circlers:2, blimp:false, R:380});
+  },
+  /* Cíbola proper: the city in the cavern, all along one side of the field (G.buildCibolaCity lays it out in the cavern's own frame).
+     Every house, terrace and stage of the tower is solid; a few cars cruise the paseo. */
+  buildHiddenCity(g, sd){
+    const C = this.cavern, w = g.world, ax = C.ax[0], az = C.ax[1], th = Math.atan2(-az, ax);
+    const city = G.buildCibolaCity({rx:C.rx, rz:C.rz, ceil:(lx, lz) => C.ceil(0, lx, lz) - C.floor, pillars:C.pillars || [], night:this.night});
+    city.position.set(C.x, C.floor, C.z); city.rotation.y = th; g.scene.add(city);
+    const toW = (lx, lz) => [C.x + ax*lx - az*lz, C.z + az*lx + ax*lz];
+    for (const b of city.userData.solids) { const [x, z] = toW(b.x, b.z), c = Math.abs(Math.cos(b.yaw + th)), s = Math.abs(Math.sin(b.yaw + th)); w.addBlocker({x, z, hw:(b.w*c + b.d*s)/2, hd:(b.w*s + b.d*c)/2, top:C.floor + b.top}); }
+    C.city = city.userData; C.tris = (C.tris || 0) + city.userData.tris;
+    const ps = city.userData.paseo;
+    if (ps && Math.abs(az) < 1e-6) { const T = g.traffic || (g.traffic = new G.Traffic(g)), [x, z] = toW((ps.a + ps.b)/2, ps.z);   // the paseo runs along a world axis: Traffic can drive it
+      T.grid = {C:{x, z, r:(ps.b - ps.a)/2}, h:C.floor + 0.1, B:1e6, W:8, lanes:[{axis:'x', c:0, half:(ps.b - ps.a)/2 - 4}]}; T.grids.push(T.grid); T.carsOn(5); }
   },
   /* the Brethren's towns: no street grid, just crooked stilt-houses crowded along boardwalks round a beached galleon */
   pirateTown(g, c, r, sd, hook, h, rr){
@@ -985,7 +1000,9 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const T = tn.T, td = T.td, s0 = T.pts[T.i0].s, s1 = T.pts[T.i1].s;
       for (const p of g.planes) {
         if (!p.alive || p.frozen) continue;
-        const a = this.tunnelAt(tn, p.pos.x, p.pos.z); if (Math.abs(a.x) > tn.W || a.s < s0 - 2 || a.s > s1 + 2) { if (p.isPlayer && tn.seen && (a.s < s0 - 20 || a.s > s1 + 20 || Math.abs(a.x) > tn.W)) this.tunnelPass(tn); continue; }
+        const a = this.tunnelAt(tn, p.pos.x, p.pos.z);
+        if (tn.wall && a.s < s0 - 2) { const wt = tn.wall(a, p.pos.x, p.pos.z); if (wt !== null && p.pos.y < wt + 1) { if (p.isPlayer) { if (!g.done) p.destroy(null, 'crash'); } else p.pos.y = wt + 4; continue; } }   // the walls of a slot canyon
+        if (Math.abs(a.x) > tn.W || a.s < s0 - 2 || a.s > s1 + 2) { if (p.isPlayer && tn.seen && (a.s < s0 - 20 || a.s > s1 + 20 || Math.abs(a.x) > tn.W)) this.tunnelPass(tn); continue; }
         const y = p.pos.y - T.floor, inBore = Math.abs(a.x) < td.bw/2 - 3.5 && y > 1.2 && y < boreTop(td, Math.abs(a.x) + 3) - 1.5, top = tn.lidY(a.p, a.x);
         if (p.isPlayer && inBore) { tn.seen = tn.seen || {lo:1e9, hi:-1e9}; tn.seen.lo = Math.min(tn.seen.lo, a.s); tn.seen.hi = Math.max(tn.seen.hi, a.s); }
         if (inBore || p.pos.y > top + 1) continue;
@@ -1087,7 +1104,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const site = this.R.sites.find(s => s.cavern) || {}, tz = -(site.townOff ? site.townOff[0] : 0), tr = (site.townR || 0) + 18, scree = (x, y, z) => { const c = inCol(x, y, z); return [c[0]*1.08, c[1]*1.06, c[2]*1.02]; };
     let prev = null;
     for (let j = 0; j <= NT; j++) { const t = (j % NT)/NT*TAU, ct = Math.cos(t), st = Math.sin(t), [bx, bz] = wallP(t, 0);
-      const ok = j < NT && Math.abs(bz) > 56 && !(site.town && Math.hypot(bx - ct*20, bz - st*20 - tz) < tr), d1 = 7 + 4*rj(), d2 = 17 + 9*rj();
+      const ok = j < NT && Math.abs(bz) > 56 && !(site.town && Math.hypot(bx - ct*20, bz - st*20 - tz) < tr) && !(site.cityOf && bz > 44), d1 = 7 + 4*rj(), d2 = 17 + 9*rj();
       const cur = ok ? [[bx + ct*3, F + 5 + 6*rj(), bz + st*3], [bx - ct*d1, F + 1.5 + 3*rj(), bz - st*d1], [bx - ct*d2, F - 0.5, bz - st*d2]] : null;
       if (prev && cur) for (let k = 0; k < 2; k++) S.quad(W3(prev[k]), W3(cur[k]), W3(cur[k + 1]), W3(prev[k + 1]), scree);
       prev = cur; }
@@ -1174,46 +1191,46 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const archWall = (s, cs, top, NR, disp, k) => { const V = cs.map(([x, yb]) => { const yt = top(x), col = []; for (let r = 0; r <= NR; r++) { const y = yb + (yt - yb)*r/NR; col.push(PW(s + disp(x, y), x, y)); } return col; });
       for (let c = 0; c < cs.length - 1; c++) { if (cs[c][0] === cs[c + 1][0]) continue; for (let r = 0; r < NR; r++) S.quad(V[c][r], V[c + 1][r], V[c + 1][r + 1], V[c][r + 1], k); } };
     // the mesa wall: ledged rock that bulges out round a flat niche for the mission front, and a smooth panel for the painted arrow
-    const FX = 46, facTop = x => F + (Math.abs(x) < 26 ? 68 + 24*Math.pow(Math.cos(PI*x/52), 1.2) : 68), AY0 = F + 100, AY1 = F + 146;
+    const kx = td.bw/60, ky = td.bh/44, FX = 46*kx, GP = Math.min(39.3*kx, (cy.cw1 || 1e9) - 2), facTop = x => F + ky*(Math.abs(x) < 26*kx ? 68 + 24*Math.pow(Math.cos(PI*x/(52*kx)), 1.2) : 68), AY0 = F + 100*ky, AY1 = F + 146*ky;   // drawn for a 60 x 44 portal, scaled to this one
     const fmask = (x, y) => sms(0, 12, Math.hypot(Math.max(0, Math.abs(x) - FX - 3), Math.max(0, y - facTop(x) - 3))), amask = (x, y) => sms(0, 9, Math.hypot(Math.max(0, Math.abs(x) - 16), Math.max(0, AY0 - y, y - AY1)));
     const bulge = (x, y) => -fmask(x, y)*amask(x, y)*sms(0, 14, top0(x) - y)*(1.2 + 5*clamp01(0.5 + 1.2*n(x*0.025 + 11, y*0.035, 2)) + ((y + 4*n(x*0.012, 1.7, 1))/16 % 1 < 0.5 ? 2.6 : 0));
     archWall(0, cols(W, 7), top0, 18, bulge, outCol);
     // the mission front: plaster with a red dado, a curved gable and a tiled coping
-    const plaster = (x, y, z) => y < F + 6 ? shade(RED, 0.9 + 0.15*rj()) : shade([0.88, 0.78, 0.63], 0.9 + 0.1*rj() - 0.1*clamp01(n((x + z)*0.05, y*0.012, 2) + 0.2)), fc = cols(FX, 5.4);
+    const plaster = (x, y, z) => y < F + 6*ky ? shade(RED, 0.9 + 0.15*rj()) : shade([0.88, 0.78, 0.63], 0.9 + 0.1*rj() - 0.1*clamp01(n((x + z)*0.05, y*0.012, 2) + 0.2)), fc = cols(FX, 5.4);
     archWall(-1.6, fc, facTop, 7, () => 0, plaster);
     for (let c = 0; c < fc.length - 1; c++) { const x0 = fc[c][0], x1 = fc[c + 1][0]; if (x0 === x1) continue; const y0 = facTop(x0), y1 = facTop(x1);
       S.quad(PW(-2.8, x0, y0 + 0.6), PW(-2.8, x1, y1 + 0.6), PW(2, x1, y1 + 0.6), PW(2, x0, y0 + 0.6), jit(RED)); S.quad(PW(-2.8, x0, y0 + 0.6), PW(-2.8, x1, y1 + 0.6), PW(-2.8, x1, y1 - 1.2), PW(-2.8, x0, y0 - 1.2), jit(RED)); }
-    for (const e of [-1, 1]) S.quad(PW(-1.6, e*FX, F - 3), PW(2, e*FX, F - 3), PW(2, e*FX, F + 68), PW(-1.6, e*FX, F + 68), plaster);
+    for (const e of [-1, 1]) S.quad(PW(-1.6, e*FX, F - 3), PW(2, e*FX, F - 3), PW(2, e*FX, F + 68*ky), PW(-1.6, e*FX, F + 68*ky), plaster);
     // the arch: striped voussoirs with a gilded keystone, on quoined jambs
     const NV = 17, vp = (a, r) => [-Math.cos(a)*r, spring + Math.sin(a)*r];
-    for (let k = 0; k < NV; k++) { const a0 = k/NV*PI, a1 = (k + 1)/NV*PI, key = k === (NV - 1)/2, r1 = hb + (key ? 9.5 : 6.5), sf = key ? -4.2 : -3.4, col = jit(key ? GOLD : k % 2 ? STONE : RED);
+    for (let k = 0; k < NV; k++) { const a0 = k/NV*PI, a1 = (k + 1)/NV*PI, key = k === (NV - 1)/2, r1 = hb + (key ? 9.5 : 6.5)*kx, sf = key ? -4.2 : -3.4, col = jit(key ? GOLD : k % 2 ? STONE : RED);
       const f = [vp(a0, hb), vp(a1, hb), vp(a1, r1), vp(a0, r1)]; S.hexa(f.map(q => PW(sf, q[0], q[1])), f.map(q => PW(0.5, q[0], q[1])), col); }
-    for (const e of [-1, 1]) for (let k = 0; k < 4; k++) { const y0 = F - 1 + k*(spring - F + 1)/4, y1 = F - 1 + (k + 1)*(spring - F + 1)/4, x1 = hb + (k % 2 ? 6.5 : 7.6); box(-3.4 - (k % 2 ? 0 : 0.5), 0.5, e*hb, e*x1, y0, y1, jit(k % 2 ? RED : STONE)); }
+    for (const e of [-1, 1]) for (let k = 0; k < 4; k++) { const y0 = F - 1 + k*(spring - F + 1)/4, y1 = F - 1 + (k + 1)*(spring - F + 1)/4, x1 = hb + (k % 2 ? 6.5 : 7.6)*kx; box(-3.4 - (k % 2 ? 0 : 0.5), 0.5, e*hb, e*x1, y0, y1, jit(k % 2 ? RED : STONE)); }
     // cornice, roof-beam ends, and the name board
-    box(-4.2, 0, -FX - 1, FX + 1, F + 53.5, F + 56, jit(RED)); box(-3.4, 0, -FX - 0.5, FX + 0.5, F + 56, F + 56.8, jit(STONE));
-    for (let x = -42; x <= 42; x += 6) if (Math.abs(x) > 21) S.beam(PW(-1.6, x, F + 51.4), PW(-5.6, x, F + 51.4), 0.55, jit(TIMBER));
-    const BX = 25, BY0 = F + 58.2, BY1 = F + 66.6;
+    box(-4.2, 0, -FX - 1, FX + 1, F + 53.5*ky, F + 56*ky, jit(RED)); box(-3.4, 0, -FX - 0.5, FX + 0.5, F + 56*ky, F + 56.8*ky, jit(STONE));
+    for (let x = -42; x <= 42; x += 6) if (Math.abs(x) > 21) S.beam(PW(-1.6, x*kx, F + 51.4*ky), PW(-5.6, x*kx, F + 51.4*ky), 0.55, jit(TIMBER));
+    const BX = 25*kx, BY0 = F + 58.2*ky, BY1 = F + 66.6*ky;
     box(-2.8, -1.6, -BX, BX, BY0, BY1, jit([0.13, 0.1, 0.12])); for (const [x0, x1, y0, y1] of [[-BX, BX, BY0, BY0 + 0.5], [-BX, BX, BY1 - 0.5, BY1], [-BX, -BX + 0.5, BY0, BY1], [BX - 0.5, BX, BY0, BY1]]) box(-3.1, -2.8, x0, x1, y0, y1, jit(GOLD));
     // CÍBOLA, in strokes: each letter in a box 1 wide and 1.4 tall (x runs right as you read it, which is -x across the gate)
     const arc = (cx, cy0, rx0, ry0, a0, a1, m) => { const o = []; for (let k = 0; k <= m; k++) { const a = a0 + (a1 - a0)*k/m; o.push([cx + Math.cos(a)*rx0, cy0 + Math.sin(a)*ry0]); } return o; };
     const GL = {C:[arc(0.5, 0.7, 0.5, 0.7, 0.85, 5.43, 9)], I:[[[0.5, 0], [0.5, 1.4]], [[0.22, 0], [0.78, 0]], [[0.22, 1.4], [0.78, 1.4]], [[0.42, 1.6], [0.78, 1.86]]], B:[[[0.04, 0], [0.04, 1.4], [0.55, 1.4], [0.84, 1.24], [0.84, 0.92], [0.55, 0.75], [0.04, 0.75]], [[0.55, 0.75], [0.94, 0.58], [0.94, 0.2], [0.6, 0], [0.04, 0]]],
       O:[arc(0.5, 0.7, 0.5, 0.7, 0, PI*2, 12)], L:[[[0.08, 1.4], [0.08, 0], [0.9, 0]]], A:[[[0, 0], [0.5, 1.4], [1, 0]], [[0.2, 0.48], [0.8, 0.48]]]};
-    const LW = 5.2, LU = 3.5, GAP = 2.1, word = ['C', 'I', 'B', 'O', 'L', 'A'], TW = word.length*LW + (word.length - 1)*GAP, ink = jit([1, 0.82, 0.32]);
-    word.forEach((ch, i) => { const x0 = -TW/2 + i*(LW + GAP); for (const line of GL[ch]) for (let k = 0; k < line.length - 1; k++) stroke(-3.0, [-(x0 + line[k][0]*LW), BY0 + 1.1 + line[k][1]*LU], [-(x0 + line[k + 1][0]*LW), BY0 + 1.1 + line[k + 1][1]*LU], 0.4, ink); });
-    for (let x = -20; x <= 20; x += 8) { S.beam(PW(-1.6, x, BY1 + 1.4), PW(-4.2, x, BY1 + 1.4), 0.14, DARK); bulbs.push(PW(-4.2, x, BY1 + 0.6)); }
+    const LW = 5.2*kx, LU = 3.5*ky, GAP = 2.1*kx, word = ['C', 'I', 'B', 'O', 'L', 'A'], TW = word.length*LW + (word.length - 1)*GAP, ink = jit([1, 0.82, 0.32]);
+    word.forEach((ch, i) => { const x0 = -TW/2 + i*(LW + GAP); for (const line of GL[ch]) for (let k = 0; k < line.length - 1; k++) stroke(-3.0, [-(x0 + line[k][0]*LW), BY0 + 1.1*ky + line[k][1]*LU], [-(x0 + line[k + 1][0]*LW), BY0 + 1.1*ky + line[k + 1][1]*LU], 0.4*kx, ink); });
+    for (let x = -20; x <= 20; x += 8) { S.beam(PW(-1.6, x*kx, BY1 + 1.4), PW(-4.2, x*kx, BY1 + 1.4), 0.14, DARK); bulbs.push(PW(-4.2, x*kx, BY1 + 0.6)); }
     // bell in its niche, and a cross on the gable
-    { const ny = F + 73, s = -1.75, pts = [[-4, ny], [4, ny], ...arc(0, ny + 8, 4, 4, 0, PI, 6)]; for (let k = 1; k < pts.length - 1; k++) S.tri(PW(s, pts[0][0], pts[0][1]), PW(s, pts[k][0], pts[k][1]), PW(s, pts[k + 1][0], pts[k + 1][1]), DARK);
+    { const ny = F + 73*ky, s = -1.75, pts = [[-4, ny], [4, ny], ...arc(0, ny + 8, 4, 4, 0, PI, 6)]; for (let k = 1; k < pts.length - 1; k++) S.tri(PW(s, pts[0][0], pts[0][1]), PW(s, pts[k][0], pts[k][1]), PW(s, pts[k + 1][0], pts[k + 1][1]), DARK);
       const rings = [[0.8, ny + 8.5], [1.5, ny + 7.2], [1.9, ny + 5], [2.7, ny + 3.6]], bz = [0.62, 0.45, 0.18];
       for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) { const a = k/6*PI*2, b = (k + 1)/6*PI*2, q = (i, t) => PW(-3.2 + Math.cos(t)*rings[i][0]*0.6, Math.sin(t)*rings[i][0], rings[i][1]); S.quad(q(r, a), q(r, b), q(r + 1, b), q(r + 1, a), jit(bz)); }
-      S.beam(PW(-3.2, -4, ny + 8.9), PW(-3.2, 4, ny + 8.9), 0.4, jit(TIMBER)); S.beam(PW(0.2, 0, F + 91), PW(0.2, 0, F + 100), 0.5, jit(TIMBER)); S.beam(PW(0.2, -2.6, F + 96.6), PW(0.2, 2.6, F + 96.6), 0.5, jit(TIMBER)); }
+      S.beam(PW(-3.2, -4, ny + 8.9), PW(-3.2, 4, ny + 8.9), 0.4, jit(TIMBER)); S.beam(PW(0.2, 0, F + 91*ky), PW(0.2, 0, F + 100*ky), 0.5, jit(TIMBER)); S.beam(PW(0.2, -2.6, F + 96.6*ky), PW(0.2, 2.6, F + 96.6*ky), 0.5, jit(TIMBER)); }
     // the timber gantry in front: posts on stone feet, a lintel with braces, lanterns and a string of pennants
     const GS = -10;
-    for (const e of [-1, 1]) { S.beam(PW(GS, e*39.3, F - 1), PW(GS, e*39.3, F + 51), 1.25, jit(TIMBER)); box(GS - 2.2, GS + 2.2, e*37, e*41.6, F - 1, F + 3.2, jit(STONE));
-      S.beam(PW(GS, e*39.3, F + 33), PW(GS, e*27, F + 47.5), 0.8, jit(TIMBER)); S.beam(PW(GS, e*39.3, F + 20), PW(-1.6, e*39.3, F + 20), 0.6, jit(TIMBER)); S.beam(PW(GS, e*39.3, F + 44), PW(-1.6, e*39.3, F + 44), 0.6, jit(TIMBER));
-      S.beam(PW(GS - 1.3, e*39.3, F + 13), PW(GS - 4, e*39.3, F + 13), 0.25, DARK); bulbs.push(PW(GS - 4, e*39.3, F + 11.6)); }
-    S.beam(PW(GS, -44, F + 48), PW(GS, 44, F + 48), 1.3, jit(TIMBER));
-    for (const x of [-26, -13, 13, 26]) { S.beam(PW(GS, x, F + 46.7), PW(GS, x, F + 45.2), 0.12, DARK); bulbs.push(PW(GS, x, F + 44.4)); }
-    { const PEN = [RED, GOLD, [0.16, 0.56, 0.6], WHITE], m = 26, at = t => [-40 + 80*t, F + 53 - 5.5*Math.sin(PI*t)]; for (let k = 0; k < m; k++) { const a = at(k/m), b = at((k + 0.7)/m); S.tri(PW(GS - 1.4, a[0], a[1]), PW(GS - 1.4, b[0], b[1]), PW(GS - 1.4, (a[0] + b[0])/2, Math.min(a[1], b[1]) - 2.4), PEN[k % 4]); } }
+    for (const e of [-1, 1]) { S.beam(PW(GS, e*GP, F - 1), PW(GS, e*GP, F + 51*ky), 1.25, jit(TIMBER)); box(GS - 2.2, GS + 2.2, e*(GP - 2.3), e*(GP + 2.3), F - 1, F + 3.2*ky, jit(STONE));
+      S.beam(PW(GS, e*GP, F + 33*ky), PW(GS, e*(GP - 12.3*kx), F + 47.5*ky), 0.8, jit(TIMBER)); S.beam(PW(GS, e*GP, F + 20*ky), PW(-1.6, e*GP, F + 20*ky), 0.6, jit(TIMBER)); S.beam(PW(GS, e*GP, F + 44*ky), PW(-1.6, e*GP, F + 44*ky), 0.6, jit(TIMBER));
+      S.beam(PW(GS - 1.3, e*GP, F + 13*ky), PW(GS - 4, e*GP, F + 13*ky), 0.25, DARK); bulbs.push(PW(GS - 4, e*GP, F + 11.6*ky)); }
+    S.beam(PW(GS, -GP - 4.7, F + 48*ky), PW(GS, GP + 4.7, F + 48*ky), 1.3, jit(TIMBER));
+    for (const x of [-26, -13, 13, 26]) { S.beam(PW(GS, x*kx, F + 46.7*ky), PW(GS, x*kx, F + 46.7*ky - 1.5), 0.12, DARK); bulbs.push(PW(GS, x*kx, F + 46.7*ky - 2.3)); }
+    { const PEN = [RED, GOLD, [0.16, 0.56, 0.6], WHITE], m = 26, at = t => [(-40 + 80*t)*kx, F + 53*ky - 5.5*ky*Math.sin(PI*t)]; for (let k = 0; k < m; k++) { const a = at(k/m), b = at((k + 0.7)/m); S.tri(PW(GS - 1.4, a[0], a[1]), PW(GS - 1.4, b[0], b[1]), PW(GS - 1.4, (a[0] + b[0])/2, Math.min(a[1], b[1]) - 2.4), PEN[k % 4]); } }
     // a painted arrow high on the wall: three whitewashed chevrons pointing down at the door
     for (let k = 0; k < 3; k++) { const yc = AY0 + 4 + k*14; for (const e of [-1, 1]) stroke(-0.45, [e*12, yc + 10], [0, yc], 2.1, jit(WHITE)); }
     // the bore: dressed stone at the mouth, then rock, with timber ribs
@@ -1224,25 +1241,34 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     { const IX = 62, IT = F + 86, imask = (x, y) => sms(0, 10, Math.hypot(Math.max(0, Math.abs(x) - hb - 5), Math.max(0, y - F - td.bh - 5)));
       archWall(Lp, cols(IX, 8), () => IT, 8, (x, y) => imask(x, y)*(0.4 + 3.2*clamp01(0.5 + 1.2*n(x*0.05 + 3, y*0.06, 2))), inCol);
       for (const e of [-1, 1]) { for (let k = 0; k < 6; k++) S.quad(PW(Lp, e*IX, F - 3 + (IT - F + 3)*k/6), PW(Lp - 36, e*IX, F - 3 + (IT - F + 3)*k/6), PW(Lp - 36, e*IX, F - 3 + (IT - F + 3)*(k + 1)/6), PW(Lp, e*IX, F - 3 + (IT - F + 3)*(k + 1)/6), inCol);
-        S.beam(PW(Lp + 1.6, e*(hb + 2.6), F - 1), PW(Lp + 1.6, e*(hb + 2.6), F + 49), 1.1, jit(TIMBER)); bulbs.push(PW(Lp + 3.4, e*(hb + 2.6), F + 30)); }
-      S.beam(PW(Lp + 1.6, -hb - 6, F + 48.5), PW(Lp + 1.6, hb + 6, F + 48.5), 1.2, jit(TIMBER)); }
-    // a skin of ledged rock over the canyon's walls: the terrain there is one coarse cell from floor to rim
-    { const st = w.step, N = w.N, Wd = N + 1, S0 = w.S, M = 6, a = P[0], sA = (x, z) => (x - p0.x)*dx + (z - p0.z)*dz, oA = (x, z) => (x - p0.x)*ox + (z - p0.z)*oz, hwAt = s => cy.hw1 + (cy.hw0 - cy.hw1)*clamp01(-s/(p0.s || 1));
-      const inC = (x, z) => { const s = sA(x, z); return s <= 0 && s >= -p0.s && Math.abs(oA(x, z)) <= hwAt(s); };
-      const xs = [a.x, p0.x], zs = [a.z, p0.z], R = Math.max(cy.hw0, cy.hw1) + 60, i0 = Math.max(0, Math.floor((Math.min(...xs) - R + S0/2)/st)), i1 = Math.min(N - 1, Math.ceil((Math.max(...xs) + R + S0/2)/st)), k0 = Math.max(0, Math.floor((Math.min(...zs) - R + S0/2)/st)), k1 = Math.min(N - 1, Math.ceil((Math.max(...zs) + R + S0/2)/st));
-      const pt = (x, z) => { const y = w.height(x, z, true), o = oA(x, z), k = sms(F, F + 9, y)*sms(0, 9, w.height0(x, z) - y), d = k*(0.5 + 3.4*clamp01(0.5 + 1.2*n((x + z)*0.035, y*0.045 + (x - z)*0.02, 2)) + ((y + 4*n(x*0.01, z*0.01, 1))/14 % 1 < 0.45 ? 2.4 : 0))*(o > 0 ? -1 : 1); return [x + ox*d, y + 0.25, z + oz*d]; };
-      for (let iz = k0; iz <= k1; iz++) for (let ix = i0; ix <= i1; ix++) { const hs = [w.h[iz*Wd + ix], w.h[iz*Wd + ix + 1], w.h[(iz + 1)*Wd + ix], w.h[(iz + 1)*Wd + ix + 1]], x0 = -S0/2 + ix*st, z0 = -S0/2 + iz*st;
-        if (Math.max(...hs) - Math.min(...hs) < 14 || ![[0, 0], [1, 0], [0, 1], [1, 1]].some(([u, v]) => inC(x0 + u*st, z0 + v*st) && w.h[(iz + v)*Wd + ix + u] < w.h0[(iz + v)*Wd + ix + u] - 1)) continue;
-        const V = []; for (let v = 0; v <= M; v++) { V.push([]); for (let u = 0; u <= M; u++) V[v].push(pt(x0 + u*st/M, z0 + v*st/M)); }
-        for (let v = 0; v < M; v++) for (let u = 0; u < M; u++) { if (sA(x0 + (u + 0.5)*st/M, z0 + (v + 0.5)*st/M) > 0.5) continue; S.tri(V[v][u], V[v + 1][u], V[v][u + 1], outCol); S.tri(V[v + 1][u + 1], V[v][u + 1], V[v + 1][u], outCol); } }
+        S.beam(PW(Lp + 1.6, e*(hb + 2.6), F - 1), PW(Lp + 1.6, e*(hb + 2.6), F + td.bh + 5), 1.1, jit(TIMBER)); bulbs.push(PW(Lp + 3.4, e*(hb + 2.6), F + td.bh*0.68)); }
+      S.beam(PW(Lp + 1.6, -hb - 6, F + td.bh + 4.5), PW(Lp + 1.6, hb + 6, F + td.bh + 4.5), 1.2, jit(TIMBER)); }
+    // the slot itself. The terrain's cut is whole grid cells (35 m) wide, far too coarse for a canyon you have to fly with care, so the walls are
+    // built here: cwAt(s) either side of the axis, ledged rock from the floor to the rim, and the mesa top put back behind them in the terrain's
+    // own material. `wall` (below) is the same shape for tunnelHit: beyond cwAt the ground is the uncut mesa again.
+    const st = w.step, S0 = w.S, Lc = p0.s || 1, cw0 = cy.cw0 || cy.hw0 - 40, cw1 = cy.cw1 || cy.hw1 - 40, cwAt = s => cw1 + (cw0 - cw1)*clamp01(1 - s/Lc), outer = s => cy.hw1 + (cy.hw0 - cy.hw1)*clamp01(1 - s/Lc) + st*1.45;
+    { const NS = Math.ceil(Lc/7), NV = 10, NC = 6, h0 = (s, o) => { const q = PW(s - Lc, o, 0); return w.height0(q[0], q[2]); }, lp = [], lc = [], ln = [], lu = [];
+      const ledge = (s, y) => sms(F - 1, F + 7, y)*(0.5 + 3.4*clamp01(0.5 + 1.2*n(s*0.035, y*0.045 + s*0.02, 2)) + ((y + 4*n(s*0.01, 3.3, 1))/14 % 1 < 0.45 ? 2.4 : 0));
+      const capV = (s, o) => { const q = PW(s - Lc, o, 0), x = q[0], z = q[2], y = w.height0(x, z) + 0.35, c = w.colorAt(x, z, y, w.slope0(x, z)), gx = w.height0(x + st, z) - w.height0(x - st, z), gz = w.height0(x, z + st) - w.height0(x, z - st), nl = Math.hypot(gx, 2*st, gz); return [x, y, z, c[0], c[1], c[2], -gx/nl, 2*st/nl, -gz/nl]; };
+      const capQ = (a, b, c, d) => { for (const v of [a, b, c, a, c, d]) { lp.push(v[0], v[1], v[2]); lc.push(v[3], v[4], v[5]); ln.push(v[6], v[7], v[8]); lu.push((v[0] + S0/2)/S0, 1 - (v[2] + S0/2)/S0); } };
+      for (const e of [-1, 1]) { let prev = null;
+        for (let i = 0; i <= NS; i++) { const s = Lc*i/NS, cw = cwAt(s), s2 = (o, y) => s + (i && i < NS ? 2.2*n(o*0.07 + y*0.05, s*0.3, 1) : 0); let cur = null;
+          const d0 = ledge(s, h0(s, e*(cw + 3))), yt = h0(s, e*(cw + d0)) + 0.35;
+          if (yt > F + 1.5) { const wall = [], cap = []; for (let r = 0; r <= NV; r++) { const y = F - 1 + (yt - F + 1)*r/NV, d = r === NV ? d0 : ledge(s, y); wall.push(PW(s2(r, y) - Lc, e*(cw + d), y)); }
+            for (let c = 0; c <= NC; c++) cap.push(capV(s, e*(cw + d0 + (outer(s) - cw - d0)*c/NC))); wall[NV] = cap[0].slice(0, 3); cur = {wall, cap};
+            if (!prev) for (let c = 0; c < NC; c++) S.quad([cap[c][0], F - 1, cap[c][2]], [cap[c + 1][0], F - 1, cap[c + 1][2]], cap[c + 1].slice(0, 3), cap[c].slice(0, 3), outCol); }   // where the wall begins, close its end
+          if (prev && cur) { for (let r = 0; r < NV; r++) S.quad(prev.wall[r], cur.wall[r], cur.wall[r + 1], prev.wall[r + 1], outCol); for (let c = 0; c < NC; c++) e > 0 ? capQ(prev.cap[c], prev.cap[c + 1], cur.cap[c + 1], cur.cap[c]) : capQ(prev.cap[c], cur.cap[c], cur.cap[c + 1], prev.cap[c + 1]); }
+          prev = cur; } }
+      if (lp.length) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(ln, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(lu, 2));
+        const rim = new THREE.Mesh(geo, w.terrain.material); rim.receiveShadow = true; g.scene.add(rim); if (C) C.tris = (C.tris || 0) + lp.length/9; }
       // running lights along the canyon floor, on posts at the foot of the walls
-      for (let i = T.im + 2; i < T.i0; i += 2) { const p = P[i], hw = hwAt(p.s - p0.s); for (const e of [-1, 1]) { let o = e*(hw - 34), ok = false; for (let k = 0; k < 10 && !ok; k++) { ok = w.height(p.x + p.lx*o, p.z + p.lz*o, true) < F + 1.2; if (!ok) o -= e*5; }
-        if (ok && Math.abs(o) > hb + 2) { const x = p.x + p.lx*o, z = p.z + p.lz*o; S.beam([x, F - 0.5, z], [x, F + 7, z], 0.3, jit(TIMBER)); bulbs.push([x, F + 8, z]); } } } }
+      for (let i = T.im + 2; i < T.i0; i += 2) { const p = P[i], o0 = cwAt(p.s) - 2.4; if (o0 < hb + 2) continue; for (const e of [-1, 1]) { const x = p.x + p.lx*o0*e, z = p.z + p.lz*o0*e; if (w.height(x, z, true) > F + 1.2) continue; S.beam([x, F - 0.5, z], [x, F + 7, z], 0.3, jit(TIMBER)); bulbs.push([x, F + 8, z]); } } }
+    const wall = (a, x, z) => { if (a.s < 0 || a.s > Lc + 2 || Math.abs(a.x) < cwAt(a.s) || Math.abs(a.x) > outer(a.s)) return null; const y = w.height0(x, z); return y > F + 1.5 ? y : null; };
     g.scene.add(S.mesh()); if (C) C.tris = (C.tris || 0) + S.tris;
     const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 6, 4), new THREE.MeshBasicMaterial({color:0xffc870}), bulbs.length), mx = new THREE.Matrix4();
     bulbs.forEach(([x, y, z], i) => im.setMatrixAt(i, mx.makeTranslation(x, y, z))); im.frustumCulled = false; g.scene.add(im);
     { const q = PW(-14, 0, F + 40), lt = new THREE.PointLight(0xffb070, 0.8, 260, 1.4); lt.position.set(q[0], q[1], q[2]); g.scene.add(lt); }   // the door glows down the canyon
-    return {T, lidY, W, seen:null, t:-99, name:td.name};
+    return {T, lidY, W, wall, cwAt, seen:null, t:-99, name:td.name};
   },
   /* inside the cavern: below the ceiling is air, above it is mesa */
   cavernHit(g){
