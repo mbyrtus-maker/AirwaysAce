@@ -461,7 +461,7 @@ G.portrait = (L = {}) => {
 };
 
 /* ---------- developer panel: Ctrl+Alt+D anywhere ---------- */
-G.dev = {god:false, ammo:false};
+G.dev = {god:false, ammo:false, solo:false};
 Object.assign(UI, {
   dev(){
     UI.inDev = true; const g = G.game;
@@ -490,7 +490,7 @@ Object.assign(UI, {
         ${b('Teleport to Margaret', 'const g=G.game,P=g.player;P.onGround=false;P.frozen=false;P.pos.copy(g.ships[0].pos).add(new THREE.Vector3(0,-80,-200));P.speed=60')}</div></section>` : '';
     $('devBody').innerHTML = `<h2>Developer table</h2><div class="note">Ctrl+Alt+D or Esc to close. Bank $${S.cash.toLocaleString()} · ${G.save.owned.length} chassis · ${(S.mods || []).length} mods · ${(S.liveries || []).length} liveries</div>
       <div class="dg">
-        <section><h4>Cheats</h4><div class="bt">${b('God mode', 'G.dev.god=!G.dev.god', G.dev.god)}${b('Infinite ammo', 'G.dev.ammo=!G.dev.ammo', G.dev.ammo)}
+        <section><h4>Cheats</h4><div class="bt">${b('God mode', 'G.dev.god=!G.dev.god', G.dev.god)}${b('Infinite ammo', 'G.dev.ammo=!G.dev.ammo', G.dev.ammo)}${b('No wingmen', 'G.dev.solo=!G.dev.solo', G.dev.solo)}
           ${b('+$10,000', 'G.save.cash+=10000')}${b('+$100,000', 'G.save.cash+=100000')}${b('Unlock everything', 'UI.devUnlock()')}
           ${b('All treasure found', "for(const R of Object.values(G.REGIONS))for(const t of R.treasures)G.save.open.found[t.id]={t:Date.now()}")}${b('Reset treasure', 'G.save.open.found={}')}
           ${b('Reset job records', 'G.save.open.jobs={}')}${b('+25,000 stunt total', "G.save.open.stuntTotal+=25000")}${b('Wipe save', "if(confirm('Wipe the whole save?')){G.resetSave();UI.closeDev();UI.menu()}")}</div></section>

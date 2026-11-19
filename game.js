@@ -96,7 +96,7 @@ G.Game = class {
   }
   onStuntDone(P, kind){ if (!P.isPlayer) return; const f = P.fwd; this.aimYaw = Math.atan2(f.x, f.z); this.aimPitch = Math.asin(clamp(f.y, -1, 1)); if (this.mission.onStunt) this.mission.onStunt(this, kind); }
   spawnWingmen(n){
-    const P = this.player; this.wingmen = [];
+    const P = this.player; this.wingmen = []; if (G.dev && G.dev.solo) n = 0;   // dev table: fly alone
     for (const c of G.CREW.slice(0, n)) {
       const L = this.mission.crewLoadout ? this.mission.crewLoadout(c) : G.stockLoadout('gallant'); if (!this.mission.crewLoadout) L.paint = c.paint;
       // abeam of the player, well clear of the Margaret; nudged out of her hull if needed

@@ -67,11 +67,11 @@ const A = G.audio = {
   // a rough little rattler for the light brawlers, and the original for the rest. gain evens out how hot each recording is
   // real aircraft engines (your recordings): a buzzy light prop for the racers, a smooth one for the mid fighters, a beating
   // twin for the twin-engined, a deep heavy drone for the bruisers; the Gallant, Vandal and Whirligig keep the original
-  VOICE:{sparrowhawk:'prop_light', comet:'prop_light', hornet:'prop_light', jackal:'prop_smooth', mantis:'prop_smooth', grackle:'prop_smooth',
+  VOICE:{sparrowhawk:'prop_light', comet:'prop_light', hornet:'prop_light', jackal:'prop_light', mantis:'prop_smooth', grackle:'prop_smooth',
     banshee:'prop_twin', highwayman:'prop_twin', ironclad:'prop_heavy', thunderbuss:'prop_heavy', bulldog:'prop_heavy'},
   VGAIN:{engine:1}, VRATE:{engine:1},
   USE_VOICES:true,
-  PITCH:{sparrowhawk:1.06, comet:1.06, hornet:1.03, jackal:0.95, mantis:1.02, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
+  PITCH:{sparrowhawk:1.06, comet:1.06, hornet:1.03, jackal:1, mantis:1.02, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
     banshee:1, bulldog:0.96, highwayman:0.96, ironclad:0.94, thunderbuss:0.9},
   pitchOf(P){ return (P && P.L && this.PITCH[P.L.chassis]) || 1; },
   engKey(P){ const k = this.USE_VOICES && P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
