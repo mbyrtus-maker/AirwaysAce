@@ -19,8 +19,9 @@ const A = G.audio = {
       }
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
       if (typeof fetch === 'function') fetch('sounds/turbine2.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
+      if (typeof fetch === 'function') fetch('sounds/prop_pass.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.pass = b; this.trim.pass = {s:0, e:b.duration}; }).catch(() => {});
       // more engine voices, each a seamless WAV loop: an inline V12 for the sleek fighters, and the Whirligig's rotor chop
-      if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam']) fetch(`sounds/${k}.wav`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
+      if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam', 'prop_light', 'prop_smooth', 'prop_twin', 'prop_heavy']) fetch(`sounds/${k}.wav`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : 1; },
@@ -54,15 +55,14 @@ const A = G.audio = {
   /* which engine recording a plane sounds with: the inline-engined fighters get the V12, the rest the radial */
   // which recording each plane's engine is: an inline V12 for the sleek fighters, a deep smooth radial for the heavies,
   // a rough little rattler for the light brawlers, and the original for the rest. gain evens out how hot each recording is
-  VOICE:{sparrowhawk:'v12', mantis:'v12', jackal:'v12', comet:'v12', banshee:'v12', hornet:'v12',
-    highwayman:'heavy', ironclad:'heavy', thunderbuss:'heavy', bulldog:'heavy', vandal:'rough', grackle:'rough'},
-  VGAIN:{engine:1, v12:1.05, heavy:1.1, rough:1.0}, VRATE:{engine:1, v12:1, heavy:0.88, rough:1.04},
-  // the V12, radial and rough recordings turned out to be car and machine engines, not aircraft, so every propeller plane uses
-  // the aircraft recording again (set USE_VOICES when real aircraft engines are recorded). Each type gets its own pitch instead:
-  // the light racers higher, the heavies lower
-  USE_VOICES:false,
-  PITCH:{sparrowhawk:1.12, comet:1.1, hornet:1.08, jackal:1.06, mantis:1.04, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
-    banshee:0.95, bulldog:0.9, highwayman:0.88, ironclad:0.85, thunderbuss:0.82},
+  // real aircraft engines (your recordings): a buzzy light prop for the racers, a smooth one for the mid fighters, a beating
+  // twin for the twin-engined, a deep heavy drone for the bruisers; the Gallant, Vandal and Whirligig keep the original
+  VOICE:{sparrowhawk:'prop_light', comet:'prop_light', hornet:'prop_light', jackal:'prop_light', mantis:'prop_smooth', grackle:'prop_smooth',
+    banshee:'prop_twin', highwayman:'prop_twin', ironclad:'prop_heavy', thunderbuss:'prop_heavy', bulldog:'prop_heavy'},
+  VGAIN:{engine:1}, VRATE:{engine:1},
+  USE_VOICES:true,
+  PITCH:{sparrowhawk:1.06, comet:1.06, hornet:1.03, jackal:1, mantis:1.02, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
+    banshee:1, bulldog:0.96, highwayman:0.96, ironclad:0.94, thunderbuss:0.9},
   pitchOf(P){ return (P && P.L && this.PITCH[P.L.chassis]) || 1; },
   engKey(P){ const k = this.USE_VOICES && P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
   /* the propeller's beat: the engine's sound is pulsed by two low oscillators, the shaft turning (a rough flutter) and the
@@ -123,7 +123,7 @@ const A = G.audio = {
         if (!P.engineDead) this.deadAt = undefined;
         this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1)*this.pitchOf(P), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
         // the new engine voices are engine only; under them runs the original recording, quieter, for the propeller's thrum and whirr
-        const propOn = on && !realJet && this.eng.key !== 'engine';
+        const propOn = on && !realJet && /^(v12|heavy|rough)$/.test(this.eng.key);
         if (propOn && !this.prop && this.buf.engine) this.prop = this.beat(this.loop('engine', 0), 0.4);
         const rpm = 1150 + P.throttle*1350 + sp*350; this.tune(this.eng, rpm, t); this.tune(this.prop, rpm, t);   // a three-blade prop: the beat rises with the rpm
         if (this.prop) { this.prop.src.playbackRate.setTargetAtTime(rate*1.05, t, 0.4); this.prop.g.gain.setTargetAtTime(propOn ? (0.15 + P.throttle*0.1)*0.38 : 0, t, 0.15); }
@@ -139,7 +139,8 @@ const A = G.audio = {
       const k2 = this.eng2.key, vr = k2 === 'turbine' ? 0.95 : this.VRATE[k2] || 1, vg = k2 === 'turbine' ? 1.1 : this.VGAIN[k2] || 1;
       if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr*(k2 === 'turbine' ? 1 : this.pitchOf(best)), t, 0.08); }
       this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32*vg : 0, t, 0.1);
-      const p2 = /v12|heavy|rough/.test(k2); if (p2 && !this.prop2 && this.buf.engine) { this.prop2 = this.loop('engine', 0); if (this.prop2) this.prop2.src.detune.value = 260; }
+      if (best && this.buf.pass && bd < 140 && game.running && !(best.st && best.st.jet) && best.vel.clone().sub(P ? P.vel : best.vel).length() > 45 && !this.thr('pass', 4500)) this.one('pass', 0.55*(1 - bd/140) + 0.2, this.pitchOf(best));   // whoosh: the recorded flyby
+      const p2 = /^(v12|heavy|rough)$/.test(k2); if (p2 && !this.prop2 && this.buf.engine) { this.prop2 = this.loop('engine', 0); if (this.prop2) this.prop2.src.detune.value = 260; }
       if (this.prop2) { this.prop2.src.playbackRate.value = this.eng2.src.playbackRate.value*1.05/(vr || 1); this.prop2.g.gain.setTargetAtTime(game.running && p2 ? a*0.32*0.38 : 0, t, 0.1); }   // their propellers too
     }
     // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
