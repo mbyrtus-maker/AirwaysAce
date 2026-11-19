@@ -95,6 +95,7 @@ G.Plane = class {
     }
     this.q.normalize(); this.axes();
     // speed: thrust toward throttle x top, gravity along the nose, hard-turn bleed
+    if (this.engineDead) { this.throttle = 0; this.nitro = 0; }   // a dead engine: the throttle lever does nothing, and no nitro either
     let thr = this.engineDead ? 0 : this.choke > 0 ? 0.08 : this.throttle;
     if (st.jet) {   // a turbojet: slow to spool up and down, and short of push until it's moving fast
       this.spool = this.spool ?? thr; this.spool += (thr - this.spool)*Math.min(1, dt*(thr > this.spool ? 0.45 : 0.8)); thr = this.spool;
@@ -205,6 +206,7 @@ G.Plane = class {
         gn.cd += 1/gn.def.rps; gn.rounds--; gn.barrel ^= 1;
         const mz = this.ud.muzzles, m = mz[(gn.i*2 + gn.barrel) % mz.length];
         this.g.spawnBullet(this, m, gn);
+        if (this.isPlayer && this.g.audio) this.g.audio.playerShot(gn.def);
         if (gn.def.recoil) this.q.multiply(qA.setFromAxisAngle(X, -gn.def.recoil*(0.5 + Math.random()*0.5)));
       }
       this.spent.ammo[gn.i] = gn.rounds/gn.def.ammo;

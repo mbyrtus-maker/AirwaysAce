@@ -188,7 +188,7 @@ GP.playerControl = function(dt){
   pc0.call(this, dt);
   const P = this.player; if (!P || !P.alive || !Pad.active || P.frozen) return;
   const h = Pad.hold;
-  if (h.up) P.throttle = Math.min(1, P.throttle + dt*0.6);
+  if (h.up && !P.engineDead) P.throttle = Math.min(1, P.throttle + dt*0.6);
   if (h.down) P.throttle = Math.max(0, P.throttle - dt*(P.onGround ? 0.9 : 0.6));
   if (P.onGround) { if (Pad.ly > 0.3) P.wantLift = true; if (h.down && P.throttle <= 0.01) P.brake = true; return; }
   if (h.fire) P.fire = true; if (h.rk) P.fireRk = true;

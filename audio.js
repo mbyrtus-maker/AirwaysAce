@@ -75,7 +75,19 @@ const A = G.audio = {
       const jet = P.st && P.st.jet, sp = P.speed/P.top, s = jet ? (P.spool ?? P.throttle) : P.throttle, rate = jet ? 1.35 + s*0.9 + sp*0.25 : 0.72 + P.throttle*0.34 + sp*0.22 - (P.choke > 0 ? 0.25 : 0);   // the jet: the same recording wound right up into a whine
       if (jet && !this.turb && this.buf.turbine) this.turb = this.loop('turbine', 0);
       const realJet = jet && this.turb;   // with the turbine recording in hand the piston loop falls silent
-      this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
+      // a dying engine: for a few seconds it coughs, catches, misses and runs down, with a backfire or two, then silence
+      if (P.engineDead && P.alive && game.running && !realJet) {
+        if (this.deadAt === undefined) { this.deadAt = t; this.deadRate = this.eng.src.playbackRate.value || 1;
+          for (const [d, v] of [[0.35, 0.5], [1.25, 0.42], [2.3, 0.3]]) setTimeout(() => { if (this.deadAt !== undefined) this.one('hitshort', v, 0.32 + Math.random()*0.06); }, d*1000); }
+        const k = t - this.deadAt, life = 3.8;
+        if (k < life) { const f = 1 - k/life, beat = Math.sin(k*(15 - k*3.2) + Math.sin(k*7)*1.5) > 0.15 - k*0.12;
+          this.eng.src.playbackRate.setTargetAtTime(Math.max(0.22, this.deadRate*(0.35 + 0.65*f*f)), t, 0.06);
+          this.eng.g.gain.setTargetAtTime(beat ? 0.26*f : 0.012, t, 0.018); }
+        else this.eng.g.gain.setTargetAtTime(0, t, 0.2);
+      } else {
+        if (!P.engineDead) this.deadAt = undefined;
+        this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? 0.15 + P.throttle*0.1 : 0, t, 0.15);
+      }
       if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
     if (this.eng2) {
@@ -88,21 +100,20 @@ const A = G.audio = {
       const s = game.ships[0]; const a = s && s.alive ? Math.max(0, 1 - s.pos.distanceTo(game.camera.position)/900)**1.2 : 0;
       this.shipEng.src.playbackRate.setTargetAtTime(0.36, t, 0.5); this.shipEng.g.gain.setTargetAtTime(s && s.alive ? a*0.16 : 0, t, 0.4);
     }
-    // the player's guns: one loop while any gun fires, pitched by the heaviest caliber; the tail rings out on release
+    // the player's guns fire shot by shot (playerShot, from the guns themselves), so each caliber is heard at its own rate;
+    // the tail rings out on release, pitched by the heaviest gun that was firing
     const firing = P && P.alive && P.fire && P.hasAmmo() && game.running;
-    if (firing && !this.gun) {
-      const heavy = P.guns.filter(g => g.rounds > 0).reduce((m, g) => Math.min(m, g.def.pitch), 2);
-      this.gun = this.loop('gunloop', 0.55); if (this.gun) { this.gun.src.playbackRate.value = heavy; this.gunRate = heavy; }
-    } else if (!firing && this.gun) {
-      const g = this.gun; this.gun = null; g.g.gain.setTargetAtTime(0, t, 0.015); try { g.src.stop(t + 0.08); } catch (e) {}
-      this.one('guntail', 0.55, this.gunRate || 1);
-    }
+    if (firing) { this.gunOn = true; this.gunRate = P.guns.filter(g => g.rounds > 0).reduce((m, g) => Math.min(m, this.calPitch(g.def)), 2); }
+    else if (this.gunOn) { this.gunOn = false; this.one('guntail', 0.5, this.gunRate || 1); }
   },
   stopAll(){
     const t = this.ctx ? this.ctx.currentTime : 0;
     for (const L of [this.eng, this.eng2, this.shipEng, this.turb]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
+  /* caliber sets the voice: the .30 a quick high crack, the .70 a slow deep thump */
+  calPitch(def){ return Math.pow(def.pitch || 1, 1.7); },
+  playerShot(def){ if (this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def); this.one('gunshot', 0.32 + 0.1*(1/p - 0.8), p*(0.97 + Math.random()*0.06)); },
   shot(pos, pitch){ const a = this.att(pos, 1200); if (a < 0.02 || this.thr('shot', 55)) return; this.one('gunshot', a*0.5, pitch*(0.95 + Math.random()*0.1)); },
   rocket(a = 1){ this.one('rocket', 0.6*a, 0.95 + Math.random()*0.1); },
   boom(pos, big){ const a = this.att(pos, big ? 3500 : 2200); if (a < 0.02 || this.thr(big ? 'boomB' : 'boomS', 60)) return; this.one(big ? 'boom' : 'boomsmall', (big ? 1 : 0.8)*a + 0.08, big ? 0.9 + Math.random()*0.15 : 1.05 + Math.random()*0.2); },

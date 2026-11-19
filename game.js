@@ -75,7 +75,7 @@ G.Game = class {
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
     if (code === 'KeyM' && this.audio) G.HUD.toast(this.audio.toggleMute() ? 'Sound off' : 'Sound on');
-    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && (P.L.nitro || P.st.rocket) && P.nitroLeft > 0 && !(P.nitro > 0)) { P.nitro = P.st.rocket ? 5 : 3; P.nitroLeft--; if (P.st.rocket && this.audio && this.audio.rocket) this.audio.rocket(0.7); } }
+    if (code === 'ShiftLeft' || code === 'ShiftRight') { const P = this.player; if (P && !P.engineDead && (P.L.nitro || P.st.rocket) && P.nitroLeft > 0 && !(P.nitro > 0)) { P.nitro = P.st.rocket ? 5 : 3; P.nitroLeft--; if (P.st.rocket && this.audio && this.audio.rocket) this.audio.rocket(0.7); } }
   }
   /* Canned stunts on a double-tap, as in Crimson Skies. Each is an exact rotation, so they always finish level. */
   stunt(kind){
@@ -144,14 +144,14 @@ G.Game = class {
   playerControl(dt){
     const P = this.player, k = this.keys; if (!P || !P.alive) return;
     if (P.onGround) {
-      if (k.KeyW) P.throttle = Math.min(1, P.throttle + dt*0.6);
+      if (k.KeyW && !P.engineDead) P.throttle = Math.min(1, P.throttle + dt*0.6);
       if (k.KeyS) P.throttle = Math.max(0, P.throttle - dt*0.9);
       const cp = Math.cos(this.aimPitch); this.aimDir.set(Math.sin(this.aimYaw)*cp, Math.sin(this.aimPitch), Math.cos(this.aimYaw)*cp);
       P.groundYaw = this.aimYaw; P.brake = !!(k.KeyS && P.throttle <= 0.01) || !!k.KeyB; P.wantLift = this.aimPitch > 0.06 || !!k.ArrowDown;
       if (this.mission.holdOnGround) { P.throttle = 0; P.brake = true; }
       P.fire = P.fireRk = false; return;
     }
-    if (k.KeyW) P.throttle = Math.min(1, P.throttle + dt*0.6);
+    if (k.KeyW && !P.engineDead) P.throttle = Math.min(1, P.throttle + dt*0.6);
     if (k.KeyS) P.throttle = Math.max(0, P.throttle - dt*0.6);
     const cp = Math.cos(this.aimPitch); this.aimDir.set(Math.sin(this.aimYaw)*cp, Math.sin(this.aimPitch), Math.cos(this.aimYaw)*cp);
     if (P.man) { const f = P.fwd; this.aimYaw = Math.atan2(f.x, f.z); this.aimPitch = Math.asin(clamp(f.y, -1, 1)); }
