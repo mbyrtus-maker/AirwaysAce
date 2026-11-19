@@ -2,7 +2,7 @@
 
 A 1937 air-pirate flight game in the spirit of Crimson Skies: Three.js, keyboard and mouse, no build step.
 
-**Play:** open `index.html` from any static web server, or the GitHub Pages site for this repo
+**Play:** https://mbyrtus-maker.github.io/AirwaysAce/ (or open `index.html` from any static web server)
 (Settings → Pages → Deploy from branch → `main` / root).
 
 ## Co-op (up to four pilots)
