@@ -170,6 +170,7 @@ class Train {
     this.g = g; this.rail = rail; this.s = o.s ?? 60; this.speed = o.speed || 20; this.hp = this.hpMax = o.hp || 100; this.alive = true; this.done = false;
     let off = 0; this.cars = cars.map(kind => { const grp = G.buildTrainCar(kind); g.scene.add(grp); const c = {kind, grp, off}; off -= kind === 'loco' ? 13.5 : kind === 'tender' ? 9.5 : 15; return c; });
     this.pos = new V3(); this.update(0);
+    (g.trains || (g.trains = [])).push(this);   // so the sound can find the nearest one
   }
   update(dt){
     if (this.alive && !this.done) this.s += this.speed*dt;

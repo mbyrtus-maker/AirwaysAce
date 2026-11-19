@@ -20,7 +20,7 @@ const A = G.audio = {
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
       if (typeof fetch === 'function') fetch('sounds/turbine2.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
       // more engine voices, each a seamless WAV loop: an inline V12 for the sleek fighters, and the Whirligig's rotor chop
-      if (typeof fetch === 'function') for (const k of ['v12', 'rotor']) fetch(`sounds/${k}.wav`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
+      if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam']) fetch(`sounds/${k}.wav`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges(k, b); this.buf[k] = this.seamless(b, this.trim[k], 0.25); this.trim[k] = {s:0, e:this.buf[k].duration}; }).catch(() => {});
     } catch (e) { this.ctx = null; }
   },
   vol(){ return this.muted ? 0 : 1; },
@@ -52,15 +52,34 @@ const A = G.audio = {
     return {src, g};
   },
   /* which engine recording a plane sounds with: the inline-engined fighters get the V12, the rest the radial */
-  V12:new Set(['sparrowhawk', 'mantis', 'jackal', 'comet', 'banshee', 'hornet']),
-  engKey(P){ return P && P.L && this.V12.has(P.L.chassis) && this.buf.v12 ? 'v12' : 'engine'; },
+  // which recording each plane's engine is: an inline V12 for the sleek fighters, a deep smooth radial for the heavies,
+  // a rough little rattler for the light brawlers, and the original for the rest. gain evens out how hot each recording is
+  VOICE:{sparrowhawk:'v12', mantis:'v12', jackal:'v12', comet:'v12', banshee:'v12', hornet:'v12',
+    highwayman:'heavy', ironclad:'heavy', thunderbuss:'heavy', bulldog:'heavy', vandal:'rough', grackle:'rough'},
+  VGAIN:{engine:1, v12:0.65, heavy:0.66, rough:0.66}, VRATE:{engine:1, v12:1, heavy:0.88, rough:1.04},
+  engKey(P){ const k = P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
   startEngines(){
     if (!this.eng && this.buf.engine) { this.eng = this.loop('engine', 0); if (this.eng) this.eng.key = 'engine'; }
     if (!this.eng2 && this.buf.engine) { this.eng2 = this.loop('engine', 0); if (this.eng2) this.eng2.src.detune.value = 260; }
     if (!this.shipEng && this.buf.engine2) {
       // the airship: the twin-engine recording slowed right down and muffled into a soft, low thrum
       this.shipEng = this.loop('engine2', 0);
-      if (this.shipEng) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
+      // the world's engines, on the ambient slider: the nearest steam train chuffs in time with its speed, and the nearest
+    // steamship thrums low as she passes
+    if (this.buf.steam && this.ambBus) {
+      const cam = game.camera && game.camera.position; let best = null, bd = 1e9;
+      if (cam) for (const T of game.trains || []) { if (!T.alive || !T.cars || !T.cars[0]) continue; const d = T.cars[0].grp.position.distanceTo(cam); if (d < bd) { bd = d; best = T; } }
+      if (best && bd < 900 && !this.steamL) { this.steamL = this.loop('steam', 0); if (this.steamL) { this.steamL.g.disconnect(); this.steamL.g.connect(this.ambBus); } }
+      if (this.steamL) { const a = best ? Math.max(0, 1 - bd/900)**1.5 : 0, sp = best && !best.done ? best.speed : 0;
+        this.steamL.src.playbackRate.setTargetAtTime(0.55 + Math.min(1, sp/30)*0.6, t, 0.4); this.steamL.g.gain.setTargetAtTime(game.running ? a*(sp > 1 ? 0.5 : 0.18) : 0, t, 0.3); }
+    }
+    if (this.buf.heavy && this.ambBus && game.sea) {
+      const cam = game.camera && game.camera.position; let bd = 1e9;
+      if (cam) for (const S of game.sea.ships) { if (!S.alive || !S.obj || !/freighter|steamer|tug|gunboat|yacht|trawler/.test(S.kind)) continue; const d = S.obj.position.distanceTo(cam); if (d < bd) bd = d; }
+      if (bd < 600 && !this.seaL) { this.seaL = this.loop('heavy', 0); if (this.seaL) { this.seaL.g.disconnect(); this.seaL.g.connect(this.ambBus); this.seaL.src.playbackRate.value = 0.42; } }
+      if (this.seaL) this.seaL.g.gain.setTargetAtTime(game.running ? Math.max(0, 1 - bd/600)**1.6*0.22 : 0, t, 0.4);
+    }
+    if (this.shipEng) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
         this.shipEng.g.disconnect(); this.shipEng.g.connect(lp).connect(this.sfxBus); this.shipEng.src.playbackRate.value = 0.36; }
     }
   },
@@ -96,7 +115,7 @@ const A = G.audio = {
         else this.eng.g.gain.setTargetAtTime(0, t, 0.2);
       } else {
         if (!P.engineDead) this.deadAt = undefined;
-        this.eng.src.playbackRate.setTargetAtTime(rate, t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.eng.key === 'v12' ? 0.65 : 1) : 0, t, 0.15);   // the V12 recording is hotter
+        this.eng.src.playbackRate.setTargetAtTime(rate*(this.VRATE[this.eng.key] || 1), t, 0.12); this.eng.g.gain.setTargetAtTime(on && !realJet ? (0.15 + P.throttle*0.1)*(this.VGAIN[this.eng.key] || 1) : 0, t, 0.15);   // the V12 recording is hotter
       }
       if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
@@ -118,7 +137,7 @@ const A = G.audio = {
   },
   stopAll(){
     const t = this.ctx ? this.ctx.currentTime : 0;
-    for (const L of [this.eng, this.eng2, this.shipEng, this.turb, this.rotor]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
+    for (const L of [this.eng, this.eng2, this.shipEng, this.turb, this.rotor, this.steamL, this.seaL]) if (L) L.g.gain.setTargetAtTime(0, t, 0.1);
     if (this.gun) { try { this.gun.src.stop(); } catch (e) {} this.gun = null; }
   },
   /* caliber sets the voice: the .30 a quick high crack, the .70 a slow deep thump */
