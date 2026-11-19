@@ -997,7 +997,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.hudSides(g);
   },
   /* every tunnel and sea cave flown clean through, end to end, is ticked off in the save, region by region */
-  passages(){ return this.tunnels.filter(t => !t.T.into).map(t => t.T.td.id).concat(this.caves.map(c => c.id)).filter(Boolean); },
+  passages(){ return this.tunnels.map(t => t.T.td.id).concat(this.caves.map(c => c.id)).filter(Boolean); },
   flown(id){ if (!id) return; const S = G.save.open, F = S.flown || (S.flown = {}), k = this.R.id + ':' + id; if (F[k]) return; F[k] = 1; G.persist(); const n = this.passages().filter(i => F[this.R.id + ':' + i]).length, all = this.passages().length; G.HUD.toast(`Tunnel flown: ${n} of ${all} in ${this.R.name}`); },
   hudSides(g){
     const S = G.save.open, R = this.R, found = R.treasures.filter(t => S.found[t.id]).length, ps = this.passages(), F = S.flown || {}, fl = ps.filter(i => F[R.id + ':' + i]).length;
@@ -1107,7 +1107,9 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   },
   tunnelPass(tn){
     const T = tn.T, s0 = T.pts[T.i0].s, s1 = T.pts[T.i1].s, L = s1 - s0, sn = tn.seen; tn.seen = null;
-    if (T.into || !(sn.lo < s0 + L*0.2 && sn.hi > s1 - L*0.2) || this.g.t - tn.t < 4) return;
+    const full = sn.lo < s0 + L*0.2 && sn.hi > s1 - L*0.2;
+    if (T.into) { if (full) this.flown(T.td.id); return; }   // a gate into a cavern counts as flown, but scores nothing
+    if (!full || this.g.t - tn.t < 4) return;
     tn.t = this.g.t; this.flown(T.td.id); this.award(T.td.bonus || (T.td.shape === 'none' ? 1500 : 2000), T.td.sea ? 'THROUGH THE SEA CAVE' : 'THROUGH THE MOUNTAIN'); if (this.g.audio) this.g.audio.ding();
   },
   /* Cíbola's cavern: the mesa top stays where it was (rebuilt over the hollow), a domed sandstone ceiling inside,

@@ -356,7 +356,7 @@ Object.assign(UI, {
       $('cMap').innerHTML = svg; UI._chartBuilt = true;
     }
     // the moving parts: selection, the Margaret, treasure tallies
-    for (const g of $('cMap').querySelectorAll('.rg')) { const R = G.REGIONS[g.dataset.id]; g.classList.toggle('sel', R === sel); g.classList.toggle('here', R === here); g.querySelector('.rt').textContent = `treasure ${R.treasures.filter(t => O.found[t.id]).length}/${R.treasures.length}` + (((O.passTotal || {})[R.id] || (R.tunnels || []).length) ? ` · tunnels ${Object.keys(O.flown || {}).filter(k => k.startsWith(R.id + ':')).length}/${(O.passTotal || {})[R.id] || R.tunnels.length}` : ''); }
+    for (const g of $('cMap').querySelectorAll('.rg')) { const R = G.REGIONS[g.dataset.id]; g.classList.toggle('sel', R === sel); g.classList.toggle('here', R === here); g.querySelector('.rt').textContent = `treasure ${R.treasures.filter(t => O.found[t.id]).length}/${R.treasures.length}` + (((O.passTotal || {})[R.id] || (R.tunnels || []).length + (R.cavern ? 1 : 0)) ? ` · tunnels ${Object.keys(O.flown || {}).filter(k => k.startsWith(R.id + ':')).length}/${(O.passTotal || {})[R.id] || (R.tunnels || []).length + (R.cavern ? 1 : 0)}` : ''); }
     $('cShip').setAttribute('transform', `translate(${here.chart[0] + 66} ${here.chart[1] - 26})`);
     const sites = sel.sites.filter(s => s.contact), jobsFor = cid => G.JOBS.filter(j => j.contact === cid && (!G.jobOpen || G.jobOpen(j)));
     const night = G.timeOfDay() === 'night', move = sel !== here ? UI.travelCost(here, sel) : null;
