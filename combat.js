@@ -28,10 +28,11 @@ G.Airship = class {
     const ud = this.obj.userData;
     this.ell = ud.ell || [24, 24, 104]; this.gon = ud.gon || {hw:7, y0:-20, y1:-40, zc:-6, hz:38};
     this.comps = ud.comps || null;
-    if (o.noMG && this.comps) { for (const c of this.comps) if (c.kind === 'mg' && c.group) c.group.parent.remove(c.group); this.comps = this.comps.filter(c => c.kind !== 'mg'); } this.sections = ud.sections ? Object.assign({}, ud.sections) : null; this.sectionsMax = ud.sections || null;
+    if (this.comps) {   // no airship carries machine guns: flak and rockets only
+      for (const c of this.comps) if (c.kind === 'mg' && c.group) c.group.parent.remove(c.group); this.comps = this.comps.filter(c => c.kind !== 'mg'); } this.sections = ud.sections ? Object.assign({}, ud.sections) : null; this.sectionsMax = ud.sections || null;
     this.pos = o.pos.clone(); this.heading = o.heading || 0; this.speed0 = this.speed = o.speed || 9; this.turn0 = this.turn = o.turn || 0.006;
     this.hp = this.hpMax = o.hp || 4000; this.alive = true; this.vel = new V3(); this.state = this.state || 'fighting';
-    this.q = new THREE.Quaternion(); this.guns = (o.guns || []).map(p => ({p, cd:Math.random()}));
+    this.q = new THREE.Quaternion(); this.guns = [];
     this.flak = (o.flak ? ud.flak : []).map(p => ({p, cd:1 + Math.random()*2}));
     this.sinkT = 0; this.rkCd = 3; this.sink = 0; this.sync();
   }
