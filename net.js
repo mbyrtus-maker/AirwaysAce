@@ -109,7 +109,7 @@ const Net = G.Net = {
     if (this.role === 'host') { for (const L of this.links) { L.send({t:'bye'}); L.close(); } }
     if (this.role === 'guest' && this.host) { this.host.send({t:'bye'}); this.host.close(); }
     if (this.server) this.server.close();
-    this.server = null; this.host = null; this.links = []; this.roster = []; this.role = null; this.code = ''; this.status = ''; this.render();
+    this.server = null; this.host = null; this.links = []; this.roster = []; this.vs = null; this.role = null; this.code = ''; this.status = ''; this.render();
   },
   lostHost(){
     if (this.role !== 'guest') return;
@@ -127,6 +127,7 @@ const Net = G.Net = {
   },
   dropLink(L){
     if (!this.links.includes(L)) return;
+    this.vsGone(L.id);
     this.links = this.links.filter(x => x !== L);
     const g = this.g, p = L.proxy;
     if (g && p) { if (p.alive) { p.alive = false; p.obj.visible = false; } G.HUD.feed(`${L.name} left the flight`); this.removeNetPlane(g, p); }
@@ -152,11 +153,12 @@ const Net = G.Net = {
       case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
       case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
       case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
-      case 'leftgame': if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
+      case 'leftgame': this.vsGone(L.id); if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
       case 'bye': this.dropSpawned(g, L); L.close(); this.dropLink(L); break;
       case 'spawn': if (g && G.game === g && !g.done) this.hostSpawn(g, L, m); break;
       case 'seaHit': if (g && G.game === g && g.sea) { const s = g.sea.ships[m.i | 0]; if (s && s.alive) g.sea.hit(s, Math.max(0, Math.min(400, +m.d || 0)), L.proxy || null, null, true); } break;
       case 'despawn': if (g && G.game === g) { const p = this.byNid(g, m.nid | 0); if (p && p.jobOwner === L) { this.removeNetPlane(g, p); L.spawned.delete(p); } } break;
+      default: if (typeof m.t === 'string' && m.t.slice(0, 2) === 'vs') this.vsRelay(L, m); break;
       case 'spawnShip': if (g && G.game === g && !g.done && m.o && typeof m.o === 'object' && (L.ships = (L.ships || 0) + 1) <= 3) { this.spawnTid = String(m.tid || '').slice(0, 16); try { const sh = g.addShip(unspec(m.o)); sh.jobOwner = L; } catch (e) {} this.spawnTid = null; } break;
     }
   },
@@ -179,7 +181,7 @@ const Net = G.Net = {
   onGame(g){
     if (this.building) { this.building = false; this.becomeGuest(g); return; }
     if (this.role !== 'host') return;
-    this.g = g; g.netHost = true; g.snapT = 0;
+    this.g = g; g.netHost = true; g.snapT = 0; this.vs = null;
     for (const p of g.planes) this.tagPlane(g, p);
     for (const L of this.links) { L.proxy = null; this.sendStart(g, L); }
   },
@@ -225,6 +227,7 @@ const Net = G.Net = {
   },
 
   hostFrame(g, dt){
+    if (this.vs) this.vsFrame(g, dt);
     if (!this.links.length || g.paused) return;
     g.snapT -= dt; if (g.snapT > 0) return; g.snapT = 1/SNAP_HZ;
     const P = [], S = [];
@@ -249,6 +252,7 @@ const Net = G.Net = {
   },
   onQuit(g){
     if (!g) return;
+    if (this.g === g) this.vsQuit();
     if (g.netHost && this.role === 'host' && !g.done) this.broadcast({t:'end', r:null, note:`${G.save.callsign || 'The host'} went back aboard.`});
     if (g.netGuest && this.role === 'guest' && this.host) this.host.send({t:'leftgame'});
     if (this.g === g) this.g = null;
@@ -333,6 +337,7 @@ const Net = G.Net = {
       case 'end': if (g && G.game === g) this.guestEnd(g, m); break;
       case 'ship': if (g && G.game === g) this.guestShip(g, m); break;
       case 'bye': this.lostHost(); break;
+      default: if (typeof m.t === 'string' && m.t.slice(0, 2) === 'vs') this.vsMsg(m);
     }
   },
   guestStart(m){
@@ -345,7 +350,7 @@ const Net = G.Net = {
   /* guest: the shared game has just been built on this machine; make it a puppet of the host's */
   becomeGuest(g){
     const m = this.startMsg || {ships:[]};
-    this.g = g; g.netGuest = true; g.hostName = m.host || 'Host'; g.lastSnap = 0; g.stateT = 0; g.netPlanes = new Map();
+    this.g = g; this.vs = null; g.netGuest = true; g.hostName = m.host || 'Host'; g.lastSnap = 0; g.stateT = 0; g.netPlanes = new Map();
     // the mission's script runs on the host; here it only hangs us on the trapeze and lets us drop
     const real = g.mission, keep = {drop:1, hang:1, launch:1};
     if (real.open) {
@@ -472,6 +477,7 @@ const Net = G.Net = {
   },
 
   guestFrame(g, dt){
+    if (this.vs) this.vsFrame(g, dt);
     if (!this.host) return;
     if (g.t - g.lastSnap > 2 && !g.done && !g.waitBanner && g.lastSnap > 0) { g.waitBanner = true; G.HUD.banner(`Waiting for ${g.hostName}`, 'The host has paused or lost the line'); }
     g.stateT -= dt; if (g.stateT > 0) return; g.stateT = 1/STATE_HZ;
@@ -581,4 +587,313 @@ G.Plane.prototype.remoteUpdate = function(dt){
   if (this.rockets < 2) this.rockets = 6;
   this.sync(dt);
 };
+/* ======================= versus: races and stunt shows against each other =======================
+   When a pilot in open-skies co-op takes a race or a stunt show, everyone else is invited (vsInvite). Pilots
+   with no job of their own who fly into the start area (or the show box) inside 20 s join (vsJoin) and get
+   their own copy of the job (a race without AI rivals: those fly once, in the job of the pilot who started it).
+   When everyone has joined or turned it down (vsBusy), or the 20 s are up, and the starter is at the start
+   too, the starter calls vsStart; every machine counts down 3 s and the job begins for all at once.
+   Each pilot flies and scores their own copy and sends vsProg a few times a second (the starter adds their
+   rivals); the last vsProg (done) carries the finish time or the show total. The judge (the starter, or the
+   host if the starter drops out) settles the order and sends vsResult; each pilot is paid on their own save.
+   Guests only talk to the host, which relays every vs message to everyone else. */
+const VS_WIN = 20, VS_COUNT = 3, VS_HZ = 4, VS_SHARE = [1, 0.4, 0.25, 0.15];
+const vsOrd = n => ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'][n] || n + 'th';
+const vsFmt = t => `${Math.floor(t/60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+const vsJob = id => (G.JOBS || []).find(j => j.id === id);
+const MEDALS = {gold:1, silver:1, bronze:1};
+Object.assign(Net, {
+  vs:null, vseq:0,
+  myPid(){ return this.role === 'host' ? 'host' : this.me; },
+  pilotName(pid){
+    if (pid === this.myPid()) return G.save.callsign || 'Ace';
+    if (this.role === 'host') { const L = this.links.find(x => x.id === pid); return L ? L.name : 'Pilot'; }
+    const r = this.roster.find(x => x.id === pid); return r ? r.name : 'Pilot';
+  },
+  otherPids(){ return this.role === 'host' ? this.links.map(L => L.id) : this.roster.map(r => r.id).filter(id => id && id !== this.me); },
+  vsO(){ const g = this.g; if (!g || G.game !== g) return null; const O = g.realMission || g.mission; return O && O.open ? O : null; },
+  local(fn){ const q = this.quiet; this.quiet = true; try { return fn(); } finally { this.quiet = q; } },   // HUD lines for this pilot only (the host repeats radio to everyone otherwise)
+  vsSend(m){
+    m.from = this.myPid(); this.vsMsg(m);
+    if (this.role === 'host') this.broadcast(m); else if (this.host) this.host.send(m);
+  },
+  vsRelay(L, m){ m.from = L.id; delete m.pid; delete m.gone; this.broadcast(m, L); this.vsMsg(m); },   // a guest's word, passed on to the others
+  vsGone(pid){ if (this.role !== 'host' || !this.vs) return; for (const s of [...this.vs.values()]) if (s.phase !== 'done' && (s.joined.has(pid) || (s.pilots && s.pilots.includes(pid)) || s.owner === pid)) this.vsSend({t:'vsLeave', vid:s.vid, pid, gone:1}); },
+  vsQuit(){ if (this.vs) for (const s of this.vs.values()) if (s.J && !s.settled && s.phase !== 'done') { s.settled = true; this.vsSend({t:'vsLeave', vid:s.vid}); } this.vs = null; },
+
+  /* every machine runs every vs message the same way, its own included */
+  vsMsg(m){
+    if (typeof m.vid !== 'string' || m.vid.length > 24) return;
+    const S = this.vs || (this.vs = new Map()), me = this.myPid(), from = m.from;
+    let s = S.get(m.vid);
+    switch (m.t) {
+      case 'vsInvite': {
+        const def = vsJob(m.job), at = Array.isArray(m.at) && m.at.length === 3 && m.at.every(x => typeof x === 'number' && isFinite(x)) ? new V3(...m.at) : null;
+        if (s || !def || !at || (def.type !== 'race' && def.type !== 'stunt')) return;
+        s = {vid:m.vid, owner:from, judge:from, job:def.id, type:def.type, title:def.title, at, rad:Math.max(100, Math.min(2000, +m.rad || 600)), until:VS_WIN, phase:'invite',
+          joined:new Set([from]), busy:new Set(), pilots:null, prog:new Map(), rivals:[], hadRivals:false, names:{[from]:String(m.name || this.pilotName(from)).slice(0, 18)}, t:0, sendT:0};
+        S.set(m.vid, s);
+        if (from === me) return;
+        const O = this.vsO(), who = s.names[from], what = `${s.type === 'race' ? 'racing' : 'flying a stunt show,'} ${s.title}`;
+        const cant = !O || O.job || O.ended || !O.g.player.alive ? 'You\'re busy with a job of your own.' : def.needs && O.g.player.L.chassis !== def.needs ? `It takes a ${G.CHASSIS[def.needs].name}.` : '';
+        if (cant) { s.iBusy = true; this.local(() => G.HUD.feed(`${who} is ${what}. ${cant}`, false)); this.vsSend({t:'vsBusy', vid:s.vid}); return; }
+        const txt = `${who} is ${what} — fly to the ${s.type === 'race' ? 'start' : 'show box'} and join! ${VS_WIN} s`;
+        this.local(() => { G.HUD.radio(who, txt); G.HUD.toast(txt); });
+        return;
+      }
+      case 'vsBusy': if (s) s.busy.add(from); return;
+      case 'vsJoin':
+        if (!s || s.phase !== 'invite') return;
+        s.joined.add(from); s.names[from] = this.pilotName(from);
+        if (from !== me) this.local(() => G.HUD.feed(`${s.names[from]} joined ${s.title}`, false));
+        return;
+      case 'vsCancel': if (s && from === s.owner && s.phase !== 'done') this.vsEnd(s); return;
+      case 'vsStart': {
+        if (!s || from !== s.owner || s.phase !== 'invite' || !Array.isArray(m.pilots)) return;
+        s.pilots = m.pilots.filter(p => typeof p === 'string').slice(0, 4);
+        if (m.names && typeof m.names === 'object') for (const p of s.pilots) s.names[p] = String(m.names[p] || s.names[p] || this.pilotName(p)).slice(0, 18);
+        s.lim = Math.max(10, +m.lim || 600); s.nR = Math.max(1, m.nR | 0); s.phase = 'count'; s.count = VS_COUNT; s.lastN = 0;
+        for (const p of s.pilots) s.prog.set(p, {v:0});
+        if (s.J && !s.pilots.includes(me)) { this.vsDropJob(s); this.local(() => G.HUD.toast(`Too late: ${s.title} started without you`)); }
+        return;
+      }
+      case 'vsProg': {
+        if (!s || !s.pilots || !s.pilots.includes(from) || s.phase === 'done') return;
+        if (from === s.owner && Array.isArray(m.R)) { s.rivals = m.R.slice(0, 6).filter(Array.isArray).map(r => ({name:String(r[0] || 'Rival').slice(0, 30), v:+r[1] || 0, fin:typeof r[2] === 'number' ? r[2] : null, rival:true})); if (s.rivals.length) s.hadRivals = true; }
+        const e = s.prog.get(from); if (!e || e.done) return;
+        e.v = +m.v || 0;
+        if (m.done) { e.done = true; e.dnf = !!m.dnf; e.fin = typeof m.fin === 'number' && isFinite(m.fin) ? m.fin : null; e.medal = MEDALS[m.medal] ? m.medal : null; e.hit = !!m.hit; if (e.fin === null && s.type === 'race') e.dnf = true; }
+        return;
+      }
+      case 'vsLeave': {
+        if (!s) return;
+        const pid = from === 'host' && typeof m.pid === 'string' ? m.pid : from, gone = from === 'host' && m.gone;
+        if (pid === s.owner && s.phase !== 'go' && s.phase !== 'done') { this.vsEnd(s); return; }
+        if (s.phase === 'invite') { s.joined.delete(pid); s.busy.add(pid); return; }
+        if (s.pilots) { s.pilots = s.pilots.filter(p => p !== pid); s.prog.delete(pid); }
+        if (pid === s.owner && gone) { s.judge = 'host'; s.rivals = []; }   // the starter's line went dead: the host settles it, and their rivals went with them
+        if (pid !== me && s.phase !== 'done') this.local(() => G.HUD.feed(`${s.names[pid] || 'A pilot'} dropped out of ${s.title}`, false));
+        return;
+      }
+      case 'vsResult':
+        if (!s || from !== s.judge || s.phase === 'done' || !Array.isArray(m.rows)) return;
+        s.rows = m.rows.slice(0, 12); s.phase = 'done'; s.showT = 15; this.vsSettle(s);
+        return;
+    }
+  },
+  vsEnd(s){
+    // called off before the start: joiners drop their copy; the starter carries on alone, as a normal job
+    if (s.J) {
+      if (s.owner !== this.myPid()) this.vsDropJob(s);
+      else { s.solo = true; const O = this.vsO(); if (s.wantBegin != null && O && O.job === s.J && !s.J.started && this.g.t - s.wantBegin < 2) s.J.begin(); }   // crossed the start just as everyone turned it down: off you go
+    }
+    this.vs.delete(s.vid);
+  },
+  vsDropJob(s){
+    const O = this.vsO(), J = s.J; s.J = null; s.settled = true;
+    if (O && O.job === J) { O.job = null; if (J.cleanup) J.cleanup(); O.g.markers = []; }
+  },
+
+  /* this pilot flies into the start: they're in */
+  vsJoin(s, O){
+    const def = vsJob(s.job); if (!def) return;
+    this.vsJoining = s;
+    try { this.local(() => O.startJob(s.type === 'race' ? Object.assign({}, def, {rivals:0}) : def, null)); } finally { this.vsJoining = null; }
+    if (!s.J) return;
+    s.iJoined = true; this.vsSend({t:'vsJoin', vid:s.vid});
+    this.local(() => G.HUD.toast(`Joined ${s.title}`));
+  },
+  /* a race or show in the versus: held until the start, then flown as normal, then held again until the result */
+  vsArm(s, J){
+    const up0 = J.update, beg0 = J.begin, pts0 = J.onPoints, ob0 = J.objective, race = s.type === 'race', def = J.def;
+    s.J = J; s.def = def; J.vsS = s;
+    if (beg0) J.begin = function(){ if (s.solo || s.phase === 'go') return beg0.apply(this, arguments); if (s.owner === Net.myPid()) s.wantBegin = Net.g ? Net.g.t : 0; };
+    if (pts0) J.onPoints = function(){ if (s.solo || (s.phase === 'go' && !s.myDone)) return pts0.apply(this, arguments); };
+    J.update = dt => {
+      if (s.solo) return up0(dt);
+      if (s.phase === 'invite' || s.phase === 'count') { up0(dt); if (!race) { J.t = 0; J.score = 0; } return; }
+      if (s.phase === 'go' && !s.myDone) {
+        if (race) { if (up0(dt)) { s.myDone = true; this.vsDone(s, J); } return; }
+        if (J.t + dt >= def.time) { J.t = def.time; s.myDone = true; this.vsDone(s, J); return; }
+        const r = up0(dt); if (r && r.win && J.hitT == null) J.hitT = J.t;
+        return;
+      }
+      J.t += dt;   // across the line: wait for the others (the rivals' clock keeps running)
+    };
+    J.objective = () => {
+      if (s.solo) return ob0();
+      const ow = s.names[s.owner] || 'the starter';
+      if (s.phase === 'invite') {
+        if (s.owner !== this.myPid()) return `${s.title}: waiting at the ${race ? 'start' : 'show box'} for ${ow} · ${Math.max(0, Math.ceil(s.until))} s`;
+        const n = s.joined.size - 1, there = this.g.player.pos.distanceTo(s.at) < s.rad;
+        return `${s.title}: ${there ? 'waiting for the others' : `fly to the ${race ? 'start' : 'show box'}`} · ${n} pilot${n === 1 ? '' : 's'} joined${s.until > 0 ? ` · ${Math.ceil(s.until)} s` : ''}`;
+      }
+      if (s.phase === 'count') return `${s.title}: starting in ${Math.max(1, Math.ceil(s.count))}`;
+      if (s.myDone) return `${s.title}: ${race ? (J.fin ? `finished in ${vsFmt(J.finT)}` : 'out of the race') : `${Math.round(J.score).toLocaleString()} points`} · waiting for the others`;
+      return ob0();
+    };
+  },
+  vsDone(s, J){
+    if (s.type === 'race') this.vsSend(J.fin ? {t:'vsProg', vid:s.vid, done:1, v:J.nRings, fin:J.finT, medal:J.medalFor(J.finT) || undefined, R:this.vsRivals(s, J)} : {t:'vsProg', vid:s.vid, done:1, dnf:1, v:J.progOf(this.g.player.pos, J.k)});
+    else { const d = s.def, hit = J.score >= d.target, h = J.hitT ?? d.time; this.vsSend({t:'vsProg', vid:s.vid, done:1, v:Math.round(J.score), hit, medal:hit ? (h < d.time*0.45 ? 'gold' : h < d.time*0.7 ? 'silver' : 'bronze') : undefined}); }
+  },
+  vsRivals(s, J){ return s.owner === this.myPid() && J.rivals && J.rivals.length ? J.rivals.map(r => [r.p.callsign, Math.round(J.progOf(r.p.pos, Math.min(J.nRings, r.pl.wp + 1))*100)/100, r.pl.raceDone ? r.pl.finishT : null]) : undefined; },
+
+  vsFrame(g, dt){
+    if (!this.vs.size) return;
+    const O = this.vsO(), me = this.myPid(), P = g.player; if (!O || !P) return;
+    for (const s of [...this.vs.values()]) {
+      if (s.phase === 'invite') {
+        s.until -= dt;
+        if (s.owner === me) {
+          if (!s.J || O.job !== s.J) { this.vsSend({t:'vsCancel', vid:s.vid}); continue; }
+          const others = this.otherPids(), waiting = others.filter(p => !s.joined.has(p) && !s.busy.has(p));
+          if (s.until > 0 && waiting.length) continue;
+          const pilots = [...s.joined].filter(p => p === me || others.includes(p));
+          if (pilots.length < 2) { this.vsSend({t:'vsCancel', vid:s.vid}); if (s.J) this.local(() => G.HUD.toast(`Nobody joined: ${s.title} is yours alone`)); continue; }
+          if (P.alive && P.pos.distanceTo(s.at) < s.rad) this.vsSend({t:'vsStart', vid:s.vid, pilots, names:Object.fromEntries(pilots.map(p => [p, s.names[p] || this.pilotName(p)])), lim:s.type === 'race' ? s.J.limit : s.def.time, nR:s.type === 'race' ? s.J.nRings - 1 : 0});
+        } else if (!s.iBusy && !s.iJoined && s.until > 0 && O.phase === 1 && !O.job && !O.ended && P.alive && !P.frozen) {
+          const d = P.pos.distanceTo(s.at);
+          if (g.markers) g.markers.push({pos:s.at, label:`JOIN ${s.names[s.owner].toUpperCase()} · ${s.title.toUpperCase()} · ${Math.ceil(s.until)} S`, col:'#f2c14e'});
+          if (d < s.rad) this.vsJoin(s, O);
+        }
+      } else if (s.phase === 'count') {
+        s.count -= dt; const n = Math.ceil(s.count);
+        if (s.J && n !== s.lastN && n > 0) { s.lastN = n; this.local(() => G.HUD.banner(s.title, `Starting in ${n}`)); if (g.audio && g.audio.ding) g.audio.ding(); }
+        if (s.count <= 0) {
+          s.phase = 'go'; s.t = 0;
+          if (s.J && O.job === s.J) {
+            const J = s.J; if (s.type === 'race') { J.begin(); J.k = 0; } else { J.t = 0; J.score = 0; }
+            this.local(() => G.HUD.banner('Go!', s.title)); setTimeout(() => { if (G.game === g && s.phase === 'go') G.HUD.banner(null); }, 1200);
+          }
+        }
+      } else if (s.phase === 'go') {
+        s.t += dt;
+        if (s.J && O.job === s.J && (s.sendT -= dt) <= 0) {
+          s.sendT = 1/VS_HZ; const J = s.J;
+          if (!s.myDone) this.vsSend({t:'vsProg', vid:s.vid, v:s.type === 'race' ? Math.round(J.progOf(P.pos, J.k)*100)/100 : Math.round(J.score), R:this.vsRivals(s, J)});
+          else if (s.owner === me && J.rivals && J.rivals.length) this.vsSend({t:'vsProg', vid:s.vid, R:this.vsRivals(s, J)});
+        }
+        if (s.judge === me) {
+          if (s.owner === me && s.J && O.job === s.J && s.J.rivals && s.J.rivals.length) { const R = this.vsRivals(s, s.J); s.rivals = R.map(r => ({name:r[0], v:r[1], fin:r[2], rival:true})); s.hadRivals = true; }
+          const left = s.pilots.filter(p => !(s.prog.get(p) || {}).done);
+          if (left.length && s.t > s.lim + 20) for (const p of left) Object.assign(s.prog.get(p) || {}, {done:true, dnf:true});   // nobody waits for ever
+          if (!left.length || s.t > s.lim + 20) this.vsSend({t:'vsResult', vid:s.vid, rows:this.vsDecide(s)});
+        }
+      } else if (s.phase === 'done') { s.showT -= dt; if (s.showT <= 0) this.vs.delete(s.vid); }
+    }
+  },
+
+  /* the judge's call: who placed where, and what each pilot is owed */
+  vsOrder(s){
+    const H = s.pilots ? s.pilots.map(pid => Object.assign({pid, name:s.names[pid] || this.pilotName(pid)}, s.prog.get(pid) || {v:0})) : [];
+    if (s.type === 'stunt') return H.sort((a, b) => b.v - a.v);
+    const key = e => e.dnf ? [2, 0] : e.fin != null ? [0, e.fin] : [1, -e.v];
+    return H.concat(s.rivals.map(r => Object.assign({}, r))).sort((a, b) => { const x = key(a), y = key(b); return x[0] - y[0] || x[1] - y[1]; });
+  },
+  vsDecide(s){
+    const all = this.vsOrder(s), rows = [];
+    if (s.type === 'race') {
+      const fin = all.filter(e => !e.rival && !e.dnf && e.fin != null), rivals = s.hadRivals;
+      const lead = fin[0], leadWins = !!lead && (rivals ? all[0] === lead : !!lead.medal);
+      all.forEach((e, i) => {
+        const row = {pid:e.pid || null, name:e.name, rival:!!e.rival, overall:i + 1, val:e.fin != null ? e.fin : null, dnf:!!e.dnf};
+        if (!e.rival) {
+          const hp = fin.indexOf(e);
+          if (e.dnf || hp < 0) Object.assign(row, {kind:'fail', note:'Did not finish'});
+          else if (leadWins && hp === 0) Object.assign(row, {kind:'win', place:1, medal:e.medal || null});
+          else if (leadWins && (rivals || e.medal)) Object.assign(row, {kind:'share', place:hp + 1, mul:VS_SHARE[hp] || 0.1});
+          else Object.assign(row, {kind:'fail', place:hp + 1, note:rivals ? `Finished ${vsOrd(i + 1)}` : `Too slow: ${vsFmt(e.fin)}`});
+        }
+        rows.push(row);
+      });
+    } else {
+      const target = (vsJob(s.job) || {}).target || 0, leadWins = all.length && all[0].v >= target;
+      all.forEach((e, i) => {
+        const row = {pid:e.pid, name:e.name, overall:i + 1, val:e.v, place:i + 1};
+        if (leadWins && i === 0) Object.assign(row, {kind:'win', medal:e.medal || 'bronze'});
+        else if (leadWins && e.v >= target) Object.assign(row, {kind:'share', mul:VS_SHARE[i] || 0.1});
+        else Object.assign(row, {kind:'fail', note:`${Math.round(e.v).toLocaleString()} of ${target.toLocaleString()} points`});
+        rows.push(row);
+      });
+    }
+    return rows;
+  },
+  vsBoard(s){ return (s.rows || []).map(r => `${r.overall}. ${r.name} ${r.dnf ? 'DNF' : r.val == null ? '' : s.type === 'race' ? vsFmt(r.val) : Math.round(r.val).toLocaleString()}`.trim()); },
+  /* each pilot pays themselves, once, from the agreed result */
+  vsSettle(s){
+    const me = this.myPid(), row = s.rows.find(r => r && !r.rival && r.pid === me), board = this.vsBoard(s), O = this.vsO();
+    const head = `Results · ${s.title}`;
+    if (!row || !s.J || s.settled) { this.local(() => { G.HUD.feed(`${head}: ${board.join(', ')}`, false); if (!(O && O.job)) { G.HUD.banner(head, board.join(' · ')); setTimeout(() => G.HUD.banner(null), 4500); } }); s.J = null; return; }
+    s.settled = true;
+    const J = s.J; s.J = null; if (!O || O.job !== J) return;
+    const race = s.type === 'race', n = s.pilots.length + (race ? s.rivals.length : 0);
+    let res;
+    if (row.kind === 'win') res = {win:true, medal:row.medal || undefined, time:race ? row.val : undefined, vsSettle:true, say:race ? `First across the line in ${vsFmt(row.val)}! Collect your purse.` : `${Math.round(row.val).toLocaleString()} points, the best in the sky! They're on their feet!`};
+    else if (row.kind === 'share') res = {vsShare:Math.max(0, Math.min(1, +row.mul || 0)), place:row.place || 2};
+    else res = {win:false, vsSettle:true, note:row.note || 'Beaten', say:race ? 'Not your day, flyer. There\'s always the next one.' : 'The crowd cheered the other fellow.'};
+    this.local(() => O.finishJob(res));
+    const sub = `${vsOrd(row.overall)} of ${n}${res.vsShare ? ` · $${Math.round(J.def.pay*res.vsShare).toLocaleString()}` : ''} · ${board.join(' · ')}`;
+    this.local(() => { G.HUD.banner(head, sub); G.HUD.feed(`${head}: ${board.join(', ')}`, false); });
+  },
+  /* the standings, at the top of every pilot's side list while a versus is on */
+  vsRows(){
+    const me = this.myPid(), out = [];
+    for (const s of this.vs.values()) {
+      const kind = s.type === 'race' ? 'Race' : 'Stunt show';
+      if (s.phase === 'invite') {
+        if (s.owner !== me && (s.iBusy || s.until <= 0) && !s.iJoined) continue;
+        out.push({text:`${kind} · ${s.title} · ${s.names[s.owner]}`, st:'live', val:s.owner === me ? `${s.joined.size - 1} joined` : s.iJoined ? 'joined' : `join · ${Math.ceil(s.until)} s`});
+        continue;
+      }
+      if (s.phase === 'done') {
+        out.push({text:`Results · ${s.title}`, st:'ok', val:''});
+        for (const r of s.rows) out.push({text:`${r.overall}. ${r.name}${r.pid === me ? ' (you)' : ''}`, st:r.kind === 'win' ? 'ok' : r.kind === 'fail' ? 'fail' : 'live', val:r.dnf ? 'DNF' : r.val == null ? '' : s.type === 'race' ? vsFmt(r.val) : Math.round(r.val).toLocaleString()});
+        continue;
+      }
+      out.push({text:`${kind} · ${s.title}`, st:'live', val:s.phase === 'count' ? `in ${Math.max(1, Math.ceil(s.count))}` : vsFmt(s.t)});
+      this.vsOrder(s).forEach((e, i) => out.push({text:`${i + 1}. ${e.name}${e.pid === me ? ' (you)' : ''}`, st:e.pid === me ? 'ok' : 'live',
+        val:s.type === 'stunt' ? Math.round(e.v).toLocaleString() : e.dnf ? 'DNF' : e.fin != null ? vsFmt(e.fin) : `ring ${Math.max(0, Math.min(s.nR || 0, Math.floor(e.v) - 1))}/${s.nR || 0}`}));
+    }
+    return out;
+  }
+});
+/* open skies: taking a race or a show in co-op invites everyone; joining makes a copy; leaving early drops out */
+{
+  const O = G.MISSIONS.open;
+  const sj0 = O.startJob;
+  O.startJob = function(def, site){
+    const r = sj0.call(this, def, site), J = this.job, N = Net;
+    if (!J || J.def !== def) return r;
+    if (N.vsJoining) { N.vsArm(N.vsJoining, J); return r; }
+    const g = this.g;
+    if (!N.role || N.g !== g || G.game !== g || def.treasure || (def.type !== 'race' && def.type !== 'stunt') || !N.otherPids().length) return r;
+    const at = def.type === 'race' ? J.start : J.at; if (!at) return r;
+    const vid = `${N.myPid()}:${++N.vseq}`;
+    N.vsSend({t:'vsInvite', vid, job:def.id, at:[r2(at.x), r2(at.y), r2(at.z)], rad:def.type === 'race' ? 600 : (J.R || 800), name:G.save.callsign || 'Ace'});
+    const s = N.vs && N.vs.get(vid); if (s) N.vsArm(s, J);
+    return r;
+  };
+  const fj0 = O.finishJob;
+  O.finishJob = function(res){
+    const job = this.job, s = job && job.vsS;
+    if (s && !s.solo && res && !res.vsSettle && !res.vsShare && !s.settled) {
+      // out of a versus before the result (abandoned, or the job ended some other way): out of the standings, failed as usual
+      s.settled = true; s.J = null;
+      if (s.owner === Net.myPid() && s.phase === 'invite') Net.vsSend({t:'vsCancel', vid:s.vid}); else Net.vsSend({t:'vsLeave', vid:s.vid});
+    }
+    if (res && res.vsShare != null && job) {
+      // a place behind the winner: a share of the purse, no medal, and the job isn't counted as won
+      const def = job.def, pay = Math.round(def.pay*res.vsShare); this.job = null;
+      if (job.cleanup) job.cleanup();
+      G.save.cash += pay; this.earned += pay;
+      G.HUD.banner(`${vsOrd(res.place)} · ${def.title}`, `$${pay.toLocaleString()} · ${Math.round(res.vsShare*100)}% of the purse`); setTimeout(() => G.HUD.banner(null), 4500);
+      if (this.g.audio) this.g.audio.ding();
+      G.persist(); this.g.markers = []; this.holdOnGround = false; return;
+    }
+    return fj0.call(this, res);
+  };
+  const sides0 = G.HUD.sides;
+  G.HUD.sides = function(list){ if (Net.vs && Net.vs.size && Net.g && G.game === Net.g) list = Net.vsRows().concat(list || []); return sides0.call(this, list); };
+}
 })();

@@ -1733,6 +1733,9 @@ ENG.race = (O, def) => {
   // the stock Gallant tops out at 210 mph, so gold (a 228 mph average) usually takes an upgraded or faster plane; silver is a clean Gallant run
   const par = def.par || 1, gold = len/(228*MPH)*par, silver = len/(192*MPH)*par, bronze = len/(168*MPH)*par;
   const J = {low:def.low, k:0, t:0, started:false, rivals:[], len, hideSites:true};
+  // for co-op versus races (net.js): where the start is, the ring count, the time limit, the medal for a time, and how far along a plane is
+  J.start = rings[seq[0]].pos; J.nRings = seq.length; J.limit = bronze*2.2; J.medalFor = t => t <= gold ? 'gold' : t <= silver ? 'silver' : t <= bronze ? 'bronze' : null;
+  J.progOf = (pos, k) => k + (k < seq.length ? 1 - Math.min(1, pos.distanceTo(pts[seq[k]])/600) : 0);
   J.begin = () => {
     J.started = true; J.k = 1; J.t = 0; if (g.audio) g.audio.ding();
     if (def.rivals) {
@@ -1815,6 +1818,7 @@ ENG.stunt = (O, def) => {
     gates.push({pos:new V3(x, y + 17, z), n:new V3(Math.sin(a + Math.PI/2), 0, Math.cos(a + Math.PI/2)), R:20, prev:new Map(), m, t:-99, y});
   }
   const J = {t:0, score:0, low:true, gates};
+  J.at = c; J.R = R;   // the show box, for co-op versus shows (net.js)
   const inZone = () => Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < R && P.pos.y - O.ground(P.pos.x, P.pos.z) < 350;
   J.onPoints = pts => { if (inZone()) J.score += pts; };
   J.update = dt => {
