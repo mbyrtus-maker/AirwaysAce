@@ -31,7 +31,8 @@ const ACTIONS = [
   {id:'flaps',   label:'Flaps',                         def:B.l3},
   {id:'gear',    label:'Landing gear',                  def:B.create},
   {id:'look',    label:'Look back (hold) / view (tap)', def:B.r3},
-  {id:'photo',   label:'Camera (photo objectives)',     def:B.touch},
+  {id:'photo',   label:'Camera (photo objectives) / bombsight (planes that have one)', def:B.touch},
+  {id:'sight',   label:'Bombsight (its own button, if you want one)', def:-1},
   {id:'view',    label:'Chase / cockpit view',          def:-1},
   {id:'attack',  label:'Wingmen: attack',               def:B.up},
   {id:'cover',   label:'Wingmen: cover me',             def:B.right},
@@ -89,7 +90,9 @@ const Pad = G.pad = {
         // aim point from the right stick, as the mouse would move it
         if (this.rx || this.ry) g.onMouse(curve(this.rx)*1100*dt*this.sens(), curve(this.ry)*850*dt*this.sens()*(G.save.padInvertAim ? -1 : 1));
         const tap = c => { g.key(c, true); g.key(c, false); };
-        if (g.running) {
+        const bombsight = g.player && (G.CHASSIS[g.player.L.chassis] || {}).bombsight && (g.sight || !g.player.onGround);
+        if (press('sight') || (bombsight && press('photo'))) tap('KeyB');   // in the bombsight: left stick steers the run, right stick sets the wind, the trigger drops
+        if (g.running && !g.sight) {
           if (press('nitro') && !dropped) tap('ShiftLeft');
           if (press('roll')) g.stunt(this.lx < -0.25 ? 'rollL' : 'rollR');
           if (press('immel')) g.stunt('immel');
@@ -99,7 +102,7 @@ const Pad = G.pad = {
         if (press('flaps')) tap('KeyF');
         if (press('gear')) tap('KeyG');
         if (press('view')) tap('KeyC');
-        if (press('photo')) tap('KeyP');
+        if (press('photo') && !bombsight) tap('KeyP');
         if (press('attack')) tap('Digit1');
         if (press('cover')) tap('Digit2');
         if (press('zep')) tap('Digit3');

@@ -130,13 +130,14 @@ const H = G.HUD = {
     c.strokeStyle = '#f2c14e'; c.lineWidth = 3; c.beginPath(); c.moveTo(dx - ax*L, dy - ay*L); c.lineTo(dx + ax*L, dy + ay*L); c.stroke();
     c.beginPath(); c.arc(dx + ax*L, dy + ay*L, 4, 0, Math.PI*2); c.fillStyle = '#f2c14e'; c.fill();
     c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(240,230,200,0.95)';
-    c.fillText(`WIND SET · ${Math.round(S.wSpd*2.237)} mph`, dx, dy + rd + 18); c.fillText('Q/E direction · W/S strength', dx, dy + rd + 34);
+    c.fillText(`WIND SET · ${Math.round(S.wSpd*2.237)} mph`, dx, dy + rd + 18); c.fillText(G.pad && G.pad.active ? 'right stick: turn and strength' : 'Q/E direction · W/S strength', dx, dy + rd + 34);
     // readouts
     const ly = cy + R*0.25, lx = dx;
     const lines = [`ALT ${Math.round(P.pos.y*FT).toLocaleString()} ft`, `GROUND SPEED ${Math.round(Math.hypot(P.vel.x, P.vel.z)/G.MPH)} mph`, `FALL ${S.fall ? S.fall.toFixed(1) : '—'} s`, `CRATES ${P.packages || 0}`];
     c.textAlign = 'center'; c.font = '700 15px "Barlow Condensed", sans-serif'; lines.forEach((t, i) => c.fillText(t, lx, ly + i*20));
     c.font = '600 13px "Barlow Condensed", sans-serif'; c.fillStyle = 'rgba(240,230,200,0.8)';
-    c.fillText('A/D steer the run · Space or click drops · B back to the stick', cx, cy + R + 26);
+    const pad = G.pad && G.pad.active;
+    c.fillText(pad ? 'Left stick steers the run · right stick sets the wind · trigger drops · Camera button back to the stick' : 'A/D steer the run · Space or click drops · B back to the stick', cx, cy + R + 26);
     c.fillText('Read the wind off the drop zone\'s smoke', cx, cy - R - 12);
   },
   proj(v, out){ tC.copy(v).project(G.game.camera); out.x = (tC.x*0.5 + 0.5)*innerWidth; out.y = (-tC.y*0.5 + 0.5)*innerHeight; out.z = tC.z; return out; },
