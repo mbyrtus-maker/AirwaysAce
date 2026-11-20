@@ -2872,5 +2872,123 @@ G.buildShip = (kind, o = {}) => {
   return g;
 };
 /* ==== SHIPS END ==== */
+/* ---------- the air drop: a supply crate under its drogue, and the drop zone a ground crew lays out for it ----------
+   Used by the bombsight (game.js dropCrate / addDropZone / cratesTick); both are plain builders any mission can call.
+   G.buildSupplyCrate(): a slatted stores crate 1.2 x 0.9 x 1.2 m, origin at its centre, standing on local -Y. Steel corner angles,
+   two hoop straps, a red cross on a white square (top and two sides) and the navy field's stores stencil on the other two sides.
+   The rig trails along local +Y, the way cratesTick points a falling crate: bridle, riser, an eight-gore drogue and two ribbon tails.
+   userData.streamer is the rig (hide it on landing), userData.spin the same group (turn it about its Y while she falls).
+   Geometry and materials are built once and shared, so a crate costs ten small draw calls and no new buffers. */
+let CRATE = null;
+function crateParts(){
+  if (CRATE) return CRATE;
+  const W = 1.2, H = 0.9, hw = W/2, hh = H/2, k = new Kit(), r = new Kit();
+  const wood = G.mat(0xbc9658, {roughness:0.9}), wood2 = G.mat(0xa07c46, {roughness:0.9}), gap = G.mat(0x4a3622, {roughness:1}), iron = G.mat(0x6c737a, {roughness:0.5, metalness:0.3});
+  const white = G.mat(0xf1ece0, {roughness:0.95}), red = G.mat(0xc0392b, {roughness:0.9}), orange = G.mat(0xe0742a, {roughness:0.9}), cord = G.mat(0x2e2a24, {roughness:1});
+  k.add(box(W - 0.06, H - 0.06, W - 0.06), gap);                                                              // what shows between the slats
+  for (let s = 0; s < 4; s++) for (let i = 0; i < 4; i++) k.add(rect(W - 0.02, H/4 - 0.03), (i + s) % 2 ? wood : wood2, mul(RY(s*PI/2), T(0, -hh + (i + 0.5)*H/4, hw)));
+  for (const e of [1, -1]) for (let i = 0; i < 4; i++) k.add(rect(W/4 - 0.03, W - 0.02), i % 2 ? wood2 : wood, mul(RX(-e*PI/2), T(-hw + (i + 0.5)*W/4, 0, hh)));   // lid and floor
+  for (const sx of [1, -1]) for (const sz of [1, -1]) k.add(box(0.08, H + 0.03, 0.08), iron, T(sx*(hw - 0.02), 0, sz*(hw - 0.02)));                                // corner angles
+  for (const z of [0.38, -0.38]) k.add(cyl(Math.SQRT2, Math.SQRT2, 0.08, 4, false), iron, mul(T(0, 0, z), SC(hw + 0.014, hh + 0.014, 1), RX(PI/2)));             // hoop straps over the lid
+  const cross = [[rect(0.46, 0.46), white], [rect(0.34, 0.11), red], [rect(0.11, 0.34), red]];
+  k.decal(mul(T(0, hh + 0.014, 0), RX(-PI/2)), cross); k.decal(onSide(hw + 0.014, 0, 0), cross); k.decal(mul(T(-hw - 0.014, 0, 0), RY(-PI/2)), cross);
+  // the rig: four bridle cords to a ring, a riser, shroud lines, the drogue (mouth to the crate) and two ribbon tails off the crown
+  const Y0 = hh, YB = Y0 + 0.95, YR = Y0 + 2.2, YS = Y0 + 3.45, YC = Y0 + 4.0, RS = 0.95, both = (o, a, b, c, d) => { quad(o, a, b, c, d); quad(o, d, c, b, a); };
+  for (const sx of [1, -1]) for (const sz of [1, -1]) r.add(wire([sx*(hw - 0.06), Y0, sz*(hw - 0.06)], [0, YB, 0], 0.012), cord);
+  r.add(wire([0, YB, 0], [0, YR, 0], 0.016), cord); r.add(xf(torus(0.07, 0.02, 6, 3), RX(PI/2)), cord, T(0, YB, 0));
+  for (let j = 0; j < 8; j++) { const a0 = j*PI/4, a1 = a0 + PI/4, P = (a, q, y) => [Math.cos(a)*q, y, Math.sin(a)*q], o = [];
+    r.add(wire([0, YR, 0], P(a0, RS, YS), 0.01), cord);
+    both(o, P(a0, RS, YS), P(a1, RS, YS), P(a1, RS*0.72, YS + 0.34), P(a0, RS*0.72, YS + 0.34)); both(o, P(a0, RS*0.72, YS + 0.34), P(a1, RS*0.72, YS + 0.34), P(a1, 0.14, YC), P(a0, 0.14, YC));
+    r.add(o, j % 2 ? white : orange); }
+  for (const s of [1, -1]) { const o = []; let p = [s*0.1, YC, 0], tw = 0;                                      // ribbon tails, a quarter turn each length
+    for (let i = 0; i < 3; i++) { const q = [s*(0.1 + (i + 1)*0.07), YC + (i + 1)*0.5, (i % 2 ? -1 : 1)*0.08], t2 = tw + PI/4, e = (c, t) => [[c[0] - Math.cos(t)*0.1, c[1], c[2] - Math.sin(t)*0.1], [c[0] + Math.cos(t)*0.1, c[1], c[2] + Math.sin(t)*0.1]];
+      const A = e(p, tw), B = e(q, t2); both(o, A[0], A[1], B[1], B[0]); p = q; tw = t2; }
+    r.add(o, orange); }
+  // the stores stencil, one mesh for both sides (nameTex: the same painted lettering as the hangar roofs)
+  const tex = nameTex('N.F.9 STORES', '#2a1d10', '#2a1d10'); let stencil = null;
+  if (tex) { const p = [], uv = []; for (const s of [0, PI]) { p.push(...xf(rect(1.08, 0.135), mul(RY(s), T(0, H/8, hw + 0.012)))); uv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p), 3)); geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2)); geo.computeVertexNormals();
+    stencil = [geo, new THREE.MeshStandardMaterial({map:tex, transparent:true, depthWrite:false, roughness:0.9, metalness:0})]; }
+  const parts = kit => kit.build(new THREE.Group()).children.map(m => [m.geometry, m.material]);
+  return (CRATE = {body:parts(k), rig:parts(r), stencil});
+}
+G.buildSupplyCrate = () => {
+  const C = crateParts(), g = new THREE.Group(), rig = new THREE.Group();
+  const put = (to, [geo, mat], solid = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = solid; m.receiveShadow = solid; to.add(m); };
+  for (const p of C.body) put(g, p); if (C.stencil) put(g, C.stencil, false);
+  for (const p of C.rig) put(rig, p); g.add(rig);
+  g.userData = {streamer:rig, spin:rig, size:1.2, height:0.9};
+  return g;
+};
+
+/* G.buildDropZone(o): what the ground crew laid out, flat on the ground round the zone's centre (the origin). Local +X is east.
+   A cross of whitewashed canvas panels on dark tarpaulin, weighted with stones, a red aiming square in the middle and a drum at
+   the end of each arm; a dashed ring of red cloth and whitewashed stones with its outer edge at the bullseye radius o.bull;
+   eight orange chevrons pointing inward with their ends at the delivery radius o.good; a smoke pot 20 m east of the centre with
+   its handcart and two of the crew; four canvas A-frames outside the ring; and a windsock in its wind circle. Only the windsock stands over 2 m.
+   o.ground(x, z), if given, is the height of the ground at a local point, relative to the centre: every piece is set down on it.
+   userData.smokeAt (V3, from the centre): the mouth of the smoke pot. userData.windsock: a Group to yaw downwind
+   (rotation.y = atan2(wind.x, wind.z)); its userData.sock droops about X (0 standing straight out, about 1.2 hanging limp). */
+G.buildDropZone = (o = {}) => {
+  const bull = o.bull || 23, good = o.good || 60, gy = o.ground || (() => 0), g = new THREE.Group(), k = new Kit();
+  let seed = 20387; const R = () => (seed = seed*16807 % 2147483647)/2147483647;                               // the same scatter every time
+  const white = G.mat(0xf1ece0, {roughness:0.95}), red = G.mat(0xc0392b, {roughness:0.9}), orange = G.mat(0xe0742a, {roughness:0.9}), tarp = G.mat(0x3b3428, {roughness:1});
+  const stoneM = G.mat(0x8f8676, {roughness:1}), wood = G.mat(0x8a6a3a, {roughness:0.9}), rust = G.mat(0x8c3b28, {roughness:0.8}), dark = DARK(), steel = STEEL();
+  const flat = (x, z, y, yaw = 0) => mul(T(x, gy(x, z) + y, z), RY(yaw), RX(-PI/2));
+  const sheet = (w, l, x, z, yaw, m, edge = 0.35) => { if (edge) k.add(rect(w + edge*2, l + edge*2), tarp, flat(x, z, 0.16, yaw)); k.add(rect(w, l), m, flat(x, z, 0.26, yaw)); };
+  const rock = [0, 1].map(i => { const p = []; for (let j = 0; j < 5; j++) { const a = j*2*PI/5; p.push([Math.cos(a)*(i ? 0.55 : 1), i*0.7, Math.sin(a)*(i ? 0.55 : 1)]); } return p; }), ROCK = loft(rock, false, true);
+  const stone = (x, z, r, m) => k.add(ROCK, m, mul(T(x, gy(x, z), z), RY(R()*6), SC(r, r, r*(0.7 + R()*0.5))));
+  const drum = (x, z, m, band) => { k.add(cyl(0.3, 0.3, 0.9, 8), m, T(x, gy(x, z) + 0.45, z)); if (band) k.add(cyl(0.315, 0.315, 0.26, 8, false), band, T(x, gy(x, z) + 0.5, z)); };
+  /* ---- the cross: a centre panel and three panels to each arm ---- */
+  const arm = Math.min(17, bull*0.74), wid = 4.6, n = 3, pitch = (arm - 2.5)/n;
+  sheet(5, 5, 0, 0, 0.02, white); k.add(rect(2.2, 2.2), red, flat(0, 0, 0.34, 0.02));
+  for (let a = 0; a < 4; a++) { const c = Math.cos(a*PI/2), s = Math.sin(a*PI/2);
+    for (let i = 0; i < n; i++) { const d = 2.5 + (i + 0.5)*pitch + (R() - 0.5)*0.2, off = (R() - 0.5)*0.3, x = c*d - s*off, z = s*d + c*off, yaw = -a*PI/2 + (R() - 0.5)*0.07;
+      sheet(pitch - 0.3, wid, x, z, yaw, white);
+      for (const e of [1, -1]) stone(x + c*(pitch/2 - 0.5)*e - s*e*(wid/2 - 0.3), z + s*(pitch/2 - 0.5)*e + c*e*(wid/2 - 0.3), 0.26 + R()*0.1, stoneM); }
+    drum(c*(arm + 1.4), s*(arm + 1.4), white, red); }
+  for (const [x, z] of [[2.2, 2.2], [-2.2, 2.2], [-2.2, -2.2], [2.2, -2.2]]) stone(x, z, 0.3, stoneM);
+  /* ---- the bullseye ring: red cloth strips, a whitewashed stone in every gap ---- */
+  { const m = Math.max(8, Math.round(2*PI*bull/6)), rm = bull - 0.7, L = 2*PI*rm/m*0.68;
+    for (let i = 0; i < m; i++) { const a = (i + 0.5)*2*PI/m, b = i*2*PI/m;
+      sheet(L, 1.4, Math.cos(a)*rm, Math.sin(a)*rm, a + PI/2, red, 0); stone(Math.cos(b)*rm, Math.sin(b)*rm, 0.42 + R()*0.14, white); } }
+  for (let j = 0; j < 4; j++) { const a = PI/4 + j*PI/2, x = Math.cos(a)*(bull + 3.5), z = Math.sin(a)*(bull + 3.5), M = mul(T(x, gy(x, z), z), RY(-a)), hl = 1.5, ht = 1.3, sp = 0.8;   // canvas A-frames, red face outward: something upright for a low pass
+    const o1 = [], o2 = [], e = []; quad(o1, [0, ht, -hl], [0, ht, hl], [sp, 0, hl], [sp, 0, -hl]); quad(o2, [0, ht, hl], [0, ht, -hl], [-sp, 0, -hl], [-sp, 0, hl]);
+    tri(e, [0, ht, hl], [-sp, 0, hl], [sp, 0, hl]); tri(e, [0, ht, -hl], [sp, 0, -hl], [-sp, 0, -hl]); k.add(o1, red, M); k.add(o2, white, M); k.add(e, tarp, M); }
+  /* ---- the delivery radius: eight orange chevrons, points inward ---- */
+  for (let j = 0; j < 8; j++) { const a = j*PI/4, rx = Math.cos(a), rz = Math.sin(a), LEN = 6.4, phi = 0.72, r0 = good - Math.sin(phi)*LEN - 0.8;
+    for (const s of [1, -1]) { const dx = -rz*s*Math.cos(phi) + rx*Math.sin(phi), dz = rx*s*Math.cos(phi) + rz*Math.sin(phi);
+      sheet(LEN, 1.6, rx*r0 + dx*LEN*0.46, rz*r0 + dz*LEN*0.46, Math.atan2(-dz, dx), orange, 0.3); }
+    stone(rx*(r0 - 1.2), rz*(r0 - 1.2), 0.4, white); }
+  /* ---- the smoke pot, east of the cross, on its scorched patch; spare pots, the handcart, two of the crew ---- */
+  const px = Math.max(20, arm + 3), py = gy(px, 0), smokeAt = new V3(px, py + 1.5, 0);
+  k.add(disc(1.8, 9), tarp, flat(px, 0, 0.18)); k.add(cyl(0.3, 0.36, 0.85, 8), rust, T(px, py + 0.425, 0)); k.add(cyl(0.375, 0.375, 0.1, 8, false), dark, T(px, py + 0.62, 0));
+  k.add(cyl(0.15, 0.31, 0.3, 8), dark, T(px, py + 1.0, 0)); k.add(cyl(0.15, 0.15, 0.28, 6, false), dark, T(px, py + 1.29, 0));
+  for (const [dx, dz] of [[0.3, 2.1], [-0.5, 2.5]]) k.add(cyl(0.2, 0.22, 0.6, 6), rust, T(px + dx, gy(px + dx, dz) + 0.3, dz));
+  { const cx = px - 1.6, cz = 4.6, M = (...m) => mul(T(cx, gy(cx, cz), cz), RY(0.5), ...m);                     // the handcart, shafts on the ground
+    k.add(box(1.15, 0.1, 1.9), wood, M(T(0, 0.72, 0))); for (const sx of [0.55, -0.55]) { k.add(box(0.06, 0.3, 1.9), wood, M(T(sx, 0.9, 0)));
+      k.add(cyl(0.5, 0.5, 0.09, 8), dark, M(T(sx*1.22, 0.5, 0.1), RZ(PI/2))); k.add(cyl(0.12, 0.12, 0.13, 6), steel, M(T(sx*1.22, 0.5, 0.1), RZ(PI/2)));
+      k.add(bar([sx*0.9, 0.7, -0.95], [sx*0.9, 0.06, -2.5], 0.07), wood, M()); }
+    k.add(box(0.07, 0.07, 1.4), steel, M(T(0, 0.5, 0.1), RZ(PI/2), RX(PI/2))); k.add(box(0.07, 0.66, 0.07), wood, M(T(0, 0.34, 0.85)));
+    k.add(box(0.62, 0.5, 0.62), wood, M(T(-0.2, 1.02, 0.5))); k.add(cyl(0.2, 0.22, 0.6, 6), rust, M(T(0.26, 1.07, -0.35))); k.add(cyl(0.2, 0.22, 0.6, 6), rust, M(T(-0.24, 1.07, -0.45))); }
+  const man = (x, z, yaw, shirt, wave) => { const M = (...m) => mul(T(x, gy(x, z), z), RY(yaw), ...m), skin = G.mat(0x9a6844, {roughness:0.9}), straw = G.mat(0xd9c07a, {roughness:1});
+    for (const sx of [0.12, -0.12]) k.add(box(0.17, 0.86, 0.2), dark, M(T(sx, 0.43, 0)));
+    k.add(box(0.46, 0.62, 0.26), shirt, M(T(0, 1.17, 0))); k.add(ball(0.14, 6, 3), skin, M(T(0, 1.62, 0), RX(PI/2)));
+    k.add(cyl(0.3, 0.3, 0.03, 7), straw, M(T(0, 1.73, 0))); k.add(cyl(0.12, 0.15, 0.12, 6), straw, M(T(0, 1.8, 0)));
+    for (const sx of [1, -1]) k.add(bar([sx*0.28, 1.42, 0], wave ? [sx*0.62, 2.0, 0.05] : [sx*0.34, 0.84, 0.1], 0.11), shirt, M()); };
+  man(px + 1.5, -1.9, -2.2, white, true); man(px - 2.6, 2.7, 0.5, G.mat(0x3c6a8a, {roughness:0.9}), false);
+  /* ---- the windsock: a white pole in a ring of whitewashed stones, north-east of the ring, clear of the cross ---- */
+  const wr = (bull + good)/2 - 9, wx = wr*0.88, wz = -wr*0.47, wy = gy(wx, wz), PH = 8;
+  k.add(cyl(0.2, 0.34, 0.5, 6), white, T(wx, wy + 0.25, wz)); k.add(tube([wx, wy, wz], [wx, wy + PH + 0.5, wz], 0.09, 5), white); k.add(cyl(0.11, 0.11, 0.7, 5, false), red, T(wx, wy + 1.6, wz));
+  k.add(ring(4.3, 5.2, 16), white, flat(wx, wz, 0.26)); for (let i = 0; i < 8; i++) { const a = i*PI/4; stone(wx + Math.cos(a)*4.75, wz + Math.sin(a)*4.75, 0.4, stoneM); }
+  k.build(g);
+  const ws = new THREE.Group(), sock = new THREE.Group(), wk = new Kit(), sk = new Kit(); ws.position.set(wx, wy + PH, wz);
+  wk.add(tube([0, 0, 0], [0, 0, 0.45], 0.04, 4), steel); wk.build(ws);
+  sk.add(xf(torus(1.0, 0.04, 8, 3), T(0, 0, 0.02)), steel);
+  for (let i = 0; i < 4; i++) sk.add(cyl(1.0 - (i + 1)*0.15, 1.0 - i*0.15, 1.6, 8), i % 2 ? white : red, mul(T(0, 0, (i + 0.5)*1.6), RX(PI/2)));
+  sk.build(sock); sock.position.set(0, 0, 0.45); sock.rotation.x = 0.25; ws.add(sock); ws.userData.sock = sock; g.add(ws);
+  g.userData = {smokeAt, windsock:ws, bull, good};
+  return g;
+};
 G.KIT = {Kit, box, cyl, bar, ball, lathe, loft, lamp, T, RX, RY, RZ, mul, xf};
 })();

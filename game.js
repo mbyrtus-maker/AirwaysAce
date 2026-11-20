@@ -242,9 +242,7 @@ G.Game = class {
   dropCrate(){
     const P = this.player; if (!this.sight || !P || !(P.packages > 0)) return;
     if ((this.crateCd || 0) > this.t) return; this.crateCd = this.t + 0.8;
-    P.packages--; const m = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.2), G.mat(0x8a6a3a, {roughness:0.9})); m.add(box);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.18, 1.25), G.mat(0xf1e9d6)); m.add(band);
-    const tail = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 4), new THREE.MeshBasicMaterial({color:0xe0742a, side:THREE.DoubleSide})); tail.position.y = 2.4; m.add(tail);
+    P.packages--; const m = G.buildSupplyCrate();   // models.js: userData.streamer is the drogue rig, trailing along the crate's +Y
     const c = {pos:P.pos.clone().add(new V3(0, -2.5, 0)), vel:P.vel.clone(), m, t:0, landed:false}; m.position.copy(c.pos); this.scene.add(m);
     (this.crates || (this.crates = [])).push(c);
     if (this.audio && this.audio.gear) this.audio.gear();
@@ -252,22 +250,27 @@ G.Game = class {
     if (!P.packages) setTimeout(() => { if (this.sight) this.toggleSight(true); }, 2500);
   }
   addDropZone(o){
-    const z = Object.assign({label:'DROP ZONE', bull:23, good:60, smoke:true}, o), grp = new THREE.Group(), white = G.mat(0xf1ece0, {roughness:0.95}), red = G.mat(0xc0392b, {roughness:0.9});
-    grp.add(new THREE.Mesh(new THREE.BoxGeometry(34, 0.3, 5), white)); grp.add(new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 34), white));
-    const ring = new THREE.Mesh(new THREE.RingGeometry(z.bull - 1.2, z.bull, 40), red); ring.rotation.x = -Math.PI/2; ring.position.y = 0.2; grp.add(ring);
-    z.pos.y = Math.max(this.world.height(z.pos.x, z.pos.z), 0.4); grp.position.copy(z.pos); this.scene.add(grp); z.obj = grp;
+    const z = Object.assign({label:'DROP ZONE', bull:23, good:60, smoke:true}, o);
+    z.pos.y = Math.max(this.world.height(z.pos.x, z.pos.z), 0.4);
+    const grp = G.buildDropZone({bull:z.bull, good:z.good, ground:(x, y) => Math.max(this.world.height(z.pos.x + x, z.pos.z + y), 0.4) - z.pos.y});   // models.js: the cross, the rings, the smoke pot and a windsock
+    grp.position.copy(z.pos); this.scene.add(grp); z.obj = grp;
     (this.dropZones || (this.dropZones = [])).push(z); return z;
   }
   cratesTick(dt){
     const w = this.windAt(this.t);
-    for (const z of this.dropZones || []) if (z.smoke && !z.done && Math.random() < 0.7) this.fx.smoke.emit(z.pos.x + 20, z.pos.y + 1.5, z.pos.z, w.x*0.9, 2.2, w.z*0.9, 3.2, 7, 0.85, 0.2, 0.15, 0.55, 5, 0, 0);   // the smoke pot: red, and it leans with the wind
+    for (const z of this.dropZones || []) {
+      const ud = z.obj.userData, s = ud.smokeAt, ws = ud.windsock, wsp = Math.hypot(w.x, w.z);
+      if (ws) { if (wsp > 0.05) ws.rotation.y = Math.atan2(w.x, w.z); if (ws.userData.sock) ws.userData.sock.rotation.x = clamp(1.25 - wsp*0.13, 0.06, 1.25); }   // the windsock: streams downwind, hangs when it drops
+      if (z.smoke && !z.done && Math.random() < 0.7) this.fx.smoke.emit(z.pos.x + s.x, z.pos.y + s.y, z.pos.z + s.z, w.x*0.9, 2.2, w.z*0.9, 3.2, 7, 0.85, 0.2, 0.15, 0.55, 5, 0, 0);   // the smoke pot: red, and it leans with the wind
+    }
     for (const c of this.crates || []) {
       if (c.landed) continue;
       c.t += dt; this.crateStep(c, w, dt); c.m.position.copy(c.pos);
       const sp = c.vel.clone(); sp.y = Math.min(sp.y, -0.01); c.m.lookAt(tA.copy(c.pos).sub(sp)); c.m.rotateX(-Math.PI/2);
+      if (c.m.userData.spin) c.m.userData.spin.rotation.y += dt*3;   // the drogue turns as she falls
       const gh = Math.max(this.world.height(c.pos.x, c.pos.z), 0.4);
       if (c.pos.y > gh) continue;
-      c.landed = true; c.pos.y = gh + 0.45; c.m.position.copy(c.pos); c.m.rotation.set(0, Math.random()*6, 0); c.m.children[2].visible = false;
+      c.landed = true; c.pos.y = gh + 0.45; c.m.position.copy(c.pos); c.m.rotation.set(0, Math.random()*6, 0); if (c.m.userData.streamer) c.m.userData.streamer.visible = false;
       this.fx.smoke.emit(c.pos.x, c.pos.y + 1, c.pos.z, 0, 2, 0, 5, 1.6, 0.75, 0.68, 0.55, 0.6, 4, 0, 0);
       let best = null, bd = 1e9; for (const z of this.dropZones || []) { const d = Math.hypot(c.pos.x - z.pos.x, c.pos.z - z.pos.z); if (d < bd) { bd = d; best = z; } }
       const yd = Math.round(bd*1.0936), wet = this.world.height(c.pos.x, c.pos.z) < 0.4;
