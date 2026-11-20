@@ -67,11 +67,11 @@ const A = G.audio = {
   // a rough little rattler for the light brawlers, and the original for the rest. gain evens out how hot each recording is
   // real aircraft engines (your recordings): a buzzy light prop for the racers, a smooth one for the mid fighters, a beating
   // twin for the twin-engined, a deep heavy drone for the bruisers; the Gallant, Vandal and Whirligig keep the original
-  VOICE:{sparrowhawk:'prop_light', comet:'prop_light', hornet:'prop_light', jackal:'prop_light', mantis:'prop_smooth', grackle:'prop_smooth',
+  VOICE:{mastodon:'prop_heavy', sparrowhawk:'prop_light', comet:'prop_light', hornet:'prop_light', jackal:'prop_light', mantis:'prop_smooth', grackle:'prop_smooth',
     banshee:'prop_twin', highwayman:'prop_twin', ironclad:'prop_heavy', thunderbuss:'prop_heavy', bulldog:'prop_heavy'},
   VGAIN:{engine:1}, VRATE:{engine:1},
   USE_VOICES:true,
-  PITCH:{sparrowhawk:1.06, comet:1.06, hornet:1.03, jackal:1, mantis:1.02, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
+  PITCH:{mastodon:0.78, sparrowhawk:1.06, comet:1.06, hornet:1.03, jackal:1, mantis:1.02, whirligig:1.05, vandal:1.02, gallant:1, grackle:0.97,
     banshee:1, bulldog:0.96, highwayman:0.96, ironclad:0.94, thunderbuss:0.9},
   pitchOf(P){ return (P && P.L && this.PITCH[P.L.chassis]) || 1; },
   engKey(P){ const k = this.USE_VOICES && P && P.L && this.VOICE[P.L.chassis]; return k && this.buf[k] ? k : 'engine'; },
@@ -153,7 +153,7 @@ const A = G.audio = {
       if (this.turb) { this.turb.src.playbackRate.setTargetAtTime(0.78 + s*0.42 + sp*0.12, t, 0.25); this.turb.g.gain.setTargetAtTime(on && jet ? 0.1 + s*0.2 : 0, t, 0.3); }
     }
     if (this.eng2) {   // wingmen holding formation aren't heard here: their drift in the slot read as a plane passing
-      let best = null, bd = 900; for (const p of game.planes) if (p.alive && !p.isPlayer && !(p.crew && P && p.vel.distanceTo(P.vel) < 30)) { const d = p.pos.distanceTo(game.camera.position); if (d < bd) { bd = d; best = p; } }
+      let best = null, bd = 900; for (const p of game.planes) if (p.alive && !p.isPlayer && !p.parked && !(p.crew && P && p.vel.distanceTo(P.vel) < 30)) { const d = p.pos.distanceTo(game.camera.position); if (d < bd) { bd = d; best = p; } }
       const a = best ? (1 - bd/900)**1.8 : 0;
       // the nearest plane is heard with its own engine: a V12 Mantis, a radial Highwayman, a Zephyr's turbine
       const want = best ? (best.st && best.st.jet && this.buf.turbine ? 'turbine' : this.engKey(best)) : this.eng2.key || 'engine';

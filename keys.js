@@ -16,7 +16,7 @@ const ACTIONS = [
   {id:'Digit1', label:'Wingmen: attack'}, {id:'Digit2', label:'Wingmen: cover me'}, {id:'Digit3', label:'Wingmen: the zeppelin'},
   {id:'Digit4', label:'Wingmen: form up'}, {id:'Digit5', label:'Wingmen: go home'},
   {id:'KeyP', label:'Camera (photograph objectives)'}, {id:'KeyX', label:'Launch ghost drone (Banshee)'}, {id:'KeyT', label:'Hover (Whirligig) / air torpedo (bombers)'},
-  {id:'KeyM', label:'Sound on / off'}, {id:'KeyH', label:'Flight help'}
+  {id:'KeyY', label:'Climb into a parked aeroplane'}, {id:'KeyM', label:'Sound on / off'}, {id:'KeyH', label:'Flight help'}
 ];
 const CANON = new Set(ACTIONS.map(a => a.id));
 const ALIAS = {ShiftRight:'ShiftLeft'};   // either Shift is nitro until nitro is moved
@@ -64,7 +64,7 @@ const KM = G.keymap = {
       ['Mouse', 'Aim (the plane follows)'], ['Left click', 'Guns'], [`Right click / ${k('Space')}`, 'Rockets'],
       [two('KeyW', 'KeyS'), 'Throttle'], [two('KeyA', 'KeyD'), 'Roll'], [two('KeyQ', 'KeyE'), 'Rudder'], [two('ArrowUp', 'ArrowDown'), 'Push / pull'],
       [`Double-tap ${two('KeyA', 'KeyD')}`, 'Barrel roll (dodges fire)'], [two('KeyR', 'KeyZ'), 'Immelmann / Split-S'],
-      [k('KeyF'), 'Flaps (land, dock, skyhook)'], [k('KeyG'), 'Landing gear (retractable planes)'], [`Double-tap ${two('KeyQ', 'KeyE')}`, 'Snap turn'],
+      [k('KeyF'), 'Flaps (land, dock, skyhook)'], [k('KeyY'), 'Climb into a parked aeroplane'], [k('KeyG'), 'Landing gear (retractable planes)'], [`Double-tap ${two('KeyQ', 'KeyE')}`, 'Snap turn'],
       [['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].map(k).join(' '), 'Wingmen: attack, cover, zeppelin, form, go home'],
       [k('ShiftLeft'), 'Nitro'], [k('KeyT'), 'Hover (Whirligig) / torpedo (bombers)'], [k('KeyP'), 'Camera (photo objectives)'], [k('KeyC'), 'Chase / cockpit'], [k('KeyV'), 'Look back'], [k('KeyM'), 'Sound'], [k('KeyH'), 'This help'], ['Esc', 'Pause']
     ];

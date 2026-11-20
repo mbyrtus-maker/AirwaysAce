@@ -174,6 +174,12 @@ const H = G.HUD = {
         c.fillStyle = c.strokeStyle; c.font = '700 12px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(`${m.label}${m.noDist ? '' : '  ' + Math.round(d*YD) + ' yd'}`, pt.x, pt.y - 20); }
       else if (!on) this.edge(c, pt, m.col || '#f2c14e');
     }
+    // aeroplanes standing ready to be taken (game.parkPlane): marked within a couple of miles, brighter when you're close enough to climb in
+    for (const s of g.parkedSpots || []) {
+      const d = s.plane.pos.distanceTo(P.pos); if (d > 3500 || s.plane === P) continue; this.proj(s.plane.pos, pt); const on = pt.z < 1 && pt.x > 0 && pt.x < W && pt.y > 0 && pt.y < Hh, col = g.swapNear === s ? '#c8ffb0' : '#9ef0a0';
+      if (on) { c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.rect(pt.x - 16, pt.y - 16, 32, 32); c.stroke(); c.fillStyle = col; c.font = '700 12px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(g.swapNear === s ? `Y · TAKE ${s.label.toUpperCase()}` : `${s.label.toUpperCase()}  ${Math.round(d*YD)} yd`, pt.x, pt.y - 22); }
+      else this.edge(c, pt, col);
+    }
     // torpedoes: red if headed for the Margaret, green if ours
     for (const t of g.torps || []) {
       if (t.pos.distanceTo(P.pos) > 2200) continue; this.proj(t.pos, pt);

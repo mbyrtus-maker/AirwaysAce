@@ -396,21 +396,22 @@ function canopy(k, st, mF, x = 0, kt = 0.72){
 }
 function seatAndPilot(g, k, x, y, z, hex){ k.add(box(0.44, 0.34, 0.26), G.mat(0x6b4a2e), T(x, y - 0.25, z)); pilotHead(g, x, y, z, hex || 0x5a3a22); }
 /* Gun turret: painted ring, faceted glass dome with four ribs, twin guns on a breech block. */
-function turretDome(k, x, y, z, r, mT, back = true){
-  const d = back ? -1 : 1;
+function turretDome(k, x, y, z, r, mT, back = true, o = {}){
+  const d = back ? -1 : 1, v = o.down ? -1 : 1;                 // o.down hangs the dome under the belly; o.len is the barrel length; o.home is the resting yaw
   k.add(torus(r, 0.07, 12, 4), mT, mul(T(x, y, z), RX(PI/2)));
-  k.add(lathe([[r, 0], [r*0.92, r*0.45], [r*0.6, r*0.8], [0.02, r*0.95]], 10), GLASS(), mul(T(x, y, z), RX(-PI/2)));
-  for (const j of [1, 3, 6, 8]) { const a = (j + 0.5)*PI/5, c = Math.cos(a), s = Math.sin(a); k.add(bar([x + c*r*0.93, y + r*0.42, z + s*r*0.93], [x + c*r*0.6, y + r*0.82, z + s*r*0.6], 0.035), STEEL()); }
-  turretGuns(k, x, y + r*0.38, z, d*r*0.45, d*1.4, r*0.17, 0.3);
+  k.add(lathe([[r, 0], [r*0.92, r*0.45], [r*0.6, r*0.8], [0.02, r*0.95]], 10), GLASS(), mul(T(x, y, z), RX(-v*PI/2)));
+  for (const j of [1, 3, 6, 8]) { const a = (j + 0.5)*PI/5, c = Math.cos(a), s = Math.sin(a); k.add(bar([x + c*r*0.93, y + v*r*0.42, z + s*r*0.93], [x + c*r*0.6, y + v*r*0.82, z + s*r*0.6], 0.035), STEEL()); }
+  turretGuns(k, x, y + v*r*0.38, z, d*r*0.45, d*(o.len || 1.4), v*r*0.17, 0.3, o.home);
 }
 /* Turret guns on a breech block, built as their own little mesh so the gunner can swing them (planes.js).
    At rest they point along d (astern); the pivot is the centre of the mount. */
 let GUNSINK = null;
-function turretGuns(k, x, y, z, z0, z1, rise, blk){
+function turretGuns(k, x, y, z, z0, z1, rise, blk, home = 0){
   const gk = GUNSINK ? new Kit() : k, o = GUNSINK ? [0, 0, 0] : [x, y, z];
+  if (!GUNSINK && home) { z0 = -z0; z1 = -z1; }
   gk.add(box(blk, 0.15, blk), GUNMETAL(), T(o[0], o[1], o[2] + z0));
   for (const sx of [0.09, -0.09]) gk.add(tube([o[0] + sx, o[1], o[2] + z0], [o[0] + sx, o[1] + rise, o[2] + z1], 0.04, 5), DARK());
-  if (GUNSINK) GUNSINK.push({gk, at:[x, y, z]});
+  if (GUNSINK) GUNSINK.push({gk, at:[x, y, z], home});
 }
 /* Fixed gun: barrel ending at the muzzle point m, with a cooling jacket over the breech end. */
 function gun(k, m, len, r = 0.045, jacket = 0.5){
@@ -1220,14 +1221,101 @@ function banshee(paint){
   return g;
 }
 
-const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr, hornet, banshee};
+/* ---------- Mastodon: four-engine navy heavy bomber, the biggest aeroplane in the game (26 m span, 19 m long).
+   Slab-sided riveted hull with stringers, a glazed bombardier nose under a nose turret, a stepped flight deck, four radials on a
+   low wing, twin fins on the tailplane tips so the tail gunner has a clear field. Tail-dragger: the mains fold back into the
+   inboard nacelles. Four gunners, pushed to GUNSINK in this order: nose, dorsal, ventral, tail.
+   Paint: main = hull and wings; second = hull band, wing and tail bands, fin flash; trim = cowls, nose, tips, turret rings. */
+function mastodon(paint){
+  const [P, S, Tr] = paint, g = new THREE.Group(), k = new Kit(), mP = G.mat(P), mS = G.mat(S), mT = G.mat(Tr), props = [], plate = PLATE();
+  const sec = (z, w, yb, yt, ch) => [[-w + ch, yb, z], [w - ch, yb, z], [w, yb + ch, z], [w, yt - ch, z], [w - ch, yt, z], [-w + ch, yt, z], [-w, yt - ch, z], [-w, yb + ch, z]];
+  // hull stations [z, half width, keel y, deck y, chamfer], tail to nose; the nose deck is a step lower than the main deck
+  const HS = [[-11.2, 0.42, 0.12, 1.0, 0.12], [-9.2, 0.62, -0.3, 1.25, 0.17], [-5.5, 0.98, -0.58, 1.56, 0.27], [-1.5, 1.15, -0.62, 1.7, 0.32], [3.2, 1.15, -0.62, 1.7, 0.32]];
+  const NS = [[3.2, 1.15, -0.62, 1.08, 0.3], [4.9, 1.05, -0.6, 1.05, 0.28], [6.3, 0.78, -0.42, 0.84, 0.22], [7.0, 0.55, -0.24, 0.62, 0.16], [7.5, 0.22, -0.02, 0.3, 0.07]];
+  const at = (A, z) => { for (let i = 0; i < A.length - 1; i++) if (z <= A[i+1][0]) { const t = Math.max(0, (z - A[i][0])/(A[i+1][0] - A[i][0])); return A[i].map((v, j) => v + (A[i+1][j] - v)*t); } return A[A.length - 1].slice(); };
+  const hull = (A, z0, z1, a = false, b = false, gr = 0) => loft([z0, ...A.map(q => q[0]).filter(q => q > z0 + 1e-6 && q < z1 - 1e-6), z1].map(z => { const q = at(A, z); return sec(z, q[1] + gr, q[2] - gr, q[3] + gr, q[4]); }), a, b);
+  k.add(hull(HS, -11.2, -7.0, true), mP); k.add(hull(HS, -7.0, -6.3), mS); k.add(hull(HS, -6.3, 3.2, false, true), mP);
+  k.add(hull(NS, 3.2, 5.5), mP); k.add(hull(NS, 5.5, 6.3), mT); k.add(hull(NS, 6.3, 7.5, false, true), GLASS());
+  // riveted plate bands and stringers down the flanks
+  for (const z of [-9.0, -4.6, -2.6, 2.9, 4.7]) {
+    const A = z > 3.2 ? NS : HS, q = at(A, z);
+    k.add(hull(A, z - 0.08, z + 0.08, true, true, 0.025), plate);
+    for (const f of [0.3, 0.52, 0.74]) k.both(disc(0.045, 5), STEEL(), onSide(q[1] + 0.04, q[2] + (q[3] - q[2])*f, z));
+  }
+  for (const f of [0.6, 0.72, 0.84]) for (let i = 0; i < HS.length - 1; i++) { const a = HS[i], b = HS[i+1]; k.both(bar([a[1] + 0.012, a[2] + (a[3] - a[2])*f, a[0] + 0.3], [b[1] + 0.012, b[2] + (b[3] - b[2])*f, b[0]], 0.035, 0.05), mP); }
+  for (const z of [-3.6, -0.4, 1.6]) k.decal(onSide(at(HS, z)[1] + 0.015, 1.02, z), [[disc(0.19, 8), BRASS()], [disc(0.13, 8), WINDOW()]], true);          // cabin portholes
+  k.decal(onSide(at(HS, -4.0)[1] + 0.03, 0.42, -4.0, 0.043), emblem(0.5, mS, mT), true);
+  for (const x of [-0.5, 0, 0.5]) k.add(box(0.04, 0.03, 3.6), INK(), T(x, -0.625, 0.3));                                    // bomb-bay doors
+  // bombardier's glazing bars, and the stepped flight deck behind the nose turret
+  { const a = sec(...[6.3, 0.78, -0.42, 0.84, 0.22]), b = sec(...[7.0, 0.55, -0.24, 0.62, 0.16]), c = sec(...[7.5, 0.22, -0.02, 0.3, 0.07]);
+    for (let j = 0; j < 8; j++) { k.add(bar(b[j], b[(j + 1) % 8], 0.04), STEEL()); if (j % 2) { k.add(bar(a[j], b[j], 0.04), STEEL()); k.add(bar(b[j], c[j], 0.04), STEEL()); } } }
+  canopy(k, [[4.95, 0.62, 1.04, 1.13], [4.35, 0.8, 1.04, 1.84], [3.75, 0.84, 1.05, 1.96], [3.2, 0.84, 1.06, 1.98]], STEEL());
+  k.add(glassCan([[3.2, 0.86, 1.66, 2.0], [1.3, 0.5, 1.66, 1.75]]), mP);                                                    // deck fairing
+  seatAndPilot(g, k, 0.4, 1.62, 3.85); seatAndPilot(g, k, -0.4, 1.62, 3.85, 0x3a2a1a);
+  k.add(bar([0, 1.7, 1.9], [0, 2.75, 1.7], 0.05, 0.1), DARK()); k.add(torus(0.16, 0.022, 8, 4), DARK(), mul(T(0, 2.02, 2.6), RY(PI/2)));   // aerial mast, D/F loop
+  k.add(bar([0, 1.82, 2.6], [0, 1.9, 2.6], 0.03), DARK());
+  // gunners, in this order: nose, dorsal, ventral, tail
+  turretDome(k, 0, 0.9, 5.75, 0.48, mT, true, {len:0.95, home:PI});
+  turretDome(k, 0, 1.68, -0.5, 0.55, mT, true);
+  turretDome(k, 0, -0.6, -3.4, 0.5, mT, true, {down:true, len:1.2});
+  k.add(torus(0.47, 0.07, 10, 4), mT, T(0, 0.56, -11.2));
+  k.add(lathe([[0.45, 0], [0.4, 0.4], [0.02, 0.65]], 10), GLASS(), mul(T(0, 0.56, -11.2), RX(PI)));
+  turretGuns(k, 0, 0.56, -11.35, -0.05, -1.2, 0, 0.18);
+  // the wing: low, deep at the root, dihedral, ribbed; second-colour band and trim tips
+  const mw = wingF(1.0, 11.8, 4.8, 1.9, 0.62, 0.3, 0.5, 0.0, 0.75);
+  paintWing(k, mw, mP, mS, mT, 0.86, 0.91); navLamps(k, mw);
+  wingEmblem(k, mw, 0.76, emblem(0.72, mS, mT));
+  for (const t of [0.06, 0.14, 0.42, 0.5, 0.86, 0.91]) {
+    const s = mw(t), y = s[4] + 0.012, pts = [[s[0], y + 0.18*s[2], s[3] + 0.5*s[1]], [s[0], y + 0.5*s[2], s[3] + 0.2*s[1]], [s[0], y + 0.46*s[2], s[3] - 0.15*s[1]], [s[0], y + 0.06*s[2], s[3] - 0.5*s[1]]];
+    for (let i = 0; i < 3; i++) k.both(bar(pts[i], pts[i+1], 0.06, 0.03), plate);
+  }
+  // four radials on the leading edge; the inboard nacelles run aft to take the wheels
+  const EN = [[0.28, 0.74, 3.1, 9, [[0.12,-2.4],[0.45,-1.4],[0.68,0.3],[0.74,2.0],[0.74,3.1]]], [0.6186, 0.66, 2.4, 7, [[0.1,-1.7],[0.38,-0.9],[0.6,0.3],[0.66,1.5],[0.66,2.4]]]];
+  const eng = EN.map(([t, r, z, n, N]) => { const s = mw(t); return {x:s[0], y:s[4], r, z, n, N}; });
+  for (const e of eng) for (const sx of [1, -1]) {
+    k.add(lathe(e.N, 8), mP, T(sx*e.x, e.y, 0)); radialCowl(k, e.z, e.r, mT, e.n, sx*e.x, e.y);
+    k.add(tube([sx*(e.x + e.r*0.96), e.y - 0.2, e.z - 0.05], [sx*(e.x + e.r*0.98), e.y - 0.3, e.z - 1.5], 0.07, 6), DARK());   // exhaust stack on the outer flank
+  }
+  // tailplane with a fin on each tip
+  const tp = wingF(0.3, 4.2, 2.3, 1.5, 0.2, -9.7, 0.3, 0.86, 0); paintWing(k, tp, mP, mS, mP, 0.62, 0.74, false);
+  const tip = tp(1), fu = t => [1.95*t, 2.3 - 0.9*t, 0.14, tip[3] - 0.1 - 0.3*t, 0], fl = t => [0.85*t, 2.3 - 0.8*t, 0.14, tip[3] - 0.1 - 0.25*t, 0];
+  for (const sx of [1, -1]) {
+    paintFin(k, fu, UP(sx*tip[0], tip[4]), mP, mS, mT, 0.5, 0.68);
+    k.add(pan(fl, 0, 1), mP, DOWN(sx*tip[0], tip[4])); k.add(tipOf(fl, 0.1, 0.6), mT, DOWN(sx*tip[0], tip[4]));
+    k.add(wire([0, 2.75, 1.7], [sx*tip[0], tip[4] + 2.0, tip[3]]), STEEL());                                               // aerial wires to the fin tops
+  }
+  // pilot's cheek guns in blisters on the nose, rocket rails between the engines
+  const mz = [new V3(1.0, -0.15, 6.35), new V3(-1.0, -0.15, 6.35)];
+  for (const m of mz) { gun(k, m, 1.7, 0.06, 0.5); k.add(lathe([[0.02,-0.9],[0.17,-0.35],[0.17,0.3],[0.09,0.6]], 6), mP, T(m.x*0.97, m.y, 5.0)); }
+  rails(k, 6.3, 0.1, 0.6, 1.4);
+  // undercarriage: a fat forked wheel under each inboard nacelle, swinging back into it; tall tail wheel so she sits level
+  const GEAR = 2.4, R = 0.68, e0 = eng[0];
+  for (const sx of [1, -1]) {
+    const a = [sx*e0.x, e0.y - 0.5, 1.5], lk = LEGS ? new Kit() : k, o = LEGS ? [0, 0, 0] : a, c = [o[0], o[1] - GEAR + R - a[1], o[2] + 0.1], top = c[1] + R + 0.12;
+    lk.add(tube(o, [c[0], top + 0.3, c[2]], 0.12, 6), DARK()); lk.add(tube([c[0], top + 0.3, c[2]], [c[0], top, c[2]], 0.08, 6), STEEL());
+    lk.add(bar([c[0] - 0.32, top, c[2]], [c[0] + 0.32, top, c[2]], 0.12), DARK());
+    for (const s of [1, -1]) lk.add(bar([c[0] + s*0.29, top, c[2]], [c[0] + s*0.29, c[1], c[2]], 0.06, 0.14), DARK());
+    lk.add(bar([o[0], o[1], o[2] - 0.9], [c[0], top, c[2]], 0.07), DARK());                                                // drag strut
+    wheel(lk, c[0], c[1], c[2], R, mT, 0.4);
+    if (LEGS) LEGS.push({lk, a, side:0});
+  }
+  k.add(bar([0, -0.3, -8.45], [0, -1.3, -8.72], 0.14, 0.3), mP); k.add(bar([0, -1.2, -8.7], [0, -1.74, -8.8], 0.07, 0.12), DARK());
+  wheel(k, 0, -1.75, -8.8, 0.32, STEEL(), 0.2);
+  k.build(g);
+  for (const e of eng) for (const sx of [1, -1]) addProp(g, props, new V3(sx*e.x, e.y, e.z + 0.95), 3, 3.4, 0.32, DARK(), mT, mS, [[0.27,-0.03],[0.23,0.15],[0.04,0.52]], false, sx);
+  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(6.3, -0.1, 1.3), new V3(-6.3, -0.1, 1.3)], radius:13.0, cockpit:new V3(0.4, 1.66, 3.95),
+                exhaust:new V3(e0.x + 0.72, e0.y - 0.3, 1.6), gear:GEAR};
+  return g;
+}
+
+const AIRFRAMES = {gallant, vandal, sparrowhawk, mantis, jackal, highwayman, grackle, ironclad, bulldog, thunderbuss, comet, whirligig, zephyr, hornet, banshee, mastodon};
 
 G.buildPlane = (chassis, paint) => {
   const f = AIRFRAMES[chassis] || gallant;
   LEGS = []; GUNSINK = []; let m; try { m = f(paint); } finally { var legs = LEGS, tg = GUNSINK; LEGS = GUNSINK = null; }
   m.userData.chassis = chassis; if (!m.userData.props) m.userData.props = [m.userData.prop];
   m.userData.legs = legs.map(({lk, a, side}) => { const p = new THREE.Group(); p.position.set(a[0], a[1], a[2]); lk.build(p); p.userData.side = side; m.add(p); return p; });
-  m.userData.turretGuns = tg.map(({gk, at}) => { const yaw = new THREE.Group(), pit = new THREE.Group(); yaw.position.set(at[0], at[1], at[2]); yaw.add(pit); gk.build(pit); m.add(yaw); yaw.userData.pitch = pit; return yaw; });
+  m.userData.turretGuns = tg.map(({gk, at, home}) => { const yaw = new THREE.Group(), pit = new THREE.Group(); yaw.position.set(at[0], at[1], at[2]); yaw.add(pit); gk.build(pit); m.add(yaw); yaw.userData.pitch = pit; if (home) { yaw.userData.home = home; yaw.rotation.y = home; } return yaw; });   // home: resting yaw of a turret that does not face astern
   return m;
 };
 

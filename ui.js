@@ -94,7 +94,7 @@ const UI = G.UI = {
       ${Object.keys(G.LIVERIES).length > livs.length - 1 ? `<p class="desc" style="margin-left:0">${Object.keys(G.LIVERIES).length - livs.length + 1} more paint jobs to find or win.</p>` : ''}<div class="paint" style="margin-top:8px">${L.paint.map((p, i) => `<label><input type="color" value="#${p.toString(16).padStart(6, '0')}" oninput="UI.setPaint(${i},this.value)"><span>${['Main', 'Second', 'Trim'][i]}</span></label>`).join('')}</div></section>`;
     $('hgBody').innerHTML = h;
     $('hgLaunch').disabled = over;
-    $('hgChassis').innerHTML = Object.values(G.CHASSIS).map(k => `<li ${G.save.owned.includes(k.id) && k.id !== L.chassis ? `onclick="UI.pickChassis('${k.id}')" style="cursor:pointer"` : ''} class="${k.id === L.chassis ? 'on' : ''} ${G.save.owned.includes(k.id) ? '' : 'locked'}"><b>${esc(k.name)}</b><span>${esc(k.role)}</span><em>${G.save.owned.includes(k.id) ? 'Owned' : esc(UI.whereChassis(k.id))}</em></li>`).join('');
+    $('hgChassis').innerHTML = Object.values(G.CHASSIS).filter(k => !k.special || G.save.owned.includes(k.id)).map(k => `<li ${G.save.owned.includes(k.id) && k.id !== L.chassis ? `onclick="UI.pickChassis('${k.id}')" style="cursor:pointer"` : ''} class="${k.id === L.chassis ? 'on' : ''} ${G.save.owned.includes(k.id) ? '' : 'locked'}"><b>${esc(k.name)}</b><span>${esc(k.role)}</span><em>${G.save.owned.includes(k.id) ? 'Owned' : esc(UI.whereChassis(k.id))}</em></li>`).join('');
   },
   pickChassis(id){ UI.L = G.stockLoadout(id); UI.renderHangar(); preview.show($('hgPrev'), UI.L); },
   setEng(x){ if (x === '2' && !G.hasMod('hotrod')) return; UI.L.engine = +x; UI.renderHangar(); },

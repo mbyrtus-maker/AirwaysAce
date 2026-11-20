@@ -588,6 +588,10 @@ G.MISSIONS.c9m2 = EP({
     this.hammer = g.addShip({team:1, kind:'raider', name:'Hammer', label:'HAMMER', paint:Object.assign({scale:1.2, hpMul:1.4}, SYN_SHIP), pos:ahead.clone().add(new V3(500, 700, 200)), heading:Math.PI, speed:5, turn:0.006, noRun:true});
     this.res.foe = this.anvil; this.witch.foe = this.hammer; this.anvil.foe = this.res; this.hammer.foe = this.witch; this.ship.foe = this.anvil; this.ship.dest = null; this.ship.standoff = 1100;
     this.allies = [this.res, this.witch]; this.wave = 0;
+    if (flags().mastodon === 'delivered') {   // The Heavy paid off: Hale's bomber flies with the fleet, gunners and all
+      this.heavy = this.friends(g, new V3(M.x - 200, 620, M.z - 500), [['HMA Mastodon', 'mastodon', MASTODON_PAINT]])[0];
+      if (this.heavy) { this.heavy.callsign = 'Mastodon'; G.HUD.radio('Mastodon', 'Mastodon on station, Thirteen. Four engines, four gunners and a belly full of trouble. Point us at something.'); }
+    }
   },
   update(g, dt){
     const live = this.tick(g, dt, 'A real fleet battle. My grandmother would be proud. She was a pirate.'), en = [this.anvil, this.hammer];
@@ -708,6 +712,102 @@ G.MISSIONS.c9m3 = EP({
   }
 });
 
+/* =====================================================================
+   Chapter 9, Episode 1½: The Heavy
+   Hale's last four-engine bomber, the Mastodon, sits on a hidden navy field at Blackwater Cove with no crew fit to fly her.
+   Land there, climb across into her (game.parkPlane / swapPlayer), and bring her the long way round to Puerto Azul
+   with the Syndicate throwing everything it has at you. Win or lose, the fleet sails; the flag says whether she sails with it.
+   ===================================================================== */
+const COVE = {x:2633, z:-1900, yaw:-0.525, r:360};
+const MASTODON_PAINT = [0x55606a, 0xe8e0cc, 0x1f3b6b];
+G.MISSIONS.c9x1 = EP({
+  id:'c9x1', title:'The Heavy', place:'Blackwater Cove to Puerto Azul, the Corsair Keys', region:'keys', wing:3,
+  brief:'Hale has one heavy bomber left, the Mastodon: four engines, four gunners, and a bomb load that could sink a raider in one pass. She\'s sitting on a navy field at Blackwater Cove, and her pilot\'s in the infirmary with a Syndicate slug in him. Fly out to the cove, land, climb into her and bring her to Puerto Azul for the fleet. The Syndicate knows she\'s there. They\'ll come for her the moment she\'s off the ground. She\'s slow, she turns like a church, and her gunners will do their best. Put her down at Puerto Azul in one piece.',
+  sides:[{text:'Bring the Mastodon in above half'}, {text:'Down 6 Syndicate fighters'}, {text:'Lose no wingman'}],
+  pay:{success:6000, perfect:2500, kill:250},
+  worldOpts:() => { const w = G.regionWorld('keys', 'evening'); w.flats = w.flats.concat([{x:COVE.x, z:COVE.z, r:COVE.r}]); return w; },
+  setup(g){
+    this.start(g, `Hook's live, ${G.save.callsign || 'Ace'}. Blackwater Cove's off the starboard bow. Look for the navy field.`, {heading:2.2});
+    const w = g.world, sh = Math.max(w.height(COVE.x, COVE.z), 0.4), yaw = COVE.yaw, at = new V3(COVE.x, sh, COVE.z);
+    const strip = G.buildAirstrip(560, 26, {sign:'NAVY FIELD 9', firm:'Royal Navy Air Arm', walls:0xd8d2c0, trim:0x2a3a52}); strip.position.copy(at); strip.rotation.y = yaw; g.scene.add(strip);
+    const ud = strip.userData, rot = v => v.clone().applyAxisAngle(new V3(0, 1, 0), yaw).add(at);
+    g.runways.push({pos:at.clone(), yaw, hw:ud.wid/2 + 10, hl:ud.len/2 + 22});
+    const apron = rot(ud.apron); g.runways.push({pos:apron, yaw, hw:26, hl:34});
+    const bar = rot(new V3(ud.apron.x + 44, 0, ud.apron.z + 10)); w.addBlocker({x:bar.x, z:bar.z, hw:12, hd:12, top:sh + 13});
+    this.cove = at; this.apron = apron;
+    // the Mastodon, nose to the runway on the cove's apron, waiting for somebody mad enough to fly her
+    const L = G.stockLoadout('mastodon'); L.paint = MASTODON_PAINT.slice(); L.rocket = 'he'; L.arm = [75, 65, 65, 65];   // the navy plated her for this run
+    this.spot = g.parkPlane({loadout:L, pos:apron.clone().add(new V3(0, 0, 0)), yaw:yaw - Math.PI/2, label:'the Mastodon', reach:95, name:'HMA Mastodon', internalMul:1.6,
+      onTake:(gg, now, was) => this.tookHer(gg, now, was)});
+    this.bomber = this.spot.plane; this.stage = 'out'; this.waveN = 0; this.runT = 0; this.landedAt = 0; this.wing0 = 0;
+    const pz = this.P.puerto; this.puertoRw = g.runways.find(r => r.hl > 100 && r.pos.distanceTo(new V3(pz.x, r.pos.y, pz.z)) < 300) || null;
+  },
+  tookHer(g, now, was){
+    this.stage = 'taxi'; this.wing0 = (g.wingmen || []).filter(w => w.p.alive).length;
+    G.HUD.radio('Chief Mulvaney', 'She\'s fuelled, she\'s armed, and the gunners are aboard and sober. Mostly. Taxi her out and give her all four, she wants every yard of that runway.');
+    G.HUD.radio(SPARKS(), `We'll have your ${(G.CHASSIS[was.L.chassis] || {name:'kite'}).name} flown home. Go on, Ace.`);
+  },
+  onLiftoff(g){
+    if (g.player !== this.bomber || this.stage === 'run') return;
+    this.stage = 'run'; this.runT = 0;
+    G.HUD.radio(HALE, 'Mastodon\'s airborne. Puerto Azul\'s six thousand yards north-west of you. Don\'t be clever, Thirteen. Just bring her home.');
+  },
+  onTouchdown(g, hard){
+    if (g.player === this.bomber && this.stage === 'run' && this.puertoRw && g.runwayAt(g.player.pos) && g.player.pos.distanceTo(this.puertoRw.pos) < this.puertoRw.hl + 60) {
+      this.stage = 'down'; this.landedAt = this.pt;
+      G.HUD.radio('Puerto Azul tower', hard ? 'Mastodon, you bounced her like a rubber ball. Welcome to Puerto Azul anyway.' : 'Mastodon, that\'s the sweetest thing I\'ve seen all week. Roll her out to the end.');
+    }
+  },
+  update(g, dt){
+    const live = this.tick(g, dt, 'Escort\'s formed up. We\'re with you all the way to Puerto Azul.'), P = g.player, B = this.bomber;
+    if (!live) { G.HUD.sides(this.sideState(g)); return; }
+    const pz = this.P.puerto, PZ = new V3(pz.x, ground(g, pz.x, pz.z) + 30, pz.z);
+    if (this.stage === 'out') {
+      g.markers.push({pos:this.cove.clone().add(new V3(0, 30, 0)), label:'NAVY FIELD, BLACKWATER COVE', col:'#9ec7f0', box:true});
+      G.HUD.objective(P.onGround ? 'Taxi to the Mastodon on the apron and climb across (Y)' : 'Fly to Blackwater Cove and land on the navy field');
+    } else if (this.stage === 'taxi') {
+      G.HUD.objective(B.onGround ? 'Taxi out, full throttle, lift her off' : 'Climb out and head for Puerto Azul');
+    } else if (this.stage === 'run') {
+      this.runT += dt;
+      g.markers.push({pos:PZ, label:'PUERTO AZUL · LAND THE MASTODON', col:'#9ec7f0', box:true});
+      const d = Math.round(P.pos.distanceTo(PZ)*YD);
+      // the assault: wave after wave out of the Syndicate's islands, heavier the closer she gets
+      const W = [[8, 3, 'Bandits, high in the north! Three of them, coming straight for the big girl!', 0.9],
+                 [38, 3, 'Three more out of the sun! Gunners, wake up back there!', 0.4],
+                 [66, 2, 'Here\'s their best. That\'s Hacksaw Brandt in the lead, Kroll\'s own.', 0],
+                 [94, 3, 'Last of them, between you and the field! Keep her straight, Ace!', -0.4]];
+      if (this.waveN < W.length && this.runT > W[this.waveN][0]) {
+        const [, n, line, side] = W[this.waveN++], fw = tA.copy(PZ).sub(P.pos).setY(0).normalize(), rt = tB.set(fw.z, 0, -fw.x);
+        const from = P.pos.clone().addScaledVector(fw, 1800).addScaledVector(rt, side*1500).setY(Math.max(P.pos.y + 220, 420));
+        this.foes(g, 'syndicate', from, n, {skill:0.42, face:P.pos});
+        if (this.waveN === 3) this.brandt = this.ace(g, 'Ludwig "Hacksaw" Brandt', 'mantis', SYN[1], from.clone().add(new V3(0, 60, 0)), {skill:0.8, tough:1.6});
+        G.HUD.radio(SPARKS(), line);
+      }
+      if (B.onGround && !this.puertoRw) G.HUD.objective('Land her at Puerto Azul');
+      else G.HUD.objective(`Land the Mastodon at Puerto Azul · ${d.toLocaleString()} yd · ${g.planes.filter(p => p.alive && p.team !== 0).length} bandits`);
+    } else if (this.stage === 'down') {
+      G.HUD.objective('Roll her to a stop');
+      if (B.alive && B.onGround && B.speed < 12) { G.HUD.radio(HALE, 'The Mastodon\'s on the hardstanding at Puerto Azul. Thirteen, the fleet sails at dusk tomorrow, and now it sails with teeth.'); this.win(g, 'delivered'); }
+      else if (B.alive && !B.onGround && this.pt - this.landedAt > 3) this.stage = 'run';   // bounced back into the air: go round
+    }
+    G.HUD.sides(this.sideState(g));
+  },
+  sideState(g){
+    const B = this.bomber, hp = B ? Math.max(0, B.internal)/B.internalMax : 1, wm = (g.wingmen || []).filter(w => w.p.alive).length, lost = this.wing0 && wm < this.wing0;
+    return [{text:this.sides[0].text, st:!B || !B.alive || hp < 0.5 ? 'fail' : this.ended ? 'ok' : 'live', val:Math.round(hp*100) + '%'},
+            {text:this.sides[1].text, st:g.kills >= 6 ? 'ok' : 'live', val:`${Math.min(6, g.kills)}/6`},
+            {text:this.sides[2].text, st:lost ? 'fail' : this.ended ? 'ok' : 'live', val:`${wm} flying`}];
+  },
+  result(g, kind, why){
+    const got = kind !== 'fail' && why === 'delivered';
+    return RES(this, g, kind, {cash:this.pay3(g, kind)}, Object.assign({
+      perfect:{mood:'pleased', say:'The Mastodon\'s at Puerto Azul with barely a hole in her, and the Syndicate lost a squadron trying to stop you. Hale\'s found a crew for her.', then:'The fleet sails with a heavy bomber in the van. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'},
+      success:{mood:'pleased', say:'She\'s down at Puerto Azul, holed like a colander, but she\'s down. The riggers are already at her.', then:'The fleet sails with a heavy bomber in the van. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'},
+      fail:{mood:'stern', say:why === 'margaret' ? 'The Margaret went down off the cove. Everyone swam for it.' : this.stage === 'out' ? 'You never made it to the cove. The Syndicate burned the Mastodon on the ground that night.' : 'The Mastodon\'s in the sea off the Keys. The gunners got out. Hale didn\'t say a word, which was worse.', then:'The fleet sails without its heavy bomber. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'}
+    }[kind]), {mastodon:got ? 'delivered' : 'lost'});
+  }
+});
+
 /* ---------- the story graph, Volume III ---------- */
 Object.assign(G.CHAPTERS, {c7:'Volume III, Chapter 7: Blood on the Rails', c8:'Volume III, Chapter 8: White Silence', c9:'Volume III, Chapter 9: The Last Armada'});
 Object.assign(G.STORY, {
@@ -717,9 +817,10 @@ Object.assign(G.STORY, {
   c8m1:{n:1, ch:'c8', next:() => 'c8m2'},
   c8m2:{n:2, ch:'c8', next:r => r.kind === 'fail' ? 'c8m2' : 'c8m3'},
   c8m3:{n:3, ch:'c8', next:() => 'c9m1'},
-  c9m1:{n:1, ch:'c9', next:() => 'c9m2'},
-  c9m2:{n:2, ch:'c9', next:() => 'c9m3'},
-  c9m3:{n:3, ch:'c9', next:r => r.kind === 'fail' ? 'c9m3' : 'c9end'}
+  c9m1:{n:1, ch:'c9', next:() => 'c9x1'},
+  c9x1:{n:2, ch:'c9', next:() => 'c9m2'},   // the Mastodon run: win or lose, the fleet sails; the flag says whether she sails with it
+  c9m2:{n:3, ch:'c9', next:() => 'c9m3'},
+  c9m3:{n:4, ch:'c9', next:r => r.kind === 'fail' ? 'c9m3' : 'c9end'}
 });
 G.STORY.c6m3.next = r => r.kind === 'fail' ? 'c6m3' : 'c7m1';
 /* awards: the Zephyr for finishing Volume II (wherever the story has got to since), the Hornet for Volume III */

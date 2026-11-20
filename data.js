@@ -54,7 +54,7 @@ G.TUNE = {
   enemySkill:0.9    // bandit skill scale
 };
 /* where a torn wing breaks off (metres out from the centreline): outboard of the fuselage, or of the booms on twin-boom ships */
-G.WING_ROOT = {banshee:3.3, highwayman:3.0, thunderbuss:4.0, mantis:3.0, zephyr:2.2, whirligig:1.9, hornet:2.0, ironclad:1.8};
+G.WING_ROOT = {mastodon:6.2, banshee:3.3, highwayman:3.0, thunderbuss:4.0, mantis:3.0, zephyr:2.2, whirligig:1.9, hornet:2.0, ironclad:1.8};
 G.TORP_W = 600;   // an air torpedo, each: the bombers carry them on a belly rack, on top of their rockets
 
 /* ---------- Mods: bought from contacts, found in treasure, or earned with stunt points. Player only. ---------- */
@@ -126,6 +126,9 @@ G.CHASSIS = {
                  max:14675, arm:[30,30,30,30], guns:['70','50'], slots:2, turrets:[], hp:8, hpMax:8}),
   thunderbuss:C({id:'thunderbuss', name:'Thunderbuss', role:'Heavy bomber', cs:'Balmoral', cls:'heavy', speed:'Fair', agility:'Poor', armorR:'Good', offense:'Good',
                  max:15760, arm:[40,35,25,25], guns:['50','50'], slots:2, turrets:['30','30'], hp:8, hpMax:8, torpedo:true}),
+  mastodon:   C({id:'mastodon', name:'Mastodon', role:'Four-engine heavy bomber', cs:'—', cls:'giant', speed:'Poor', agility:'Poor', armorR:'Excellent', offense:'Good',
+                 max:26000, arm:[60,55,45,45], guns:['50','50'], slots:2, turrets:['40','50','50','50'], hp:4, hpMax:4, special:true, pitchMul:0.55, rollMul:0.42, yawMul:0.7, accelMul:0.7,
+                 blurb:'Four engines, four gunners and a bomb bay you could park a Gallant in. Hale\'s navy built two; this is the one that\'s left. Not for sale at any price.'}),
   zephyr:     C({id:'zephyr', name:'Zephyr', role:'Twin-jet interceptor (Hollis turbojets)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
                  max:8200, arm:[20,20,20,20], guns:['70','70','60','60'], slots:4, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,
                  blurb:'Augustin Hollis\'s masterpiece: two turbojets under swept wings and not a propeller in sight. Faster than anything in the sky, four cannon in the nose, slow to spool up, heavy on the stick, and it screams. Awarded to the Lucky Thirteen for finishing the whole story.'}),
@@ -143,13 +146,13 @@ G.CHASSIS = {
 };
 // the bombers' torpedo racks: how many air torpedoes each can carry
 G.CHASSIS.grackle.torps = 1; G.CHASSIS.ironclad.torps = 2; G.CHASSIS.thunderbuss.torps = 2;
-G.INTERNAL = {light:80, medium:120, heavy:240};
+G.INTERNAL = {light:80, medium:120, heavy:240, giant:520};
 const gunsW = list => list.reduce((s, g) => s + (g ? G.GUNS[g].w : 0), 0);
 for (const k in G.CHASSIS) {
   const c = G.CHASSIS[k];
   const stockW = gunsW(c.guns) + gunsW(c.turrets) + c.arm.reduce((a, b) => a + b, 0)*G.ARMOR_W + c.hp*G.HP_W;
   c.empty = c.max - stockW;
-  c.heavy = c.cls === 'heavy';
+  c.heavy = c.cls === 'heavy' || c.cls === 'giant';
 }
 
 /* Default loadout = the chassis as it leaves the factory. */
@@ -187,7 +190,7 @@ G.gangChassis = (gang, i, n, used = {}) => {
 G.gangLoadout = (gang, i, n, used, paint) => {
   const L = G.stockLoadout(G.gangChassis(gang, i, n, used)); if (paint) L.paint = paint.slice(); L.rocket = Math.random() < 0.5 ? 'he' : 'flak'; return L;
 };
-G.FACTORY_PAINT = {gallant:[0x2f5d8a, 0xe9dcc0, 0xc0392b], comet:[0xc8ced4, 0xb5382c, 0x1f3b6b], vandal:[0x7a1f1f, 0x1b1b1b, 0xd9b44a],
+G.FACTORY_PAINT = {mastodon:[0x55606a, 0xe8e0cc, 0x1f3b6b], gallant:[0x2f5d8a, 0xe9dcc0, 0xc0392b], comet:[0xc8ced4, 0xb5382c, 0x1f3b6b], vandal:[0x7a1f1f, 0x1b1b1b, 0xd9b44a],
   sparrowhawk:[0x2e6b4f, 0xf1e9d6, 0xf2c14e], mantis:[0x3b3f46, 0x9ef0a0, 0xd94f2a], jackal:[0xb5882a, 0x26221f, 0xe9dcc0], highwayman:[0x5a4632, 0xe8d8b0, 0x8e231c],
   grackle:[0x2b2f3a, 0xd94f2a, 0xc8ced4], ironclad:[0x5a6048, 0x2b2b2b, 0xd9b44a], bulldog:[0xd9b44a, 0x26221f, 0xc0392b], thunderbuss:[0x6b7a8a, 0xf1e9d6, 0x1f3b6b], whirligig:[0xe0742a, 0xf1e9d6, 0x2f5d8a], zephyr:[0x151515, 0xd9b44a, 0xe8c45a], hornet:[0x2a2a2a, 0xf2c14e, 0x9e1b1b], banshee:[0x2a3238, 0x9ef0e0, 0xe8e0cc]};
 
@@ -213,9 +216,9 @@ G.flightStats = (L, spent) => {
     weight:w, payload:pay, agilityMul:pen,
     top:mph*MPH, mph,
     pitch:(1.0 + 0.22*ag)*pen*(c.pitchMul || 1),
-    roll:(2.2 + 0.5*ag)*pen*(c.interceptor ? 1.1 : 1),
-    yaw:0.32 + 0.03*ag,
-    rocket:!!c.rocketBoost, drone:!!c.drone, accel:c.jet ? 11 : (c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1), jet:!!c.jet,
+    roll:(2.2 + 0.5*ag)*pen*(c.interceptor ? 1.1 : 1)*(c.rollMul || 1),
+    yaw:(0.32 + 0.03*ag)*(c.yawMul || 1),
+    rocket:!!c.rocketBoost, drone:!!c.drone, accel:(c.jet ? 11 : (c.interceptor ? 13 : 10.5)*((L.mods || []).includes('prop') ? 1.12 : 1))*(c.accelMul || 1), jet:!!c.jet,
     climb:c.interceptor ? 1.3 : 1,
     bleed:c.interceptor ? 0.45 : 1,
     stall:mph*MPH*(c.heavy ? 0.29 : 0.36),

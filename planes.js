@@ -15,7 +15,8 @@ G.TURRET_MOUNTS = {
   highwayman: [{p:[0, 1.15, -1.6], arc:'top'}],
   grackle:    [{p:[0, 0, -2.7], arc:'tail'}],
   ironclad:   [{p:[0, 0.38, -5.6], arc:'tail'}],
-  thunderbuss:[{p:[2.7, 1.0, -1.9], arc:'top'}, {p:[-2.7, 1.0, -1.9], arc:'top'}]
+  thunderbuss:[{p:[2.7, 1.0, -1.9], arc:'top'}, {p:[-2.7, 1.0, -1.9], arc:'top'}],
+  mastodon:   [{p:[0, 1.0824, 5.75], arc:'nose', home:Math.PI}, {p:[0, 1.889, -0.5], arc:'top'}, {p:[0, -0.79, -3.4], arc:'belly'}, {p:[0, 0.56, -11.35], arc:'tail'}]
 };
 G.Plane = class {
   constructor(game, o){
@@ -64,6 +65,7 @@ G.Plane = class {
   update(dt){
     if (!this.alive || this.frozen) return;
     if (this.remote) { this.remoteUpdate(dt); return; }   // flown over the wire (net.js)
+    if (this.parked) { this.speed = 0; this.vel.set(0, 0, 0); this.throttle = 0; this.sync(dt); return; }   // standing on the ground with nobody aboard (game.parkPlane)
     if (this.onGround) { this.age += dt; this.groundRoll(dt); return; }
     this.age += dt; this.stT -= dt;
     if (this.stT <= 0) { this.stT = 0.5; this.st = G.flightStats(this.L, this.spent); }
@@ -215,7 +217,7 @@ G.Plane = class {
       if (t0 !== this.gearT || !dt) { const k = sm(0, 1, this.gearT); for (const L of this.ud.legs) { const s = L.userData.side; if (s) L.rotation.set(0, 0, -s*1.5*k); else L.rotation.set(1.6*k, 0, 0); } }
       if (this.isPlayer && dt && t0 !== this.gearT && (this.gearT === 0 || this.gearT === 1) && this.g.audio && this.g.audio.gear) this.g.audio.gear();
     }
-    const spin = (14 + this.speed*0.5)*(this.engineDead ? 0.06 : this.choke > 0 ? 0.15 : 0.4 + this.throttle*0.6)*(this.dip > 0 ? 0.55 : 1)*dt;
+    const spin = this.parked ? 0 : (14 + this.speed*0.5)*(this.engineDead ? 0.06 : this.choke > 0 ? 0.15 : 0.4 + this.throttle*0.6)*(this.dip > 0 ? 0.55 : 1)*dt;
     if (this.ud.jet) { const s = this.alive && !this.engineDead ? (this.spool ?? this.throttle) : 0; for (const J of [].concat(this.ud.jet)) { const f = J.flame; J.hot.material.opacity = 0.25 + 0.7*s; f.material.opacity = (0.1 + 0.4*s)*(0.85 + Math.random()*0.3); f.scale.set(1, 0.5 + s + (this.nitro > 0 ? 0.8 : 0), 1); } }
     if (this.ud.burner) { const B = this.ud.burner, on = this.nitro > 0 && this.alive; B.hot.material.opacity = on ? 0.95 : 0.12; B.flame.material.opacity = on ? 0.55*(0.8 + Math.random()*0.4) : 0; B.flame.scale.set(1, on ? 0.8 + Math.random()*0.5 : 0.01, 1); }
     for (const pr of this.ud.props || [this.ud.prop]) { if (!pr) continue; const u = pr.userData; pr.rotation.z += spin*(u.dir || 1)*(u.rate || 1); if (u.disc) u.disc.material.opacity = this.choke > 0 ? 0.05 : 0.22; }   // twins counter-rotate; an autogyro rotor turns slower
@@ -273,9 +275,9 @@ G.Plane = class {
   }
   /* Swing a turret's guns toward world direction dir (or home to astern when dir is null). True once on target. */
   slew(t, dir, dt){
-    let yw = 0, pt = 0;
+    let yw = t.m.home || 0, pt = 0;   // at rest the guns point astern, or wherever the mount's home is (a nose turret looks ahead)
     if (dir) { qInv.copy(this.q).invert(); const l = tD.copy(dir).applyQuaternion(qInv); yw = Math.atan2(-l.x, -l.z); pt = Math.atan2(l.y, Math.hypot(l.x, l.z)); }
-    const lim = t.m.arc === 'tail' ? [-0.6, 0.6] : [-0.15, 1.25]; pt = clamp(pt, lim[0], lim[1]);
+    const lim = t.m.arc === 'tail' || t.m.arc === 'nose' ? [-0.6, 0.6] : t.m.arc === 'belly' ? [-1.3, 0.15] : [-0.15, 1.25]; pt = clamp(pt, lim[0], lim[1]);
     let dy = yw - t.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     const sp = (dir ? 2.6 : 0.8)*dt, ey = clamp(dy, -sp, sp), ep = clamp(pt - t.pitch, -sp, sp);
     t.yaw += ey; t.pitch += ep;
@@ -285,7 +287,7 @@ G.Plane = class {
   inArc(t, q, mz){
     if (!q.alive || q.docked) return false;
     qInv.copy(this.q).invert(); const l = tC.copy(q.pos).sub(mz); if (l.lengthSq() > 640*640) return false; l.normalize().applyQuaternion(qInv);
-    return t.m.arc === 'tail' ? l.z < -0.4 : l.z < 0.45 && l.y > -0.15;
+    const a = t.m.arc; return a === 'tail' ? l.z < -0.4 : a === 'nose' ? l.z > 0.35 : a === 'belly' ? l.y < 0.1 && l.z < 0.5 : l.z < 0.45 && l.y > -0.15;
   }
   hasAmmo(){ return this.guns.some(g => g.rounds > 0); }
 

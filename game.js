@@ -73,6 +73,7 @@ G.Game = class {
     if (code === 'KeyT' && this.running) { const P = this.player; if (P && P.torpLeft !== undefined && (G.CHASSIS[P.L.chassis] || {}).torps) this.fireTorpedo(P); else this.toggleHover(); }
     if (code === 'KeyP' && this.running) { this.snapPhoto = true; G.HUD.shutter(); if (this.audio && this.audio.one) try { this.audio.one('hitshort', 0.25, 2.4); } catch (e) {} }   // the camera: missions read snapPhoto this frame
     if (G.ORDERS[code] && this.wingmen && this.wingmen.length) this.order(G.ORDERS[code]);
+    if (code === 'KeyY' && this.running && this.swapNear) this.takeParked(this.swapNear);
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
     if (code === 'KeyM' && this.audio) G.HUD.toast(this.audio.toggleMute() ? 'Sound off' : 'Sound on');
@@ -130,6 +131,63 @@ G.Game = class {
     else { const P = this.player; p.pos.copy(P.pos).addScaledVector(P.fwd, -260).addScaledVector(P.right, pl.side*60).add(new V3(0, 40, 0)); p.q.copy(P.q); }
     p.pos.y = Math.max(p.pos.y, Math.max(this.world.height(p.pos.x, p.pos.z), 0.4) + 120);
     p.docked = false; p.frozen = false; p.obj.visible = true; p.grace = 5; p.speed = p.top*0.75; p.axes(); p.sync();
+  }
+  /* ---- changing aircraft ----
+     Any mission, or the open world, can leave aeroplanes standing on the ground for the player to take:
+       const spot = g.parkPlane({loadout, pos, yaw, label:'the Mastodon', reach:60, onTake(g, now, was){ ... }});
+     Roll to a stop on the ground within reach and press Y (pad: Y / triangle) to climb across. The aeroplane you leave stays
+     parked where you stopped it, so you can take it back (keepOld:false on the spot leaves it to the ground crew instead).
+     spot.taken is set once she's yours. g.swapPlayer(plane, o) is the part that does the work, and a mission can call it
+     directly to put the player in any plane at any moment, parked or flying (say, a fresh one from g.addPlane).
+     Every swap reaches the mission as mission.onSwap(g, now, was). Not in co-op yet: the other side can't change your aeroplane's model. */
+  parkPlane(o){
+    const p = o.plane || this.addPlane({loadout:o.loadout, team:o.team ?? 0, name:o.name || o.label || 'Parked', callsign:o.callsign || o.name || 'Parked', pos:o.pos.clone(), q:new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), o.yaw || 0), speed:0, throttle:0, internalMul:o.internalMul});
+    return this.park(p, o);
+  }
+  /* settle a plane on its wheels where it stands, engines off, nobody aboard */
+  park(p, o = {}){
+    const yaw = o.yaw ?? Math.atan2(p.fwd.x, p.fwd.z), gh = Math.max(this.world.height(p.pos.x, p.pos.z), 0.4);
+    p.onGround = true; p.parked = true; p.isPlayer = false; p.pos.y = (o.y ?? gh) + (p.ud.gear || 1.8); p.groundYaw = yaw;
+    p.q.setFromAxisAngle(new V3(0, 1, 0), yaw); p.axes(); p.speed = 0; p.vel.set(0, 0, 0); p.throttle = 0; p.fire = p.fireRk = false; p.brake = true; p.man = null;
+    p.noTarget = !o.target; p.hover = false;
+    this.pilots = this.pilots.filter(pl => pl.p !== p);
+    const spot = {plane:p, label:o.label || `the ${(G.CHASSIS[p.L.chassis] || {name:'aeroplane'}).name}`, reach:o.reach || Math.max(45, (p.ud.radius || 8)*3.5), keepOld:o.keepOld !== false, onTake:o.onTake, taken:false};
+    (this.parkedSpots || (this.parkedSpots = [])).push(spot); return spot;
+  }
+  /* which parked plane is close enough to climb into: on the ground, all but stopped, inside its reach */
+  swapTick(dt){
+    const P = this.player; let near = null;
+    this.parkedSpots = this.parkedSpots.filter(s => s.plane.alive && s.plane.parked);
+    if (P && P.alive && P.onGround && P.speed < 4 && !this.done) for (const s of this.parkedSpots) if (s.plane !== P && P.pos.distanceTo(s.plane.pos) < s.reach) { near = s; break; }
+    if (near !== this.swapNear) { this.swapNear = near; this.swapNag = 0; }
+    if (near && (this.swapNag -= dt) <= 0) { this.swapNag = 4; G.HUD.toast(this.netHost || this.netGuest ? 'Changing aeroplanes doesn\'t work in co-op yet' : `Y${G.pad && G.pad.active ? ' (pad: fire)' : ''} · climb into ${near.label}`); }
+  }
+  takeParked(spot){
+    if (this.netHost || this.netGuest) return;
+    const was = this.player, now = spot.plane; if (!now.alive || was === now) return;
+    spot.taken = true; this.parkedSpots = this.parkedSpots.filter(s => s !== spot); this.swapNear = null;
+    this.swapPlayer(now, {keepOld:spot.keepOld});
+    if (spot.onTake) spot.onTake(this, now, was);
+  }
+  swapPlayer(now, o = {}){
+    const was = this.player; if (!now || now === was) return;
+    if (was) {
+      was.isPlayer = false; was.fire = was.fireRk = false; was.throttle = 0;
+      if (o.keepOld !== false && was.alive && was.onGround) this.park(was, {label:o.oldLabel || `your ${(G.CHASSIS[was.L.chassis] || {name:'aeroplane'}).name}`});
+      else { was.alive = false; if (was.obj.parent) was.obj.parent.remove(was.obj); this.planes = this.planes.filter(x => x !== was); }
+    }
+    now.parked = false; now.noTarget = false; now.isPlayer = true; now.team = 0; now.invuln = false; now.frozen = false; now.grace = Math.max(now.grace || 0, 1.5);
+    if (was) { now.name = was.name; now.callsign = was.callsign; }
+    if (G.TUNE && !now.tunedParts && now.parts) { const k = G.TUNE.parts/0.5; now.partsMax = now.partsMax.map(x => x*k); now.parts = now.parts.map(x => x*k); now.tunedParts = true; }   // the player's parts are a little tougher than a bandit's
+    if (now.torpLeft === undefined) now.torpLeft = Math.min(now.L.torps || 0, (G.CHASSIS[now.L.chassis] || {}).torps || 0);
+    if (now.nitroLeft === undefined) now.nitroLeft = (G.CHASSIS[now.L.chassis] || {}).rocketBoost ? 6 : now.L.nitro ? 3 : 0;
+    this.pilots = this.pilots.filter(pl => pl.p !== now);
+    this.player = now;
+    this.aimYaw = Math.atan2(now.fwd.x, now.fwd.z); this.aimPitch = now.onGround ? -0.03 : Math.asin(clamp(now.fwd.y, -1, 1));
+    this.camPos.set(0, 0, 0);   // cut the camera across rather than swinging it
+    G.HUD.toast(o.say || `You're flying ${(G.CHASSIS[now.L.chassis] || {name:'her'}).name === 'her' ? 'her' : 'the ' + G.CHASSIS[now.L.chassis].name}`);
+    if (this.mission.onSwap) this.mission.onSwap(this, now, was);
+    return now;
   }
   /* runway rectangles: {pos, yaw, hw, hl} */
   runwayAt(p){
@@ -196,6 +254,7 @@ G.Game = class {
     if (this.paused) return;
     dt = Math.min(dt, 0.05); this.t += dt;
     if (this.running) this.playerControl(dt);
+    if (this.parkedSpots) this.swapTick(dt);
     if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; }
     else if (this.done && this.player && this.player.alive && !this.player.frozen) {
       const P = this.player, gh = P.pos.y - Math.max(this.world.height(P.pos.x, P.pos.z), 0.4);

@@ -95,6 +95,7 @@ const Pad = G.pad = {
           if (press('immel')) g.stunt('immel');
           if (press('splits')) g.stunt('splits');
         }
+        if (g.swapNear && press('fire')) tap('KeyY');   // stopped beside a parked aeroplane: the trigger climbs you across
         if (press('flaps')) tap('KeyF');
         if (press('gear')) tap('KeyG');
         if (press('view')) tap('KeyC');
