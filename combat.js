@@ -32,7 +32,7 @@ G.Airship = class {
       for (const c of this.comps) if (c.kind === 'mg' && c.group) c.group.parent.remove(c.group); this.comps = this.comps.filter(c => c.kind !== 'mg'); } this.sections = ud.sections ? Object.assign({}, ud.sections) : null; this.sectionsMax = ud.sections || null;
     this.pos = o.pos.clone(); this.heading = o.heading || 0; this.speed0 = this.speed = o.speed || 9; this.turn0 = this.turn = o.turn || 0.006;
     this.hp = this.hpMax = o.hp || 4000; this.alive = true; this.vel = new V3(); this.state = this.state || 'fighting';
-    this.q = new THREE.Quaternion(); this.guns = [];
+    this.q = new THREE.Quaternion(); this.guns = []; this.pace = 1;
     this.flak = (o.flak ? ud.flak : []).map(p => ({p, cd:1 + Math.random()*2}));
     this.sinkT = 0; this.rkCd = 3; this.sink = 0; this.sync();
   }
@@ -158,22 +158,32 @@ G.Airship = class {
       for (const c of this.comps) if (c.burn > 0 && c.alive) { c.burn -= dt; this.partDamage(c, 14*dt, null); if (Math.random() < dt*12) { this.worldPoint(tA.set((Math.random() - 0.5)*24, 8 + Math.random()*8, c.pos.z + (Math.random() - 0.5)*12), tB); fx.fire.emit(tB.x, tB.y, tB.z, 0, 8, 0, 9, 0.6, 1, 0.5, 0.15, 0.9, 6); } }
       for (const w of this.wrecks || []) { w.t += dt; if (Math.random() < dt*(w.t < 20 ? 9 : 3)) { this.worldPoint(w.c.virtual ? tA.set(0, 16, w.c.pos.z) : w.c.pos, tB); fx.smoke.emit(tB.x, tB.y, tB.z, (Math.random() - 0.5)*3, 6, (Math.random() - 0.5)*3, 7, 4, 0.12, 0.11, 0.1, 0.6, 7, 0.3, 1.5); } }
     }
+    let paceT = 1;
     if (this.dest && this.alive) {
       const want = Math.atan2(this.dest.x - this.pos.x, this.dest.z - this.pos.z), cap = this.turn0*dt;
       this.heading += Math.max(-cap, Math.min(cap, wrapA(want - this.heading)));
     } else if (this.foe && this.alive) {
       const F = this.foe, dx = F.pos.x - this.pos.x, dz = F.pos.z - this.pos.z, dist = Math.hypot(dx, dz), toward = Math.atan2(dx, dz);
-      let want = toward;
+      let want = toward; paceT = 1;
       if (this.state === 'running') want = toward + Math.PI;
       else if (this.foe.state === 'running' && this.team === 0) want = toward;
-      else if (dist < (this.standoff || 700)) { const s1 = toward + Math.PI/2, s2 = toward - Math.PI/2; want = Math.abs(wrapA(s1 - this.heading)) < Math.abs(wrapA(s2 - this.heading)) ? s1 : s2; }
+      else if (dist < (this.standoff || 700)*2.6) {
+        // broadside to broadside: run parallel, the same way. The pirate keeps her side; the Margaret comes round to match her.
+        // Then hold the range (ease in when far, out when close) and the pace (speed up if she's drawing ahead, ease off if she's falling behind)
+        const S = this.standoff || 700, s1 = toward + Math.PI/2, s2 = toward - Math.PI/2, ref = this.team === 0 && F.alive ? F.heading : this.heading;
+        const side = Math.abs(wrapA(s1 - ref)) < Math.abs(wrapA(s2 - ref)) ? s1 : s2, inward = Math.sign(wrapA(toward - side)) || 1;
+        want = side + inward*clamp((dist - S)/S, -0.5, 0.5)*0.9;
+        const along = dx*Math.sin(side) + dz*Math.cos(side);
+        paceT = clamp(1 + along/350, 0.55, 1.5);
+      }
       const cap = (this.comps ? this.turn0*(this.alivePart('fin').length/2) : this.turn0)*dt;
       this.heading += Math.max(-cap, Math.min(cap, wrapA(want - this.heading)));
       // torpedoes: one slow fish at the other ship every half minute inside 2 km
       this.torpCd = (this.torpCd ?? 12 + Math.random()*8) - dt;
       if (this.torpCd <= 0 && !this.g.done && !this.noTorps && F.alive && dist < 2000 && this.state !== 'surrendered' && (!this.comps || this.alivePart('engine').length)) { this.torpCd = 28 + Math.random()*8; this.g.spawnTorpedo(this, F); }
     } else this.heading += this.turn*dt;
-    this.vel.set(Math.sin(this.heading), 0, Math.cos(this.heading)).multiplyScalar(this.speed);
+    this.pace += (paceT - this.pace)*Math.min(1, dt*0.5);
+    this.vel.set(Math.sin(this.heading), 0, Math.cos(this.heading)).multiplyScalar(this.speed*this.pace);
     this.pos.addScaledVector(this.vel, dt);
     this.q.setFromAxisAngle(tA.set(0, 1, 0), this.heading); this._qi = null;
     const props = this.obj.userData.props || [];
