@@ -845,7 +845,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   buildSite(g, sd, at){
     const w = g.world, site = {def:sd, id:sd.id, kind:sd.kind, name:sd.name, contact:sd.contact, armed:true, cool:0};
     if (sd.kind === 'strip') {
-      const sh = this.ground(at.x, at.z, true), strip = G.buildAirstrip(560, 26, sd.strip || {}), yaw = sd.yaw ?? at.yaw ?? 0;
+      const sh = this.ground(at.x, at.z, true), strip = G.buildAirstrip(560, 26, Object.assign({day:this.night ? 0 : sd.cavern ? 0.3 : w.time === 'evening' ? 0.5 : 1}, sd.strip)), yaw = sd.yaw ?? at.yaw ?? 0;
       strip.position.set(at.x, sh, at.z); strip.rotation.y = yaw; g.scene.add(strip);
       const ud = strip.userData, rot = v => v.clone().applyAxisAngle(UP, yaw).add(new V3(at.x, sh, at.z));
       g.runways.push({pos:new V3(at.x, sh, at.z), yaw, hw:ud.wid/2 + 10, hl:ud.len/2 + 22});

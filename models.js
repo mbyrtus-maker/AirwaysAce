@@ -1824,44 +1824,180 @@ G.buildWreck = () => {
 };
 
 /* ---------- Chapter 2 set pieces ---------- */
-/* A grass-edged airstrip in the back country: tarmac runway along local Z, a hangar, a windsock, and the Café Lafayette,
-   a two-storey Deco roadhouse with a neon sign, an awning, string lights and a terrace. Origin = runway centre. */
+/* A back-country airfield, the kind pilots drink at between jobs. Tarmac runway along local Z, origin = runway centre.
+   East of the north end: the apron with its parking cross, a bow-roofed tin hangar with rolling doors on outrigger rails
+   (a ship in the doorway, the field's name painted along the roof for anyone overhead), a lean-to workshop, a fuel tank,
+   drums and crates, a pump island, a radio shack with a lattice mast, a windsock in its wind circle, and the bar:
+   the Café Lafayette by default, a two-storey streamline roadhouse with a round corner tower, a BAR fin in neon,
+   a rooftop sign on raking struts, a pipe-railed roof terrace, an awning and a deck of tables under strings of bulbs.
+   o: tar, grass, walls, trim, accent (paint), sign / signCol / signGlow (the rooftop sign; a pale signCol is read as neon
+   on a dark board, a dark one as paint on a pale board), firm (the name over the hangar doors), roof (the name on the
+   hangar roof), neon (hex of the BAR fin), day (1 broad daylight .. 0 night: how far the lamp halos are turned up).
+   Callers rely on: the runway footprint, userData.apron, and the bar standing at apron + (44, 0, 10) inside a 24 m square. */
+const cssLum = c => { const n = parseInt(String(c).replace('#', ''), 16) || 0; return ((n >> 16 & 255)*0.3 + (n >> 8 & 255)*0.59 + (n & 255)*0.11)/255; };
+const AIR_FIRMS = ['HOLLOWAY & FINCH AERO', 'RED KITE FLYING SERVICE', 'PELICAN BAY AIR FREIGHT', 'OLD MAGPIE AIR EXPRESS', 'THISTLEDOWN AVIATION', 'BRASS COMPASS AIRWAYS'];
+/* block capitals for the neon fin: strokes as [x0, y0, x1, y1] in a unit cell */
+const BLOCK = {B:[[0, 0, 0.26, 1], [0, 0.82, 0.84, 1], [0, 0.41, 0.84, 0.59], [0, 0, 0.84, 0.18], [0.74, 0.56, 1, 0.86], [0.74, 0.14, 1, 0.44]],
+  A:[[0, 0, 0.26, 1], [0.74, 0, 1, 1], [0, 0.82, 1, 1], [0, 0.38, 1, 0.56]],
+  R:[[0, 0, 0.26, 1], [0, 0.82, 0.84, 1], [0, 0.41, 0.84, 0.59], [0.74, 0.56, 1, 0.86], [0.56, 0, 0.82, 0.41]]};
+const signPlane = (tex, w, h, lit) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), lit ? new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false}) : new THREE.MeshStandardMaterial({map:tex, transparent:true, depthWrite:false, roughness:0.9, metalness:0}));
+/* a thirties motor car, nose along local +Z: body, cabin, bonnet, wings, running boards, lit headlamps */
+function motorCar(k, x, z, yaw, body, glass){
+  const M = (lx, ly, lz) => mul(T(x, 0, z), RY(yaw), T(lx, ly, lz)), dk = DARK();
+  k.add(box(1.7, 0.75, 4.4), body, M(0, 0.86, 0)); k.add(box(1.5, 0.75, 2.1), body, M(0, 1.6, -0.55)); k.add(box(1.12, 0.36, 1.5), body, M(0, 1.4, 1.3));
+  k.add(box(1.54, 0.4, 1.76), dk, M(0, 1.64, -0.55)); k.add(box(1.3, 0.4, 2.14), dk, M(0, 1.64, -0.55)); k.add(box(0.9, 0.72, 0.1), STEEL(), M(0, 1.14, 2.2));
+  for (const sx of [1, -1]) { k.add(box(0.36, 0.1, 1.7), dk, M(sx*0.98, 0.5, 0));
+    for (const sz of [1.4, -1.4]) { k.add(box(0.44, 0.26, 1.3), dk, M(sx*0.98, 0.82, sz)); k.add(cyl(0.4, 0.4, 0.28, 8), dk, mul(M(sx*0.94, 0.4, sz), RZ(PI/2))); }
+    k.add(gem(0.15, 0.32), glass, M(sx*0.62, 1.2, 2.3)); }
+}
 G.buildAirstrip = (len = 560, wid = 26, o = {}) => {
   const g = new THREE.Group(), k = new Kit(), tar = G.mat(o.tar || 0x3b3936, {roughness:0.95}), grass = G.mat(o.grass || 0x5f7a35, {roughness:1}), paint = G.mat(0xe9e2cf), red = G.mat(o.accent || 0xa4322a);
-  const cream = G.mat(o.walls || 0xe6d6b4, {roughness:0.8}), green = G.mat(o.trim || 0x2e5a46), roof = G.mat(0x6b3a2a, {roughness:0.8});
+  const cream = G.mat(o.walls || 0xe6d6b4, {roughness:0.8}), green = G.mat(o.trim || 0x2e5a46), roof = G.mat(0x6b3a2a, {roughness:0.8}), wood = roof, dark = DARK(), steel = STEEL(), win = WINDOW();
+  const tin = G.mat(0x9aa0a4, {roughness:0.5, metalness:0.3}), tin2 = G.mat(0x71777b, {roughness:0.6, metalness:0.25});
+  const LC = G.LAMP, fit = new G.Fittings({day:o.day ?? 1}); fit.k = k; fit.iron = fit.cord = dark;       // lamps, festoons and halos go into the same kit
+  const warm = fit.glass(LC.WARM), neon = lamp(o.neon || 0xff5a6a), planes = [];
+  const pane = (w, h, x, y, z, face) => k.add(rect(w, h), win, mul(T(x, y, z), RY(face)));                 // a lit window on a wall facing +Z turned by `face`
+  const glow = (p, hex, r, h, big) => { k.add(gem(r, h), fit.glass(hex), T(p[0], p[1], p[2])); fit.halo(p, hex, big); };
+  /* ---- the runway (unchanged footprint) ---- */
   k.add(box(wid + 24, 0.12, len + 50), grass, T(0, 0.02, 0)); k.add(box(wid, 0.16, len), tar, T(0, 0.08, 0));
   for (let z = -len/2 + 40; z < len/2 - 40; z += 30) k.add(box(0.6, 0.18, 12), paint, T(0, 0.1, z));          // centre-line dashes
   for (const e of [1, -1]) for (let i = -4; i <= 4; i++) if (i) k.add(box(1.2, 0.18, 14), paint, T(i*2.6, 0.1, e*(len/2 - 12)));   // threshold bars
-  for (const e of [1, -1]) for (let z = -len/2; z <= len/2; z += 40) k.add(ball(0.35, 6, 3), lamp(z === -len/2 || z === len/2 ? 0x47e36a : 0xffd27a), T(e*(wid/2 + 1.5), 0.4, z));
-  // apron, hangar and windsock on the east side near the north end
+  for (const e of [1, -1]) for (let z = -len/2; z <= len/2; z += 40) { const end = z === -len/2 || z === len/2, p = [e*(wid/2 + 1.5), 0.56, z];   // edge lamps, green at the ends
+    if (end) { k.add(gem(0.42, 0.9), lamp(0x47e36a), T(p[0], p[1], p[2])); fit.halo(p, 0x47e36a); } else glow(p, LC.WARM, 0.42, 0.9); }
+  for (const e of [1, -1]) for (const sx of [2.3, -2.1]) k.add(box(0.7, 0.02, 44 + sx*3), dark, T(sx, 0.17, e*(len/2 - 58)));       // rubber where the wheels come down
+  /* ---- apron, taxi stub and the way to the hangar ---- */
   const ax = wid/2 + 34, az = len/2 - 90;
-  k.add(box(46, 0.14, 60), tar, T(ax, 0.07, az));
+  k.add(box(46, 0.14, 60), tar, T(ax, 0.07, az)); k.add(box(11.2, 0.14, 16), tar, T(wid/2 + 5.5, 0.07, az));
   k.add(box(34, 0.2, 2), paint, T(ax, 0.12, az - 26)); k.add(box(2, 0.2, 2), red, T(ax, 0.13, az));          // parking cross
-  const hz = az - 70;
-  for (let i = 0; i < 9; i++) { const a0 = i*PI/9, a1 = (i + 1)*PI/9; k.add(box(26*PI/9*0.52, 0.4, 30), G.mat(0x9aa0a4, {roughness:0.5, metalness:0.3}), mul(T(ax + 6 + Math.cos((a0 + a1)/2)*13, Math.sin((a0 + a1)/2)*13, hz), RZ((a0 + a1)/2 - PI/2))); }
-  k.add(box(26, 13, 0.4), DARK(), T(ax + 6, 6.5, hz + 15));
-  k.add(tube([ax - 18, 0, az + 40], [ax - 18, 9, az + 40], 0.12, 5), STEEL());
-  for (let i = 0; i < 4; i++) k.add(cyl(0.6 - i*0.1, 0.7 - i*0.1, 1.1, 8), i % 2 ? paint : G.mat(0xe0742a), mul(T(ax - 18 + 0.55 + i*1.05, 8.6, az + 40), RZ(PI/2)));
-  // Café Lafayette, facing the apron
-  const cx = ax + 44, cz = az + 10;
-  k.add(box(22, 7, 16), cream, T(cx, 3.5, cz)); k.add(box(16, 5, 12), cream, T(cx + 1, 9.5, cz)); k.add(box(23, 0.6, 17), green, T(cx, 7.2, cz)); k.add(box(17, 0.6, 13), green, T(cx + 1, 12.2, cz));
-  k.add(cyl(3.2, 3.2, 12, 10), cream, T(cx - 11, 6, cz - 8)); k.add(cyl(3.5, 3.5, 0.6, 10), green, T(cx - 11, 12.3, cz - 8));   // round corner tower
-  for (let i = 0; i < 6; i++) k.add(box(2, 2.6, 0.1), WINDOW(), T(cx - 7 + i*3, 3, cz - 8.06));
-  for (let i = 0; i < 4; i++) k.add(box(2, 2, 0.1), WINDOW(), T(cx - 4 + i*3.2, 9.5, cz - 6.06));
-  k.add(box(4, 3.2, 0.1), G.mat(0x3a2418), T(cx + 7, 1.6, cz - 8.06));
-  for (let i = 0; i < 8; i++) k.add(box(2.6, 0.12, 3), i % 2 ? red : paint, mul(T(cx - 9 + i*2.6, 5.2, cz - 9.4), RX(0.35)));   // striped awning
-  for (let i = 0; i < 4; i++) { const tx = cx - 8 + i*4.5, tz = cz - 14; k.add(cyl(0.9, 0.9, 0.08, 10), paint, T(tx, 1.0, tz)); k.add(tube([tx, 0, tz], [tx, 1, tz], 0.06, 5), DARK()); k.add(tube([tx, 1, tz], [tx, 3.2, tz], 0.04, 4), DARK()); k.add(cyl(0.2, 1.6, 0.8, 8), i % 2 ? red : green, T(tx, 3.3, tz)); }
-  for (let i = 0; i <= 10; i++) { const x = cx - 11 + i*2.2; k.add(ball(0.18, 5, 3), lamp(i % 3 ? 0xffd27a : 0xff8a6a), T(x, 5.8 + Math.sin(i/10*PI)*-0.6, cz - 16)); }
-  k.add(tube([cx - 11, 0, cz - 16], [cx - 11, 6, cz - 16], 0.08, 4), DARK()); k.add(tube([cx + 11, 0, cz - 16], [cx + 11, 6, cz - 16], 0.08, 4), DARK());
-  // a 1930s sedan and a fuel pump
-  k.add(box(2, 1.1, 4.6), G.mat(0x1f2a44), T(cx - 4, 0.9, cz - 22)); k.add(box(1.8, 0.9, 2.4), G.mat(0x1f2a44), T(cx - 4, 1.8, cz - 22.4));
-  for (const sx of [1, -1]) for (const sz of [1.5, -1.5]) k.add(cyl(0.42, 0.42, 0.3, 8), DARK(), mul(T(cx - 4 + sx*1, 0.42, cz - 22 + sz), RZ(PI/2)));
-  k.add(box(0.8, 2.2, 0.6), red, T(ax + 20, 1.1, az + 22)); k.add(ball(0.4, 6, 3), lamp(0xfff2c4), T(ax + 20, 2.5, az + 22));
-  k.build(g);
-  const nt = nameTex(o.sign || 'CAFÉ LAFAYETTE', o.signCol || '#ff5a6a', o.signGlow || '#ffd27a');
-  if (nt) { const m = new THREE.Mesh(new THREE.PlaneGeometry(14, 1.75), new THREE.MeshBasicMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(cx + 1, 13.6, cz - 6.2); m.rotation.y = PI; g.add(m);
-    const m2 = m.clone(); m2.rotation.y = 0; m2.position.z = cz - 6.25; g.add(m2); }
-  g.userData = {len, wid, apron:new V3(ax, 0, az)};
+  k.add(ring(5.4, 6, 20), paint, onTop(ax, 0.16, az)); k.add(box(21, 0.2, 0.4), paint, T(wid/2 + 17.5 - 6.5, 0.12, az));
+  for (const [dx, dz, r] of [[-9, 13, 1.5], [7, -12, 1.1], [13, 17, 1.3], [4, 5, 0.8]]) k.add(disc(r, 7), dark, onTop(ax + dx, 0.15, az + dz));   // oil
+  /* ---- the hangar: bow roof on low walls, 26 x 30 m, doors to the apron ---- */
+  const hx = ax + 6, hz = az - 70, HR = 14.56, HY = -2.06, NA = 10, A = [], t0 = Math.atan2(4.5 - HY, 13);
+  for (let i = 0; i <= NA; i++) { const t = t0 + i*(PI - 2*t0)/NA; A.push([Math.cos(t)*HR, HY + Math.sin(t)*HR]); }
+  k.add(box(20, 0.14, 25.4), tar, T(hx, 0.07, hz + 27.5)); k.add(box(25.4, 0.12, 29.6), tin2, T(hx, 0.06, hz));
+  for (let i = 0; i < NA; i++) { const a = A[i], b = A[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);      // ribbed tin, sheet by sheet
+    k.add(box(L + 0.12, 0.3, 30.6), i % 2 ? tin : tin2, mul(T(hx + (a[0] + b[0])/2, (a[1] + b[1])/2, hz), RZ(Math.atan2(b[1] - a[1], b[0] - a[0])))); }
+  for (const [i, dz, l] of [[2, 6, 5], [7, -8, 6.5], [8, 9, 3]]) { const a = A[i], b = A[i + 1]; k.add(box(2.4, 0.36, l), roof, mul(T(hx + (a[0] + b[0])/2, (a[1] + b[1])/2, hz + dz), RZ(Math.atan2(b[1] - a[1], b[0] - a[0])))); }   // rust
+  for (const s of [1, -1]) { k.add(box(0.3, 4.7, 30), tin2, T(hx + s*12.85, 2.35, hz)); for (let j = 0; j < 5; j++) pane(2.8, 1.1, hx + s*13.04, 3.3, hz - 10.5 + j*5.25, s*PI/2); }
+  const gable = [[13, 0], ...A, [-13, 0]], DW = 9.5, DH = 8.5, qy = A[1][1] + (DW - A[1][0])/(A[2][0] - A[1][0])*(A[2][1] - A[1][1]);
+  k.add(poly(gable), dark, T(hx, 0, hz - 14.8)); k.add(xf(poly(gable), RY(PI)), tin2, T(hx, 0, hz - 15));     // back wall, inside and out
+  k.add(box(26.1, 0.9, 0.1), red, T(hx, 2.3, hz - 15.02)); k.add(box(1.3, 2.3, 0.1), wood, T(hx + 8, 1.15, hz - 15.04)); for (const dx of [-7, -2.5, 2]) pane(2.6, 1.1, hx + dx, 6.2, hz - 15.06, PI);
+  k.add(poly([[DW, 0], [13, 0], A[0], A[1], [DW, qy]]), cream, T(hx, 0, hz + 15)); k.add(poly([[-13, 0], [-DW, 0], [-DW, qy], A[NA - 1], A[NA]]), cream, T(hx, 0, hz + 15));
+  k.add(poly([[-DW, DH], [DW, DH], [DW, qy], ...A.slice(2, NA - 1), [-DW, qy]]), cream, T(hx, 0, hz + 15));
+  k.add(box(19.4, 0.5, 0.2), green, T(hx, DH + 0.25, hz + 15.08));
+  for (const lx of [-9.75, 14.25]) {                                                                          // two rolling leaves, run back along the rail
+    k.add(box(9.5, 8.4, 0.24), tin, T(hx + lx, 4.3, hz + 15.42)); k.add(box(9.54, 0.9, 0.3), red, T(hx + lx, 2.3, hz + 15.42));
+    for (const dx of [-4.6, 0, 4.6]) k.add(box(0.22, 8.4, 0.34), tin2, T(hx + lx + dx, 4.3, hz + 15.42));
+    for (const dx of [-2.3, 2.3]) pane(2, 1.1, hx + lx + dx, 6.3, hz + 15.58, 0);
+  }
+  k.add(box(36.4, 0.26, 0.34), dark, T(hx + 2.3, DH + 0.3, hz + 15.44));
+  for (const px of [-15.7, 20.3]) { k.add(box(0.3, DH + 0.2, 0.3), dark, T(hx + px, (DH + 0.2)/2, hz + 15.44)); k.add(bar([hx + px, DH - 2.4, hz + 15.44], [hx + px - Math.sign(px)*2.6, DH + 0.2, hz + 15.44], 0.16), dark); }
+  fit.lantern([hx, 11.6, hz + 16], {wall:[hx, 11.6, hz + 15], s:1.5, hex:LC.WARM}); fit.lantern([hx, 8.6, hz + 3], {hang:2.6, s:1.5, hex:LC.WARM});
+  { const M = (...m) => mul(T(hx + 2.3, 1.36, hz + 9.6), RX(-0.2), ...m);                                       // somebody's ship, nose in the doorway
+    k.add(lathe([[0.08, -4.2], [0.42, -2.6], [0.62, -0.2], [0.62, 1.5], [0.52, 2.1]], 8), red, M()); k.add(lathe([[0.66, 2.05], [0.66, 2.5], [0.3, 2.62]], 8), dark, M());
+    k.add(box(9.6, 0.16, 1.7), paint, M(T(0, -0.36, 0.6))); k.add(box(3.2, 0.08, 0.9), paint, M(T(0, 0.12, -3.7))); k.add(box(0.08, 1.15, 0.95), red, M(T(0, 0.62, -3.75)));
+    k.add(box(0.18, 2.7, 0.07), wood, M(T(0, 0, 2.68), RZ(0.6))); k.add(box(0.5, 0.36, 0.9), dark, M(T(0, 0.66, -0.3)));
+    for (const sx of [1.25, -1.25]) { k.add(bar([sx, -0.4, 0.8], [sx, -1.0, 0.95], 0.1), dark, M()); k.add(cyl(0.38, 0.38, 0.22, 8), dark, M(T(sx, -1.12, 0.95), RZ(PI/2))); } }
+  // lean-to workshop with a stovepipe, east side
+  k.add(box(5, 3.3, 14), tin2, T(hx + 15.5, 1.65, hz - 4)); k.add(box(5.9, 0.2, 14.8), roof, mul(T(hx + 15.7, 3.62, hz - 4), RZ(-0.2)));
+  k.add(box(1.2, 2.2, 0.12), wood, T(hx + 15.5, 1.1, hz + 3.02)); pane(2.2, 1, hx + 18.06, 2, hz - 6, PI/2); pane(2.2, 1, hx + 18.06, 2, hz - 1.5, PI/2);
+  k.add(tube([hx + 17, 2.8, hz - 9], [hx + 17, 6.2, hz - 9], 0.18, 5), dark); k.add(cyl(0.34, 0.2, 0.3, 5), dark, T(hx + 17, 6.3, hz - 9));
+  // fuel tank on saddles against the west wall, drums and crates by the doors
+  k.add(xf(cyl(1.2, 1.2, 6.4, 10), RX(PI/2)), red, T(hx - 15.2, 2, hz - 3)); k.add(xf(cyl(1.24, 1.24, 0.9, 10, false), RX(PI/2)), paint, T(hx - 15.2, 2, hz - 3));
+  for (const dz of [-2.2, 2.2]) k.add(box(2.2, 0.9, 0.5), dark, T(hx - 15.2, 0.45, hz - 3 + dz));
+  k.add(tube([hx - 15.2, 3.1, hz - 1], [hx - 15.2, 3.9, hz - 1], 0.14, 5), dark); k.add(tube([hx - 15.2, 3.8, hz - 1], [hx - 13, 3.8, hz - 1], 0.07, 4), dark);
+  [[-15.4, 16.6, red], [-14.5, 17.3, tin2], [-15.5, 17.7, roof], [-13.6, 16.4, green], [-14.4, 16.3, roof]].forEach(([dx, dz, m], i) => k.add(cyl(0.3, 0.3, 0.9, 7), m, T(hx + dx, 0.45, hz + dz)));
+  k.add(xf(cyl(0.3, 0.3, 0.9, 7), RZ(PI/2)), red, mul(T(hx - 13, 0.3, hz + 18.3), RY(0.5)));
+  k.add(box(1.3, 1, 1.3), wood, T(hx + 14.2, 0.5, hz + 16.6)); k.add(box(1, 0.8, 1), wood, mul(T(hx + 15.6, 0.4, hz + 16.9), RY(0.4))); k.add(box(0.9, 0.7, 0.9), wood, mul(T(hx + 14.3, 1.35, hz + 16.7), RY(0.3)));
+  /* ---- windsock in its wind circle ---- */
+  { const wx = ax - 18, wz = az + 40, M = (...m) => mul(T(wx, 8.7, wz), RY(0.5), RZ(-0.16), ...m);
+    k.add(cyl(0.25, 0.42, 0.5, 6), paint, T(wx, 0.25, wz)); k.add(tube([wx, 0, wz], [wx, 9.3, wz], 0.12, 5), steel); k.add(ring(4.5, 5.1, 16), paint, onTop(wx, 0.12, wz));
+    for (let i = 0; i < 4; i++) k.add(cyl(0.64 - (i + 1)*0.11, 0.64 - i*0.11, 1.12, 8, i === 3), i % 2 ? paint : red, M(T(0.7 + i*1.12, 0, 0), RZ(-PI/2))); }
+  /* ---- radio shack and its mast ---- */
+  { const rx = ax + 33, rz = az - 42, mx = rx + 5.5, mz = rz - 1.5, MH = 18, leg = [0, 1, 2].map(j => [Math.cos(j*2*PI/3 + 0.5), Math.sin(j*2*PI/3 + 0.5)]), at = (j, y) => { const r = 1.25 - 1.12*y/MH; return [mx + leg[j][0]*r, y, mz + leg[j][1]*r]; };
+    k.add(box(5, 3, 4), cream, T(rx, 1.5, rz)); k.add(box(5.8, 0.3, 4.8), green, T(rx, 3.15, rz)); pane(3.6, 1, rx - 0.3, 2, rz + 2.05, 0); pane(2.6, 1, rx - 2.55, 2, rz, -PI/2);
+    k.add(box(0.12, 2.1, 1), wood, T(rx + 2.5, 1.05, rz + 0.8)); k.add(tube([rx - 1.8, 3.3, rz], [rx - 1.8, 5, rz], 0.06, 4), dark);
+    for (let j = 0; j < 3; j++) { k.add(tube(at(j, 0), at(j, MH), 0.08, 3, false), steel);
+      for (let y = 3; y < MH; y += 3) { k.add(tube(at(j, y), at((j + 1) % 3, y), 0.05, 3, false), steel); k.add(tube(at(j, y - 3), at((j + 1) % 3, y), 0.04, 3, false), steel); }
+      k.add(wire([mx + leg[j][0]*0.5, 12, mz + leg[j][1]*0.5], [mx - leg[j][0]*7.5, 0, mz - leg[j][1]*7.5], 0.03), dark); }
+    k.add(wire([mx, 16.5, mz], [rx - 1.8, 5, rz], 0.03), dark); glow([mx, MH + 0.45, mz], LC.RED, 0.34, 0.8, true); }
+  /* ---- pump island on the apron's east edge ---- */
+  { const fx = ax + 21.5, fz = az + 22;
+    k.add(box(2, 0.3, 8.6), paint, T(fx, 0.15, fz));
+    for (const dz of [-2.3, 2.3]) { k.add(box(0.8, 1.7, 0.62), red, T(fx, 1.15, fz + dz)); k.add(cyl(0.3, 0.3, 0.8, 8, false), paint, T(fx, 2.4, fz + dz)); k.add(cyl(0.36, 0.36, 0.14, 8), red, T(fx, 2.86, fz + dz)); glow([fx, 3.2, fz + dz], LC.WARM, 0.3, 0.62);
+      k.add(wire([fx - 0.4, 2.2, fz + dz], [fx - 0.75, 0.9, fz + dz + 0.3], 0.04), dark); }
+    k.add(tube([fx, 0.3, fz], [fx, 5.2, fz], 0.09, 5), dark); k.add(xf(cyl(0.95, 0.95, 0.14, 12), RZ(PI/2)), paint, T(fx, 4.1, fz));
+    k.add(star(0.74, 0.3), red, onSide(fx + 0.08, 4.1, fz)); k.add(star(0.74, 0.3), red, mul(T(fx - 0.08, 4.1, fz), RY(-PI/2)));
+    fit.lantern([fx, 5.6, fz], {s:1.3, hex:LC.WARM}); k.add(box(0.7, 1.2, 0.5), green, T(fx, 0.9, fz + 3.7)); }
+  /* ---- the bar ---- */
+  const cx = ax + 44, cz = az + 10, C = (x, y, z) => T(cx + x, y, cz + z), tx = cx - 11, tz = cz - 8;
+  k.add(box(22.4, 0.7, 16.4), green, C(0, 0.35, 0)); k.add(box(22, 7, 16), cream, C(0, 3.5, 0)); k.add(box(23, 0.6, 17), green, C(0, 7.2, 0));
+  for (const y of [6.05, 6.5]) k.add(box(22.16, 0.12, 16.16), green, C(0, y, 0));                        // speed lines right round
+  k.add(box(16, 5, 12), cream, C(1, 9.5, 0)); k.add(box(17, 0.6, 13), green, C(1, 12.2, 0)); k.add(box(16.2, 0.12, 12.2), green, C(1, 11.3, 0));
+  k.add(box(21.6, 0.1, 15.6), tin2, C(0, 7.53, 0)); k.add(box(15.8, 0.1, 11.8), tin2, C(1, 12.53, 0));       // roof decks inside the copings
+  // corner tower: marquee canopy with bulbs round the foot, glass strips, a stepped cap and a mast lamp
+  k.add(cyl(3.2, 3.2, 13, 12), cream, T(tx, 6.5, tz)); k.add(cyl(3.5, 3.5, 0.6, 12), green, T(tx, 7.2, tz)); k.add(cyl(3.5, 3.5, 0.5, 12), green, T(tx, 13.2, tz));
+  k.add(cyl(2.5, 2.5, 0.9, 12), cream, T(tx, 13.9, tz)); k.add(cyl(1.7, 1.7, 0.6, 12), green, T(tx, 14.65, tz)); k.add(tube([tx, 14.9, tz], [tx, 18.3, tz], 0.1, 5), steel);
+  glow([tx, 18.7, tz], LC.RED, 0.32, 0.75, true);
+  k.add(cyl(4.5, 4.5, 0.32, 12), green, T(tx, 3.7, tz)); k.add(cyl(4.56, 4.56, 0.12, 12, false), red, T(tx, 3.7, tz));
+  for (let j = 0; j < 12; j++) { const c = Math.cos(j*PI/6), s = Math.sin(j*PI/6); if (c > 0.2 && s > -0.6 || s > 0.2 && c > -0.6) continue; glow([tx + c*4.1, 3.32, tz + s*4.1], LC.WARM, 0.2, 0.44); }
+  k.add(box(0.14, 2.7, 1.3), wood, T(tx - 3.09, 1.35, tz)); pane(1.1, 1.7, tx, 2.1, tz - 3.15, PI);
+  for (const a of [5*PI/6, 7*PI/6, 3*PI/2]) pane(1, 4.2, tx + Math.cos(a)*3.15, 10.3, tz + Math.sin(a)*3.15, PI/2 - a);     // glass strips either side of the fin
+  { const FM = (...m) => mul(T(tx - 4.25, 10.65, tz), RY(PI), ...m), cw = 1.3, ch = 1.6;             // the fin, square to the runway: BAR in neon for anyone flying past, either way
+    k.add(box(2.3, 6.3, 0.3), green, FM()); k.add(box(0.2, 6.5, 0.44), red, FM(T(1.2, 0, 0)));
+    ['B', 'A', 'R'].forEach((L, i) => { const yc = 2.05 - i*2.05;
+      for (const [x0, y0, x1, y1] of BLOCK[L]) { const w = (x1 - x0)*cw, h = (y1 - y0)*ch, lx = ((x0 + x1)/2 - 0.5)*cw - 0.1, ly = yc + ((y0 + y1)/2 - 0.5)*ch;
+        if (L === 'A') k.add(box(w, h, 0.46), neon, FM(T(lx + (lx > -0.1 ? 0 : 0), ly, 0)));
+        else { k.add(box(w, h, 0.08), neon, FM(T(lx, ly, 0.19))); k.add(box(w, h, 0.08), neon, FM(T(-lx - 0.2, ly, -0.19))); } }
+      fit.halo([tx - 4.15, 10.65 + yc, tz], o.neon || 0xff5a6a); }); }
+  // front: a ribbon of windows under a striped awning, the door under its canopy with a propeller over it
+  for (let i = 0; i < 4; i++) pane(2.5, 2.8, cx - 5.7 + i*3.1, 2.75, cz - 8.06, PI); k.add(box(12.9, 0.2, 0.36), green, C(-1.05, 1.25, -8));
+  for (let i = 0; i < 8; i++) k.add(box(1.62, 0.12, 3), i % 2 ? red : paint, mul(C(-6.7 + i*1.62, 4.95, -9.4), RX(-0.34))); k.add(box(12.96, 0.36, 0.1), red, C(-1.03, 4.3, -10.84));
+  k.add(box(2.8, 3.1, 0.16), wood, C(7.6, 2.25, -8)); k.add(box(3.8, 0.35, 1.5), paint, C(7.6, 0.175, -8.9)); k.add(box(3.3, 0.7, 0.7), paint, C(7.6, 0.35, -8.5));
+  for (const dx of [-0.65, 0.65]) k.add(disc(0.36, 8), warm, mul(C(7.6 + dx, 2.9, -8.1), RY(PI)));
+  k.add(box(4.4, 0.26, 2.4), green, C(7.6, 4.15, -9.2)); k.add(box(4.5, 0.12, 2.5), red, C(7.6, 4.15, -9.2));
+  for (const dx of [-2, 2]) { k.add(wire([cx + 7.6 + dx, 4.2, cz - 10.3], [cx + 7.6 + dx, 5.8, cz - 8], 0.035), dark); fit.lantern([cx + 7.6 + dx*0.95, 3.2, cz - 8.6], {wall:[cx + 7.6 + dx*0.95, 3.2, cz - 8], hex:LC.AMBER}); }
+  k.add(box(3.5, 0.28, 0.1), wood, mul(C(7.6, 5.25, -8.1), RZ(0.3))); k.add(xf(cyl(0.24, 0.24, 0.2, 8), RX(PI/2)), paint, C(7.6, 5.25, -8.12));
+  // the other walls: windows, the house star, a kitchen out the back with kegs and crates, a chimney
+  for (const z of [-2.4, 1.2]) pane(2.3, 2.6, cx - 11.06, 2.9, cz + z, -PI/2); for (const z of [-3.6, 0, 3.6]) pane(2, 2, cx - 7.06, 9.4, cz + z, -PI/2);
+  k.add(ring(1.3, 1.6, 14), red, mul(C(-11.04, 3.5, 5.2), RY(-PI/2))); k.add(star(1.15, 0.46), red, mul(C(-11.04, 3.5, 5.2), RY(-PI/2)));
+  for (let i = 0; i < 4; i++) pane(2, 2, cx - 4 + i*3.2, 9.4, cz - 6.06, PI); for (const x of [-3.5, 1, 5.5]) pane(2, 2, cx + x, 9.4, cz + 6.06, 0);
+  for (const z of [-3.5, 3]) { pane(2.3, 2.6, cx + 11.06, 2.9, cz + z, PI/2); pane(2, 2, cx + 9.06, 9.4, cz + z*0.8, PI/2); } for (const x of [-7.5, -3.8]) pane(2.3, 2.6, cx + x, 2.9, cz + 8.06, 0);
+  k.add(box(7, 3, 3), cream, C(6.5, 1.5, 9.5)); k.add(box(7.6, 0.25, 3.6), green, C(6.5, 3.1, 9.6)); k.add(box(1.1, 2.1, 0.12), wood, C(4.6, 1.05, 11)); pane(1.6, 0.9, cx + 8, 2, cz + 11.05, 0);
+  for (const [x, z] of [[1.6, 8.6], [0.8, 8.7], [1.2, 9.4]]) k.add(cyl(0.36, 0.36, 0.9, 8), wood, C(x, 0.45, z)); k.add(box(1.1, 0.8, 1.1), wood, C(-0.6, 0.4, 8.8)); k.add(box(0.9, 0.7, 0.9), wood, mul(C(-0.5, 1.15, 8.8), RY(0.4)));
+  k.add(box(1.3, 2.8, 1.3), roof, C(6.5, 13.6, 3.5)); k.add(box(1.6, 0.2, 1.6), dark, C(6.5, 15.1, 3.5));
+  // roof terrace behind a white pipe rail
+  { const rail = (x0, z0, x1, z1) => { const n = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0)/3.2)); for (const y of [8.05, 8.55]) k.add(bar([cx + x0, y, cz + z0], [cx + x1, y, cz + z1], 0.09), paint);
+      for (let i = 0; i <= n; i++) k.add(box(0.1, 1.05, 0.1), paint, C(x0 + (x1 - x0)*i/n, 8.02, z0 + (z1 - z0)*i/n)); };
+    rail(-7.4, -8.2, 11.2, -8.2); rail(-11.2, -4.6, -11.2, 8.2);
+    for (const [x, z, m] of [[-9.2, 1, red], [-9.2, 5, green]]) { k.add(cyl(0.7, 0.7, 0.07, 8), paint, C(x, 8.4, z)); k.add(tube([cx + x, 7.5, cz + z], [cx + x, 10.3, cz + z], 0.05, 4), dark); k.add(cyl(0.15, 1.45, 0.65, 8), m, C(x, 10.35, z)); } }
+  // rooftop sign on raking struts
+  const sy = 14.35, sz = -5.7, board = cssLum(o.signCol || '#ff5a6a') > 0.42 ? dark : paint;   // neon wants a dark board, painted letters a pale one
+  k.add(box(17, 2.6, 0.24), board, C(1, sy, sz)); k.add(box(0.24, 2.6, 12), board, C(-7.38, sy, sz + 6.12));     // one board to the runway, one to the apron
+  for (const e of [1, -1]) { k.add(box(17.3, 0.16, 0.36), red, C(1, sy + e*1.38, sz)); k.add(box(0.36, 0.16, 12.1), red, C(-7.38, sy + e*1.38, sz + 6.1)); }
+  for (const x of [-5.4, -1.2, 3.2, 7.6]) { k.add(box(0.26, 0.6, 0.26), dark, C(x, 12.8, sz)); k.add(bar([cx + x, 12.5, cz - 2.2], [cx + x, sy + 1.2, cz + sz + 0.1], 0.13), dark); }
+  for (const z of [-1.8, 2.4, 6]) { k.add(box(0.26, 0.6, 0.26), dark, C(-7.38, 12.8, z)); k.add(bar([cx - 4, 12.5, cz + z], [cx - 7.28, sy + 1.2, cz + z], 0.13), dark); }
+  // the deck: tables under umbrellas, chairs, planters, strings of bulbs
+  k.add(box(17.6, 0.24, 7.6), wood, C(-0.75, 0.12, -14));
+  for (let i = 0; i < 4; i++) { const x = cx - 6.6 + i*4.2, z = cz - 13.8 - (i % 2)*0.9;
+    k.add(cyl(0.85, 0.85, 0.08, 8), paint, T(x, 1.02, z)); k.add(tube([x, 0.24, z], [x, 3.15, z], 0.05, 4), dark); k.add(cyl(0.16, 1.65, 0.75, 8), i % 2 ? green : red, T(x, 3.3, z));
+    for (const sx of [1.25, -1.25]) { k.add(box(0.46, 0.5, 0.46), wood, T(x + sx, 0.49, z)); } }
+  for (const x of [-7.9, 6.4]) { k.add(box(2.8, 0.7, 0.8), cream, C(x, 0.59, -17.3)); k.add(box(2.6, 0.5, 0.6), grass, C(x, 1.15, -17.3)); }
+  { const pa = [cx - 9.4, 5.3, cz - 17.5], pb = [cx + 7.9, 5.3, cz - 17.5], F = {every:2.1, cols:[LC.WARM, LC.WARM, LC.AMBER], r:0.24};
+    for (const p of [pa, pb]) k.add(tube([p[0], 0, p[2]], [p[0], p[1] + 0.1, p[2]], 0.09, 5), dark);
+    fit.festoon(pa, pb, Object.assign({sag:0.9}, F)); fit.festoon(pa, [cx - 7.4, 6.9, cz - 8.1], F); fit.festoon(pb, [cx + 10.6, 6.9, cz - 8.1], F); }
+  // motor cars: a sedan on the gravel by the deck, the field's runabout by the workshop
+  k.add(box(15, 0.12, 8), tar, C(-1, 0.06, -23.5)); motorCar(k, cx - 4, cz - 23, 0.12, G.mat(0x1f2a44), warm); motorCar(k, hx + 21.5, hz + 3, 2.9, red, warm);
+  fit.build(g);
+  /* ---- lettering: the rooftop sign (both faces), the firm over the hangar doors, the field's name along the hangar roof ---- */
+  const accent = css(o.accent || 0xa4322a), nt = nameTex(o.sign || 'CAFÉ LAFAYETTE', o.signCol || '#ff5a6a', o.signGlow || '#ffd27a');
+  if (nt) { for (const f of [-1, 1]) { const m = signPlane(nt, 16.4, 2.05, true); m.position.set(cx + 1, sy, cz + sz + f*0.135); m.rotation.y = f < 0 ? PI : 0; g.add(m); }
+    const m = signPlane(nt, 11.6, 1.45, true); m.position.set(cx - 7.38 - 0.135, sy, cz + sz + 6.12); m.rotation.y = -PI/2; g.add(m); }
+  const firm = o.firm || AIR_FIRMS[[...(o.sign || '')].reduce((s, c) => s + c.charCodeAt(0), 0) % AIR_FIRMS.length], ft = nameTex(firm, '#2a1d10', accent);
+  if (ft) { const m = signPlane(ft, 13.2, 1.65, false); m.position.set(hx, 9.72, hz + 15.03); g.add(m); }
+  const rt = nameTex(o.roof || o.sign || 'SAINT-REMY', '#e9e2cf', accent);
+  if (rt) { const m = signPlane(rt, 27, 3.375, false); m.position.set(hx, 12.5 + 0.24, hz); m.rotation.set(-PI/2, 0, -PI/2); g.add(m); }   // reads from the runway side
+  g.userData = {len, wid, apron:new V3(ax, 0, az), bar:new V3(cx, 0, cz), hangar:new V3(hx, 0, hz), fittings:g.userData.fittings};
   return g;
 };
 
