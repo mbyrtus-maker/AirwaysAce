@@ -139,7 +139,8 @@ G.Game = class {
      parked where you stopped it, so you can take it back (keepOld:false on the spot leaves it to the ground crew instead).
      spot.taken is set once she's yours. g.swapPlayer(plane, o) is the part that does the work, and a mission can call it
      directly to put the player in any plane at any moment, parked or flying (say, a fresh one from g.addPlane).
-     Every swap reaches the mission as mission.onSwap(g, now, was). Not in co-op yet: the other side can't change your aeroplane's model. */
+     Every swap reaches the mission as mission.onSwap(g, now, was); mission.canSwap(spot) can refuse one with a reason.
+     In co-op the host owns the parked planes: a guest asks for one and the host hands it over (net.js); hostOnly:true keeps one for the host. */
   parkPlane(o){
     const p = o.plane || this.addPlane({loadout:o.loadout, team:o.team ?? 0, name:o.name || o.label || 'Parked', callsign:o.callsign || o.name || 'Parked', pos:o.pos.clone(), q:new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), o.yaw || 0), speed:0, throttle:0, internalMul:o.internalMul});
     return this.park(p, o);
@@ -151,7 +152,8 @@ G.Game = class {
     p.q.setFromAxisAngle(new V3(0, 1, 0), yaw); p.axes(); p.speed = 0; p.vel.set(0, 0, 0); p.throttle = 0; p.fire = p.fireRk = false; p.brake = true; p.man = null;
     p.noTarget = !o.target; p.hover = false;
     this.pilots = this.pilots.filter(pl => pl.p !== p);
-    const spot = {plane:p, label:o.label || `the ${(G.CHASSIS[p.L.chassis] || {name:'aeroplane'}).name}`, reach:o.reach || Math.max(45, (p.ud.radius || 8)*3.5), keepOld:o.keepOld !== false, onTake:o.onTake, taken:false};
+    const spot = {plane:p, label:o.label || `the ${(G.CHASSIS[p.L.chassis] || {name:'aeroplane'}).name}`, reach:o.reach || Math.max(45, (p.ud.radius || 8)*3.5), keepOld:o.keepOld !== false, onTake:o.onTake, hostOnly:!!o.hostOnly, mine:!!o.mine, taken:false};
+    if (this.netHost && G.Net && G.Net.parkedChanged) G.Net.parkedChanged(this, p, spot);
     (this.parkedSpots || (this.parkedSpots = [])).push(spot); return spot;
   }
   /* which parked plane is close enough to climb into: on the ground, all but stopped, inside its reach */
@@ -160,20 +162,22 @@ G.Game = class {
     this.parkedSpots = this.parkedSpots.filter(s => s.plane.alive && s.plane.parked);
     if (P && P.alive && P.onGround && P.speed < 4 && !this.done) for (const s of this.parkedSpots) if (s.plane !== P && P.pos.distanceTo(s.plane.pos) < s.reach) { near = s; break; }
     if (near !== this.swapNear) { this.swapNear = near; this.swapNag = 0; }
-    if (near && (this.swapNag -= dt) <= 0) { this.swapNag = 4; G.HUD.toast(this.netHost || this.netGuest ? 'Changing aeroplanes doesn\'t work in co-op yet' : `Y${G.pad && G.pad.active ? ' (pad: fire)' : ''} · climb into ${near.label}`); }
+    if (near && (this.swapNag -= dt) <= 0) { this.swapNag = 4; G.HUD.toast(this.netGuest && near.hostOnly ? `${near.label} is for the lead pilot` : `Y${G.pad && G.pad.active ? ' (pad: fire)' : ''} · climb into ${near.label}`); }
   }
   takeParked(spot){
-    if (this.netHost || this.netGuest) return;
+    const why = this.mission.canSwap && this.mission.canSwap(spot); if (why) { G.HUD.toast(why); return; }
+    if (this.netGuest) { if (!spot.hostOnly && G.Net && G.Net.askTake) G.Net.askTake(this, spot); return; }   // the host owns it: ask
     const was = this.player, now = spot.plane; if (!now.alive || was === now) return;
     spot.taken = true; this.parkedSpots = this.parkedSpots.filter(s => s !== spot); this.swapNear = null;
     this.swapPlayer(now, {keepOld:spot.keepOld});
+    if (this.netHost && G.Net && G.Net.hostSwapped) G.Net.hostSwapped(this, now, was);
     if (spot.onTake) spot.onTake(this, now, was);
   }
   swapPlayer(now, o = {}){
     const was = this.player; if (!now || now === was) return;
     if (was) {
       was.isPlayer = false; was.fire = was.fireRk = false; was.throttle = 0;
-      if (o.keepOld !== false && was.alive && was.onGround) this.park(was, {label:o.oldLabel || `your ${(G.CHASSIS[was.L.chassis] || {name:'aeroplane'}).name}`});
+      if (o.keepOld !== false && was.alive && was.onGround) this.park(was, {label:o.oldLabel || `your ${(G.CHASSIS[was.L.chassis] || {name:'aeroplane'}).name}`, mine:true});
       else { was.alive = false; if (was.obj.parent) was.obj.parent.remove(was.obj); this.planes = this.planes.filter(x => x !== was); }
     }
     now.parked = false; now.noTarget = false; now.isPlayer = true; now.team = 0; now.invuln = false; now.frozen = false; now.grace = Math.max(now.grace || 0, 1.5);

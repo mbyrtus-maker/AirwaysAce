@@ -771,6 +771,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     const pairs = []; for (let i = 0; i < stops.length; i++) for (let j = i + 1; j < stops.length; j++) pairs.push([stops[i], stops[j]]);
     T.routes(pairs.slice(0, 7), {night:this.night}); T.cruisers(this.night ? 2 : 3, this.R.id);
     if (G.shipping) G.shipping(this, g, R.id);   // tramp steamers, tugs, packets and worse on the region's water
+    this.parkBorrowed(g);   // a plane standing at every airfield, free to borrow
     const M = R.margaret, line = this.night ? `Hook's live, ${G.save.callsign || 'Ace'}. Clear night over ${R.name}. Watch for lights on the ground.` : `Hook's live, ${G.save.callsign || 'Ace'}. ${R.name}, ${G.timeLabel().split(' · ')[1].toLowerCase()}. Go find us some work.`;
     this.launch(g, line, {pos:new V3(M.x, M.y, M.z), heading:0, turn:0.012, banner:R.name});
     setTimeout(() => { if (G.game === g && !this.ended) G.HUD.radio(G.RADIO.short, `Land at a field or hook a skyhook to meet people. ${this.sites.filter(s => s.contact).map(s => G.CONTACTS[s.contact].name.replace(/".*" /, '')).join(' and ')} are expecting you.`); }, 4500);
@@ -2004,6 +2005,116 @@ ENG.bounty = (O, def) => {
   J.sides = () => def.ace ? [{text:`Shoot down ${def.ace.name}`, st:J.ace && !J.ace.alive ? 'ok' : 'live', val:''}] : [];
   J.cleanup = () => { g.targetShip = null; };
   return J;
+};
+
+
+/* =====================================================================
+   Borrowed aeroplanes: one stands at every airfield (game.parkPlane). Stop beside it and press Y to fly it; your own
+   waits where you left it. Some come with a secret: a hot plane with hunters on its tail, a satchel under the seat
+   that wants delivering, a stowaway in the back with somewhere to be. Borrowed planes never change your saved loadout.
+   ===================================================================== */
+const BORROW = {halcyon:['comet', 'sparrowhawk', 'mantis', 'gallant', 'whirligig'], badlands:['highwayman', 'jackal', 'vandal', 'bulldog', 'comet'], frostback:['grackle', 'thunderbuss', 'ironclad', 'sparrowhawk', 'jackal'],
+  keys:['vandal', 'bulldog', 'mantis', 'comet', 'grackle'], calavera:['vandal', 'highwayman', 'bulldog', 'jackal', 'ironclad']};
+const HUNTERS = {halcyon:'tigers', badlands:'rattlers', frostback:'wolves', keys:'corsairs', calavera:'brethren'};
+OPEN.parkBorrowed = function(g){
+  this.borrowSpots = [];
+  for (const s of this.sites) {
+    if ((s.kind !== 'strip' && s.kind !== 'field') || s.def.noBorrow) continue;
+    const pool = (BORROW[this.R.id] || BORROW.halcyon).filter(c => G.CHASSIS[c]), ch = G.pick(pool), L = G.stockLoadout(ch);
+    const paints = Object.values(GANGS).flatMap(x => x.paints).concat(Object.values(G.FACTORY_PAINT)); L.paint = G.pick(paints).slice();
+    L.rocket = G.pick(['he', 'he', 'flak']); const owner = G.name1920s({nick:false});
+    let pos, yaw;
+    if (s.kind === 'strip') { const sy = s.yaw || 0, along = new V3(Math.sin(sy), 0, Math.cos(sy)); pos = s.apron.clone().addScaledVector(along, -18); yaw = sy - Math.PI/2; }   // on the apron, nose to the runway
+    else { pos = s.point.clone().add(new V3(48, 0, 40)); yaw = Math.random()*Math.PI*2; }
+    const spot = g.parkPlane({loadout:L, pos, yaw, label:`${owner.last}'s ${G.CHASSIS[ch].name}`, name:owner.full, callsign:owner.last, onTake:(gg, now, was) => this.borrowed(spot, now, was)});
+    spot.site = s; spot.owner = owner; spot.secret = Math.random() < 0.4 ? G.pick(['hot', 'courier', 'stowaway']) : null;
+    this.borrowSpots.push(spot);
+  }
+};
+OPEN.borrowed = function(spot, now, was){
+  const g = this.g;
+  if (!spot.secret || this.job) { G.HUD.radio(G.RADIO.short, G.pick([`${spot.owner.last} won't mind. Probably.`, 'Nice kite. Bring her back in one piece and nobody need know.', 'Borrowing again? Your own plane\'s right where you left it.'])); return; }
+  const kind = spot.secret; spot.secret = null; this.startSecret(kind, spot, now);
+};
+OPEN.canSwap = function(spot){
+  if (this.job && this.job.def.secret) return 'Finish what she\'s got you into first';
+  if (this.job) return 'Finish the job you\'re on first';
+  return null;
+};
+OPEN.onSwap = function(g, now, was){ if (this.job && this.job.def.secret && this.job.B !== now) this.finishJob({win:false, note:'You left her behind', say:'Walked away from it? Can\'t say I blame you.'}); };
+const SECRET = {};
+OPEN.startSecret = function(kind, spot, B){
+  const g = this.g, own = spot.owner, def = {id:`secret_${kind}`, secret:true, type:'secret', kind, voice:own.last, site:spot.site.id};
+  const J = SECRET[kind](this, def, spot, B); if (!J) return;
+  J.B = B; this.job = J; J.def = def; J.t0 = g.t; J.music = true; G.music.mission(this.time);
+  G.HUD.banner(def.title, 'Secret job'); setTimeout(() => G.HUD.banner(null), 2600);
+  if (def.go) G.HUD.radio(def.voiceGo || own.last, def.go);
+};
+/* a hot plane: somebody's put a price on her, and the hunters come for whoever's flying her */
+SECRET.hot = (O, def, spot, B) => {
+  const g = O.g, J = {t:0, foes:[], up:false, clear:0}, gang = HUNTERS[O.R.id] || 'tigers', GN = (GANGS[gang] || GANGS.tigers).name;
+  Object.assign(def, {title:'A Hot Plane', pay:1800, voiceGo:G.RADIO.short, go:`Ace, that ${G.CHASSIS[B.L.chassis].name}'s on a wanted sheet. ${spot.owner.last} owes the ${GN} money, and they're coming to collect it off whoever's flying her.`});
+  J.update = dt => {
+    J.t += dt; const P = g.player;
+    if (!J.up) { if (J.t > 12 && !P.onGround) { J.up = true; const a = Math.random()*Math.PI*2, at = P.pos.clone().add(new V3(Math.sin(a)*1500, 0, Math.cos(a)*1500)); at.y = groundMax(O, at.x, at.z, 120) + 300; J.foes = O.gang(gang, at, 3, {skill:0.45}); G.HUD.radio(G.RADIO.short, `There they are! ${GN}, ${J.foes.length} of them!`); } return; }
+    const live = J.foes.filter(p => p.alive);
+    if (!live.length) return {win:true, say:'Paid in full. They won\'t be chasing that debt again.'};
+    // or shake them: well clear of every one of them for twenty seconds
+    if (live.every(p => p.pos.distanceTo(P.pos) > 3500)) { if ((J.clear += dt) > 20) return {win:true, payMul:0.6, say:'You lost them. Smart flying. They\'ll be sore.'}; } else J.clear = 0;
+  };
+  J.objective = () => !J.up ? 'A hot plane: get her in the air' : `A hot plane: ${J.foes.filter(p => p.alive).length} hunters on your tail · shoot them down or lose them`;
+  J.sides = () => [];
+  return J;
+};
+/* a satchel under the seat, and a note: "Deliver to ___. No questions." */
+SECRET.courier = (O, def, spot, B) => {
+  const g = O.g, from = spot.site, outs = O.sites.filter(s => s !== from && (s.kind === 'strip' || s.kind === 'field' || s.kind === 'hook') && s.point);
+  if (!outs.length) return null;
+  const far = outs.filter(s => s.point.distanceTo(from.point) > 1500), T = G.pick(far.length ? far : outs), d = T.point.distanceTo(from.point), limit = Math.round(100 + d/48);
+  Object.assign(def, {title:'Under the Seat', pay:Math.round((700 + d*0.35)/50)*50, go:`There's a satchel under the seat with a note: "${T.name}. ${Math.round(limit/60)} minutes. No questions." Smells like money.`, voiceGo:'A note'});
+  const J = {t:0, done:false, T};
+  J.update = dt => {
+    J.t += dt;
+    g.markers.push({pos:(T.markAt || T.point).clone().add(new V3(0, 20, 0)), label:`DELIVER · ${T.name.toUpperCase()}`, col:'#f2c14e', box:true});
+    if (J.done) return {win:true, say:G.pick(['A man in a long coat takes the satchel without a word and leaves an envelope on the seat.', 'The satchel\'s gone before the prop stops. So\'s the fellow who took it.'])};
+    if (J.t > limit) return {win:false, note:'Too late', say:'The note said no questions. It also said on time.'};
+  };
+  J.onTouchdown = () => { const P = g.player; if (P === J.B && T.kind !== 'hook' && P.pos.distanceTo(T.point) < 420) J.done = true; };
+  J.onHooked = site => { if (site === T && g.player === J.B) J.done = true; };
+  J.objective = () => `Under the seat: ${T.kind === 'hook' ? 'hook on at' : 'land at'} ${T.name} · ${Math.max(0, Math.ceil(limit - J.t))} s · ${Math.round(g.player.pos.distanceTo(T.point)/0.9144).toLocaleString()} yd`;
+  J.sides = () => [];
+  return J;
+};
+/* a stowaway: a nervous fellow in the back with a parachute and somewhere he needs to be */
+SECRET.stowaway = (O, def, spot, B) => {
+  const g = O.g, from = spot.site.point, marks = O.R.marks.filter(m => O.P[m.id] && O.P[m.id].distanceTo(from) > 1300 && m.kind !== 'none');
+  if (!marks.length) return null;
+  const M = G.pick(marks), at = O.P[M.id], d = at.distanceTo(from), limit = Math.round(120 + d/45);
+  Object.assign(def, {title:'The Stowaway', pay:1200, go:`Don't turn round, friend. Just fly me over ${M.name}, low and slow, and I'll step off. There's a hundred dollars in it. Twelve hundred, if you don't ask my name.`, voiceGo:'The stowaway'});
+  const J = {t:0, out:false, at, M};
+  J.update = dt => {
+    J.t += dt; const P = g.player, agl = P.pos.y - O.ground(P.pos.x, P.pos.z);
+    g.markers.push({pos:at.clone().add(new V3(0, 60, 0)), label:`DROP THE STOWAWAY · ${M.name.toUpperCase()}`, col:'#f2c14e', box:true});
+    if (!J.out && P === J.B && Math.hypot(P.pos.x - at.x, P.pos.z - at.z) < 260 && agl < 260 && !P.onGround) { J.out = true; if (g.spawnChute) g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel); }
+    if (J.out) return {win:true, say:'He\'s out. The envelope he left on the seat is thicker than he promised.'};
+    if (J.t > limit) return {win:false, note:'He jumped anyway', say:'He went over the side somewhere over the scrub. No envelope.'};
+  };
+  J.objective = () => `The stowaway: over ${M.name}, under 280 ft · ${Math.max(0, Math.ceil(limit - J.t))} s`;
+  J.sides = () => [];
+  return J;
+};
+const finishJob1 = OPEN.finishJob;
+OPEN.finishJob = function(res){
+  const job = this.job;
+  if (job && job.def.secret) {
+    const g = this.g, def = job.def; this.job = null; if (job.cleanup) job.cleanup();
+    if (res.win) { const pay = Math.round(def.pay*(res.payMul ?? 1)); G.save.cash += pay; this.earned += pay; this.jobsDone++; G.save.open.secrets = (G.save.open.secrets || 0) + 1;
+      G.HUD.banner(`Secret job · ${def.title}`, `$${pay.toLocaleString()}`); setTimeout(() => G.HUD.banner(null), 4500); if (g.audio) g.audio.ding(); G.music.play('swingin'); setTimeout(() => { if (!this.job && !this.atSite) G.music.stop(4); }, 20000); }
+    else { G.HUD.banner('Secret job failed', res.note || ''); setTimeout(() => G.HUD.banner(null), 4000); G.music.play('fail'); setTimeout(() => { if (!this.job && !this.atSite) G.music.stop(3); }, 11000); }
+    if (res.say) G.HUD.radio(def.voice, res.say);
+    G.persist(); g.markers = []; this.holdOnGround = false; return;
+  }
+  return finishJob1.call(this, res);
 };
 
 G.OPEN = OPEN;

@@ -156,6 +156,7 @@ const Net = G.Net = {
       case 'leftgame': this.vsGone(L.id); if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
       case 'bye': this.dropSpawned(g, L); L.close(); this.dropLink(L); break;
       case 'spawn': if (g && G.game === g && !g.done) this.hostSpawn(g, L, m); break;
+      case 'take': if (g && G.game === g && !g.done) this.hostTake(g, L, m); break;
       case 'seaHit': if (g && G.game === g && g.sea) { const s = g.sea.ships[m.i | 0]; if (s && s.alive) g.sea.hit(s, Math.max(0, Math.min(400, +m.d || 0)), L.proxy || null, null, true); } break;
       case 'despawn': if (g && G.game === g) { const p = this.byNid(g, m.nid | 0); if (p && p.jobOwner === L) { this.removeNetPlane(g, p); L.spawned.delete(p); } } break;
       default: if (typeof m.t === 'string' && m.t.slice(0, 2) === 'vs') this.vsRelay(L, m); break;
@@ -199,7 +200,56 @@ const Net = G.Net = {
   planeMsg(p){
     const L = p.L;
     return {t:'pl', nid:p.nid, tid:p.tid || undefined, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace,
-      L:{chassis:L.chassis, paint:L.paint, guns:L.guns, turrets:L.turrets, rocket:L.rocket, hp:L.hp, arm:L.arm}};
+      L:{chassis:L.chassis, paint:L.paint, guns:L.guns, turrets:L.turrets, rocket:L.rocket, hp:L.hp, arm:L.arm}, ...this.parkedTag(p)};
+  },
+  /* ---- changing aeroplanes in co-op (game.parkPlane / swapPlayer). The host owns every parked plane; guests see them
+     as puppets tagged parked. A guest stopped beside one asks ('take'); the host hands it over ('took'), rebuilds that
+     guest's stand-in in the new model and parks the guest's old plane where it stood, for anyone. The host's own swaps
+     reuse the plane objects, so the guests only need telling which is parked now ('plmeta'). */
+  parkedTag(p){
+    const sp = p.parked && p.g && (p.g.parkedSpots || []).find(s => s.plane === p);
+    return sp ? {pk:this.parkedLabel(p, sp), ho:sp.hostOnly ? 1 : 0} : {};
+  },
+  parkedLabel(p, sp){ return String(sp.mine ? `${G.save.callsign || 'Ace'}'s ${(G.CHASSIS[p.L.chassis] || {name:'aeroplane'}).name}` : sp.label).slice(0, 60); },   // "your Gallant" here is the host's Gallant to everyone else
+  parkedChanged(g, p, spot){ if (p.nid && this.links.length && this.g === g) this.broadcast({t:'plmeta', nid:p.nid, pk:this.parkedLabel(p, spot), ho:spot.hostOnly ? 1 : 0}); },
+  hostSwapped(g, now, was){ if (now.nid && this.links.length && this.g === g) this.broadcast({t:'plmeta', nid:now.nid, pk:null}); },
+  markParked(g, p, label, ho){
+    p.parked = true; g.parkedSpots = (g.parkedSpots || []).filter(s => s.plane !== p);
+    g.parkedSpots.push({plane:p, label:String(label).slice(0, 60), reach:Math.max(45, ((p.ud && p.ud.radius) || 8)*3.5), keepOld:true, hostOnly:!!ho, nid:p.nid, taken:false});
+  },
+  guestMeta(g, m){
+    const p = g.netPlanes.get(m.nid | 0); if (!p) return;
+    if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
+    else { p.parked = false; g.parkedSpots = (g.parkedSpots || []).filter(s => s.plane !== p); }
+  },
+  askTake(g, spot){
+    if (!this.host || !spot.plane || !spot.plane.nid || (g.swapAsked && g.t - g.swapAsked < 3)) return;
+    g.swapAsked = g.t; this.host.send({t:'take', nid:spot.plane.nid}); G.HUD.toast(`Climbing into ${spot.label}…`);
+  },
+  hostTake(g, L, m){
+    const p = this.byNid(g, m.nid | 0), spot = p && (g.parkedSpots || []).find(s => s.plane === p);
+    if (!spot || spot.hostOnly || !p.parked || !p.alive || p === g.player) { L.send({t:'takeNo', nid:m.nid | 0}); return; }
+    const why = g.mission.canSwap && g.mission.canSwap(spot, L); if (why) { L.send({t:'takeNo', nid:m.nid | 0, why}); return; }
+    const old = L.proxy; if (!old || !old.alive || old.speed > 6 || old.pos.distanceTo(p.pos) > spot.reach + 30) { L.send({t:'takeNo', nid:m.nid | 0, why:'Stop beside her first'}); return; }
+    const load = JSON.parse(JSON.stringify(p.L)), at = p.pos.clone(), yaw = Math.atan2(p.fwd.x, p.fwd.z);
+    spot.taken = true; g.parkedSpots = g.parkedSpots.filter(s => s !== spot); this.removeNetPlane(g, p);
+    // the guest's old plane stays where they left it, parked, for anyone to take
+    const oy = Math.atan2(old.fwd.x, old.fwd.z), op = old.pos.clone(), oc = G.CHASSIS[(L.load || {}).chassis] || {name:'aeroplane'};
+    this.removeNetPlane(g, old); L.proxy = null;
+    g.parkPlane({loadout:L.load || G.stockLoadout('gallant'), pos:op, yaw:oy, label:`${L.name}'s ${oc.name}`});
+    L.load = this.cleanLoad(load);
+    L.send({t:'took', nid:m.nid | 0, L:L.load, p:[at.x, at.y, at.z], y:yaw});
+    G.HUD.feed(`${L.name} has taken ${spot.label}`);
+  },
+  guestTook(g, m){
+    g.swapAsked = 0;
+    if (!m.L || !G.CHASSIS[m.L.chassis] || !Array.isArray(m.p) || m.p.length < 3 || m.p.some(x => typeof x !== 'number' || !isFinite(x))) return;
+    const L = this.cleanLoad(m.L), was = g.player, yaw = +m.y || 0;
+    this.localSpawn = true;
+    const np = g.addPlane({loadout:L, team:0, name:was ? was.name : 'Ace', callsign:was ? was.callsign : 'Ace', pos:new V3(m.p[0], m.p[1], m.p[2]), q:new Q().setFromAxisAngle(new V3(0, 1, 0), yaw), speed:0});
+    this.localSpawn = false;
+    const sp = g.park(np, {yaw}); g.parkedSpots = g.parkedSpots.filter(s => s !== sp);
+    g.swapPlayer(np, {keepOld:false});
   },
   removeNetPlane(g, p){ p.alive = false; g.scene.remove(p.obj); g.planes = g.planes.filter(x => x !== p); g.pilots = g.pilots.filter(pl => pl.p !== p); },
   byNid(g, n){ return n ? g.planes.find(p => p.nid === n) || null : null; },
@@ -329,6 +379,9 @@ const Net = G.Net = {
       case 'full': this.status = 'That flight is full (four pilots).'; this.render(); break;
       case 'start': this.guestStart(m); break;
       case 'pl': if (this.g) this.guestPlane(this.g, m); else (this.pending || (this.pending = [])).push(m); break;
+      case 'plmeta': if (g && G.game === g) this.guestMeta(g, m); break;
+      case 'took': if (g && G.game === g) this.guestTook(g, m); break;
+      case 'takeNo': if (g && G.game === g) { g.swapAsked = 0; G.HUD.toast(typeof m.why === 'string' ? m.why.slice(0, 80) : 'Somebody beat you to her'); } break;
       case 'snap': if (g && G.game === g) this.guestSnap(g, m); break;
       case 'dmg': if (g && G.game === g) this.guestDamage(g, m); break;
       case 'hit': if (g && G.game === g) { G.HUD.hitMark(); if (g.audio) g.audio.hitThem(); } break;
@@ -399,6 +452,7 @@ const Net = G.Net = {
     p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};
     p.obj.visible = false;
     g.netPlanes.set(m.nid, p);
+    if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
   },
   guestSnap(g, m){
     g.lastSnap = g.t; if (g.waitBanner) { g.waitBanner = false; G.HUD.banner(null); }

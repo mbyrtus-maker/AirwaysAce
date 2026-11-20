@@ -737,7 +737,7 @@ G.MISSIONS.c9x1 = EP({
     this.cove = at; this.apron = apron;
     // the Mastodon, nose to the runway on the cove's apron, waiting for somebody mad enough to fly her
     const L = G.stockLoadout('mastodon'); L.paint = MASTODON_PAINT.slice(); L.rocket = 'he'; L.arm = [75, 65, 65, 65];   // the navy plated her for this run
-    this.spot = g.parkPlane({loadout:L, pos:apron.clone().add(new V3(0, 0, 0)), yaw:yaw - Math.PI/2, label:'the Mastodon', reach:95, name:'HMA Mastodon', internalMul:1.6,
+    this.spot = g.parkPlane({loadout:L, pos:apron.clone().add(new V3(0, 0, 0)), yaw:yaw - Math.PI/2, label:'the Mastodon', reach:95, name:'HMA Mastodon', internalMul:1.6, hostOnly:true,
       onTake:(gg, now, was) => this.tookHer(gg, now, was)});
     this.bomber = this.spot.plane; this.stage = 'out'; this.waveN = 0; this.runT = 0; this.landedAt = 0; this.wing0 = 0;
     const pz = this.P.puerto; this.puertoRw = g.runways.find(r => r.hl > 100 && r.pos.distanceTo(new V3(pz.x, r.pos.y, pz.z)) < 300) || null;
