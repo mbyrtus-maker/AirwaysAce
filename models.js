@@ -1541,24 +1541,137 @@ G.buildRaider = (o = {}) => {
   return g;
 };
 
+/* ---------- World props: helpers shared by the scenery builders below ----------
+   ringY / vase: bodies of revolution standing on Y (lathe runs along Z). Tint: triangle soup with a colour per triangle,
+   built as ONE vertex-coloured mesh, for the props that are built by the dozen (towers, motor cars): every fixed colour
+   goes into the same draw call. signMesh: nameTex lettering on any number of flat panels, one mesh. dayNow: how light it
+   is (1 broad day .. 0 night) from the builder's own options or, failing that, from the world being built. */
+const ringY = (r, y, n, sx = 1, sz = 1, x0 = 0, z0 = 0, ph = 0.5) => { const p = []; for (let j = 0; j < n; j++) { const a = (j + ph)*2*PI/n; p.push([x0 + Math.cos(a)*r*sx, y, z0 + Math.sin(a)*r*sz]); } return p; };
+const vase = (prof, n, caps = true, sx = 1, sz = 1) => loft(prof.map(p => ringY(p[0], p[1], n, sx, sz)), caps, caps);
+const face4 = (a, b, c, d) => { const o = []; quad(o, a, b, c, d); return o; };
+/* turn flat pieces to face away from a point inside the model, so hand-placed panels never show their backs */
+function outward(tris, c){
+  for (let i = 0; i < tris.length; i += 9) {
+    const ux = tris[i+3] - tris[i], uy = tris[i+4] - tris[i+1], uz = tris[i+5] - tris[i+2], vx = tris[i+6] - tris[i], vy = tris[i+7] - tris[i+1], vz = tris[i+8] - tris[i+2];
+    const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx, mx = (tris[i] + tris[i+3] + tris[i+6])/3 - c[0], my = (tris[i+1] + tris[i+4] + tris[i+7])/3 - c[1], mz = (tris[i+2] + tris[i+5] + tris[i+8])/3 - c[2];
+    if (nx*mx + ny*my + nz*mz < 0) for (let j = 0; j < 3; j++) { const t = tris[i+3+j]; tris[i+3+j] = tris[i+6+j]; tris[i+6+j] = t; }
+  }
+  return tris;
+}
+/* a panel on the flat quad a-b-c-d (a-b the bottom edge, d-c the top), inset to u0..u1 across and v0..v1 up, lifted `off` off the face */
+function panelOn(a, b, c, d, u0, u1, v0, v1, off, inside){
+  const P = (u, v) => [0, 1, 2].map(i => (a[i]*(1 - u) + b[i]*u)*(1 - v) + (d[i]*(1 - u) + c[i]*u)*v), q = [P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)];
+  let nx = (b[1] - a[1])*(d[2] - a[2]) - (b[2] - a[2])*(d[1] - a[1]), ny = (b[2] - a[2])*(d[0] - a[0]) - (b[0] - a[0])*(d[2] - a[2]), nz = (b[0] - a[0])*(d[1] - a[1]) - (b[1] - a[1])*(d[0] - a[0]);
+  const l = Math.hypot(nx, ny, nz) || 1, s = ((a[0] - inside[0])*nx + (a[1] - inside[1])*ny + (a[2] - inside[2])*nz) < 0 ? -off/l : off/l;
+  for (const p of q) { p[0] += nx*s; p[1] += ny*s; p[2] += nz*s; }
+  return outward(face4(q[0], q[1], q[2], q[3]), inside);
+}
+const shade = (hex, f) => { const c = v => Math.max(0, Math.min(255, Math.round(v*f))); return c(hex >> 16 & 255) << 16 | c(hex >> 8 & 255) << 8 | c(hex & 255); };
+const blend = (a, b, t) => { const c = s => Math.round((a >> s & 255)*(1 - t) + (b >> s & 255)*t); return c(16) << 16 | c(8) << 8 | c(0); };
+const lcg = seed => { let s = ((Math.imul(Math.floor(seed) | 0, 0x9e3779b1) >>> 0) % 2147483646) + 1; const f = () => (s = s*16807 % 2147483647)/2147483647; f(); f(); return f; };   // a small seeded generator, scrambled so neighbouring seeds part company at once
+class Tint {
+  constructor(){ this.p = []; this.c = []; }
+  add(tris, hex, M){
+    const t = M ? xf(tris, M) : tris, r = (hex >> 16 & 255)/255, g = (hex >> 8 & 255)/255, b = (hex & 255)/255, p = this.p, c = this.c;
+    for (let i = 0; i < t.length; i++) p.push(t[i]);
+    for (let i = 0; i < t.length; i += 3) c.push(r, g, b);
+    return this;
+  }
+  both(tris, hex, M){ this.add(tris, hex, M); return this.add(tris, hex, M ? mul2(MIRX, M) : MIRX); }
+  get tris(){ return this.p.length/9; }
+  geo(){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.p), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.c), 3)); g.computeVertexNormals(); return g; }
+  build(g, mat = TINT()){ if (!this.p.length) return null; const m = new THREE.Mesh(this.geo(), mat), solid = !mat.isMeshBasicMaterial; m.castShadow = solid; m.receiveShadow = solid; g.add(m); return m; }
+}
+/* Mix: a Kit and a Tint behind one add(): a colour number goes into the vertex-coloured mesh, a material into the Kit */
+class Mix {
+  constructor(k = new Kit(), t = new Tint()){ this.k = k; this.t = t; }
+  add(tris, m, M){ if (typeof m === 'number') this.t.add(tris, m, M); else this.k.add(tris, m, M); return this; }
+  decal(M, layers, step = 0.012){ layers.forEach((l, i) => this.add(l[0], l[1], mul2(M, T(0, 0, i*step)))); return this; }
+  build(g, mat){ this.t.build(g, mat); this.k.build(g); return g; }
+}
+const skullT = ring => skull(null).map((l, i) => [l[0], [ring, 0x151312, 0xf1e9d6, 0x151312][i]]);   // the skull roundel as colour layers for a Tint
+const TINT = () => G.mat(0xffffff, {vertexColors:true, roughness:0.82});                       // masonry, timber, canvas, rock
+const TINTM = () => G.mat(0xffffff, {vertexColors:true, roughness:0.4, metalness:0.25});       // enamel, chrome, rubber
+let TLAMP = null; const TINTLAMP = () => TLAMP || (TLAMP = new THREE.MeshBasicMaterial({vertexColors:true}));   // lamps of any colour, one draw call
+const SIGNMATS = new Map();
+function signGeo(quads){
+  const p = [], uv = [];
+  for (const [M, w, h] of quads) { for (const v of xf(rect(w, h), M)) p.push(v); uv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p), 3)); geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2)); geo.computeVertexNormals(); return geo;
+}
+function signMat(tex, lit){
+  let pair = SIGNMATS.get(tex); if (!pair) SIGNMATS.set(tex, pair = [null, null]);
+  const i = lit ? 1 : 0; return pair[i] || (pair[i] = lit ? new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false}) : new THREE.MeshStandardMaterial({map:tex, transparent:true, depthWrite:false, roughness:0.9, metalness:0}));
+}
+const signMesh = (tex, quads, lit) => tex && quads.length ? new THREE.Mesh(signGeo(quads), signMat(tex, lit)) : null;
+const dayNow = (o = {}) => { if (o.day !== undefined) return o.day; if (o.night) return 0; const t = G.game && G.game.world ? G.game.world.time : 'day'; return t === 'night' ? 0 : t === 'evening' ? 0.5 : 1; };
+/* lamp halos for a prop that is built many times: one shared material per brightness, so they cost one draw call and nothing else */
+const HALOMATS = new Map();
+function haloGeo(pts){
+  const pos = [], col = []; for (const [x, y, z, hex] of pts) { pos.push(x, y, z); col.push((hex >> 16 & 255)/255, (hex >> 8 & 255)/255, (hex & 255)/255); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); return geo;
+}
+function haloMat(day, size = 2.2){
+  const key = size + ':' + day; let mat = HALOMATS.get(key);
+  if (!mat) HALOMATS.set(key, mat = new THREE.PointsMaterial({size, map:haloTex(), vertexColors:true, transparent:true, opacity:(size > 4 ? 0.6 : 0.5)*(1 - 0.62*day), blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true}));
+  return mat;
+}
+
 /* ---------- Chapter 1 set pieces ---------- */
-/* Starlight: a film studio's courier blimp (~64 m), cream and gold, her name on both flanks. */
+/* Starlight: a film studio's courier blimp (~64 m, nose +Z), and every advertising and packet blimp after her.
+   A sixteen-gore envelope in the hull colour with band-coloured nose and tail and brass rings between, brass battens and a
+   mooring spindle on the nose, four fins in X with band-coloured rudders and bracing wires, and her name lettered round
+   the curve of both flanks (painted by day in the band colour, lit after dark). Under her a streamlined car on suspension
+   wires: raked lit windscreen, a row of lit cabin windows in a pale belt, a landing wheel, two brass engine pods on
+   outriggers, port and starboard lamps, a stern light. o: hull, band, name, day (1 daylight .. 0 night; from the world
+   being built if absent). userData: props (2), radius 34, ell and gon (the collision ellipsoid and car box) as before. */
 G.buildBlimp = (o = {}) => {
-  const g = new THREE.Group(), k = new Kit(), hull = G.mat(o.hull || 0xeee3c8, {roughness:0.6}), gold = BRASS(), plum = G.mat(o.band || 0x5a2a4a);
-  const H = [[0.4,-32],[3.5,-29],[7,-22],[9.2,-10],[9.6,0],[9.2,10],[7.4,20],[4.2,27.5],[0.4,32]], N = 12;
+  const g = new THREE.Group(), k = new Kit(), hullHex = o.hull || 0xeee3c8, bandHex = o.band || 0x5a2a4a, hull = G.mat(hullHex, {roughness:0.6}), gold = BRASS(), plum = G.mat(bandHex), belt = G.mat(blend(hullHex, 0xf4ead2, 0.5), {roughness:0.7});
+  const day = dayNow(o), fit = new G.Fittings({day}), LC = G.LAMP, win = WINDOW(), dk = DARK(), steel = STEEL(); fit.k = k;
+  const H = [[0.4,-32],[3.5,-29],[7,-22],[9.2,-10],[9.6,0],[9.2,10],[7.4,20],[4.2,27.5],[0.4,32]], N = 16, cN = Math.cos(PI/N);
   const seg = (z0, z1, m, caps = false) => k.add(lathe(cut(H, z0, z1), N, 1, 1, caps), m);
-  seg(-32, -24, plum, true); seg(-24, -23, gold); seg(-23, 18, hull); seg(18, 19, gold); seg(19, 32, plum, true);
-  const gon = (z, hw, yT, yB) => [[-hw, yT, z], [-hw, yB, z], [hw, yB, z], [hw, yT, z]];
-  k.add(loft([gon(8, 0.8, -9.2, -11.4), gon(5, 2.2, -9.2, -12.4), gon(-7, 2.2, -9.2, -12.4), gon(-9, 1, -9.2, -11.2)]), plum);
-  for (let z = -6; z < 5; z += 1.6) k.both(box(0.12, 0.9, 1.0), WINDOW(), T(2.22, -10.9, z));
-  for (let i = 0; i < 4; i++) { const A = RZ(i*PI/2 + PI/4), af = t => [3 + 7*t, 8 - 4*t, 0.5, -26 - 3*t, 0]; k.add(pan(af, 0, 0.7), hull, A); k.add(pan(af, 0.7, 1), plum, A); }
+  seg(-32, -24, plum, true); seg(-24, -23, gold); seg(-23, 18, hull); seg(18, 19, gold); seg(19, 25.5, plum); seg(25.5, 26.1, gold); seg(26.1, 32, plum, true);
+  for (let j = 0; j < 8; j++) { const a = j*PI/4 + PI/8, P = z => [Math.cos(a)*(rAt(H, z) + 0.06), Math.sin(a)*(rAt(H, z) + 0.06), z]; k.add(bar(P(31.6), P(27.5), 0.14), gold); k.add(bar(P(27.5), P(22), 0.14), gold); }   // nose battens
+  k.add(lathe([[0.5, 31.6], [0.42, 32.4], [0.12, 33.3]], 8), steel); k.add(torus(0.3, 0.07, 8, 4), gold, mul(T(0, 0, 33.5), RY(PI/2)));
+  // the car
+  const sec = (z, hw, yT, yM, yB) => [[-hw, yT, z], [-hw, yM, z], [-hw*0.6, yB, z], [hw*0.6, yB, z], [hw, yM, z], [hw, yT, z]], yT = -8.9;
+  const S = [[8.7, 0.45, yT, -10.1, -10.5], [6.7, 1.65, yT, -11.2, -12.0], [4.6, 2.2, yT, -11.6, -12.5], [-6.6, 2.2, yT, -11.6, -12.5], [-8.7, 1.4, yT, -11.2, -11.9], [-9.9, 0.45, yT, -10.3, -10.6]];
+  k.add(loft(S.map(s => sec(...s))), plum);
+  const IN = [0, -10.8, 0];
+  for (const s of [1, -1]) {
+    const A = [s*2.2, -11.6, 4.6], B = [s*2.2, -11.6, -6.6], C = [s*2.2, yT, -6.6], D = [s*2.2, yT, 4.6];
+    k.add(panelOn(A, B, C, D, 0.02, 0.98, 0.28, 0.82, 0.02, IN), belt);
+    for (let i = 0; i < 8; i++) k.add(panelOn(A, B, C, D, 0.045 + i*0.116, 0.045 + i*0.116 + 0.086, 0.36, 0.74, 0.04, IN), win);
+    k.add(panelOn([s*1.65, -11.2, 6.7], [s*2.2, -11.6, 4.6], [s*2.2, yT, 4.6], [s*1.65, yT, 6.7], 0.1, 0.9, 0.4, 0.85, 0.03, IN), win);                // cockpit side lights
+    k.add(panelOn([s*0.45, -10.1, 8.7], [s*1.65, -11.2, 6.7], [s*1.65, yT, 6.7], [s*0.45, yT, 8.7], 0.12, 0.92, 0.42, 0.9, 0.03, IN), win);            // the raked windscreen
+    // engine pod on its outrigger, the airscrew behind it
+    k.add(lathe([[0.2,-1.7],[0.72,-1.1],[0.9,0.2],[0.78,1.0],[0.4,1.7]], 8), gold, T(s*4.3, -10.5, -4)); k.add(lathe([[0.82, 0.9], [0.86, 1.25]], 8, 1, 1, false), dk, T(s*4.3, -10.5, -4));
+    k.add(bar([s*2.1, -10.1, -3.2], [s*3.6, -10.4, -3.6], 0.2, 0.5), steel); k.add(bar([s*2.1, -11.7, -4.6], [s*3.7, -10.8, -4.4], 0.14), steel); k.add(wire([s*4.3, -9.7, -4], [s*3.3, -8.4, -4], 0.05), dk);
+    const lp = [s*2.32, -10.9, 5.4], lc = s > 0 ? 0xff3b30 : 0x47e36a; k.add(box(0.14, 0.24, 0.4), lamp(lc), T(...lp)); fit.halo(lp, lc);
+    for (const z of [6, 1.5, -3, -7.5]) k.add(wire([s*2.0, yT + 0.1, z], [s*5.2, -7.4 - Math.abs(z)*0.02, z + (z > 0 ? 1.2 : -1.2)], 0.035), dk);                                // suspension wires
+  }
+  k.add(box(0.5, 0.5, 13), dk, T(0, -12.5, -1)); k.add(bar([0, -12.4, 2.2], [0, -13.25, 1.9], 0.14), steel);
+  k.add(cyl(0.5, 0.5, 0.3, 10), dk, mul(T(0, -13.3, 1.9), RZ(PI/2))); k.add(cyl(0.2, 0.2, 0.34, 6), steel, mul(T(0, -13.3, 1.9), RZ(PI/2)));
+  k.add(box(0.3, 0.3, 0.3), lamp(0xff3b30), T(0, -12.85, -5)); fit.halo([0, -12.9, -5], LC.RED);
+  // fins in X: hull-coloured, the rudder in the band colour, a wire to the hull from each tip
+  for (let i = 0; i < 4; i++) { const A = RZ(i*PI/2 + PI/4), af = t => [3 + 7*t, 8 - 4*t, 0.5, -26 - 3*t, 0];
+    k.add(pan(af, 0, 0.66), hull, A); k.add(pan(af, 0.66, 0.72), gold, A); k.add(pan(af, 0.72, 1), plum, A);
+    k.add(box(6.4, 0.2, 2.0), plum, mul(A, T(6.3, 0, -31.6), RY(-0.07)));                                                                               // the rudder, a shade proud of the fin
+    for (const s of [1, -1]) k.add(wire([9.6, s*0.2, -27.5], [5.4, s*4.6, -19.5], 0.04), dk, A); }
+  k.add(ball(0.3, 6, 3), lamp(0xfff2c4), T(0, 0, -32.2)); fit.halo([0, 0, -32.3], LC.WHITE);
+  for (const s of [1, -1]) { k.add(wire([s*5.2, -7.9, 24], [s*5.4, -15.5, 23.6], 0.035), dk); }                                                        // handling lines off the bow
   const props = [];
-  for (const sx of [1, -1]) { k.add(lathe([[0.2,-1.6],[0.8,-1],[0.9,0.8],[0.4,1.6]], 8), gold, T(sx*4.2, -10.5, -4)); k.add(bar([sx*2.2, -10.4, -4], [sx*3.5, -10.5, -4], 0.25), STEEL());
-    const p = propeller(2, 2.6, 0.3, DARK(), gold, gold, null); p.position.set(sx*4.2, -10.5, -5.7); g.add(p); props.push(p); }
-  k.build(g);
-  const nt = nameTex(o.name || 'STARLIGHT PICTURES', css(0x5a2a4a), css(0xdba63e));
-  if (nt) for (const sx of [1, -1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(26, 3.25), new THREE.MeshStandardMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(sx*9.5, 1.2, -2); m.rotation.y = sx*PI/2; g.add(m); }
-  g.userData = {props, radius:34, ell:[10.5, 10.5, 33], gon:{hw:2.6, y0:-9, y1:-13, zc:-1, hz:9}};
+  for (const sx of [1, -1]) { const p = propeller(2, 2.6, 0.3, DARK(), gold, gold, null); p.position.set(sx*4.3, -10.5, -5.85); g.add(p); props.push(p); }
+  fit.build(g);
+  // the name, lettered round the curve of the hull on both flanks: one mesh
+  const lit = day < 0.75, nt = lit ? nameTex(o.name || 'STARLIGHT PICTURES', '#ffe2a0', '#ffb347') : nameTex(o.name || 'STARLIGHT PICTURES', css(cssLum(css(hullHex)) > 0.35 ? bandHex : 0xf1e9d6), css(0xdba63e));
+  if (nt) { const Z = [11.6, 10, 5, 0, -5, -10, -15.6], hh = 1.7, p = [], uv = [], U = z => (Z[0] - z)/(Z[0] - Z[Z.length - 1]);   // stations on the hull's own rings, so the lettering lies on the skin
+    for (const s of [1, -1]) for (let i = 0; i < Z.length - 1; i++) { const za = s > 0 ? Z[i] : Z[Z.length - 1 - i], zb = s > 0 ? Z[i + 1] : Z[Z.length - 2 - i], ua = s > 0 ? U(za) : 1 - U(za), ub = s > 0 ? U(zb) : 1 - U(zb);
+      const xa = s*(rAt(H, za)*cN + 0.07), xb = s*(rAt(H, zb)*cN + 0.07);
+      p.push(xa, -hh, za, xb, -hh, zb, xb, hh, zb, xa, -hh, za, xb, hh, zb, xa, hh, za); uv.push(ua, 0, ub, 0, ub, 1, ua, 0, ub, 1, ua, 1); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p), 3)); geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2)); geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, signMat(nt, lit))); }
+  g.userData = Object.assign(g.userData, {props, radius:34, ell:[10.5, 10.5, 33], gon:{hw:2.6, y0:-9, y1:-13, zc:-1, hz:9}});
   return g;
 };
 
@@ -1843,21 +1956,95 @@ G.pirateTavern = (k, x, y, z, yaw, rr, night = false) => {
   k.add(ball(0.6, 6, 3), lamp(0xffa040), P(R + 1.5, 4.5, -3)); k.add(ball(0.6, 6, 3), lamp(0xffa040), P(R + 1.5, 4.5, 3));
   return {hw:R + 2, hd:L/2 + 2, top:R*0.3 + R*0.7 + 40};
 };
+/* The city block every town is built from. Under 38 m it is a commercial block: shopfronts under a painted fascia with
+   awnings and a brass-canopied door, piers and dark spandrels (or streamline ribbon windows) above, a cornice with a tarred
+   roof behind it, and whatever the landlord put up there: a stair bulkhead, a water tank on legs, a lit skylight, vents,
+   a rooftop sign on raking struts. From 38 m up it is a stepped Deco tower on the old setbacks (0.55 / 0.45 of the height,
+   or 0.55 / 0.27 / 0.18 over 90 m, each tier 0.7 of the one below) with pylons on the corners of every setback and, over
+   70 m, a ziggurat crown, a lantern and a brass needle with its red beacon.
+   Lean on purpose, because a town builds dozens: the walls and every fixed colour are ONE vertex-coloured mesh, the lit
+   windows are flat panes in the one shared night-window material (G.setNightWindows turns them up), so a block is two
+   draw calls (three or four with a spire or a sign) against the old three to five, at about a third of the triangles.
+   The callers share their random generator with this builder to lay the town out, so it draws from `rand` exactly as
+   often as the old builder did and takes its own variety from a generator seeded by the block's size and colour.
+   userData.top is the roof (= h); the full width w reaches the top of a block, so the marquee bulbs towns string round
+   the roof at night sit on the cornice. */
+const TOWER_SIGNS = ['HOTEL MIRAMONT', 'THE DAILY CLARION', 'GRIFFIN & CROWN ASSURANCE', 'SILVER FOX MOTOR COACHES', 'CRESCENT WIRELESS', 'PELICAN CIGARS', 'NEPTUNE SODA', 'LARKSPUR TEA ROOMS', 'HALCYON SAVINGS BANK', 'THE BIJOU · TALKIES', 'DRAKE & OYELARAN', 'MOONRAKER DANCE HALL'];
+const TOWER_NEON = [['#ffd08a', '#ff8a6a'], ['#f1e9d6', '#dba63e'], ['#9fe0ff', '#f1e9d6'], ['#ff9a7a', '#ffd08a']];
+/* a pilaster: three faces standing off a wall at z = 0 (its back is the wall) */
+const pilaster = (wd, ht, dp) => { const x = wd/2; return outward([...face4([-x, 0, 0], [-x, 0, dp], [-x, ht, dp], [-x, ht, 0]), ...face4([-x, 0, dp], [x, 0, dp], [x, ht, dp], [-x, ht, dp]), ...face4([x, 0, dp], [x, 0, 0], [x, ht, 0], [x, ht, dp])], [0, ht/2, -1]); };
+const awning = (wd, drop, out) => loft([-wd/2, wd/2].map(x => [[x, 0, 0], [x, -drop, out], [x, -drop - 0.3, out], [x, -0.3, 0]]));
 G.buildTower = (h, w, hex, rand = Math.random) => {
-  const g = new THREE.Group(), k = new Kit(), wall = G.mat(hex, {roughness:0.85}), trimM = G.mat(0xe8dcc0), win = G.mat(0x2f3a44, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:0.25});
-  let y = 0, ww = w, lvl = 0;
-  const tiers = h > 90 ? 3 : 2;
-  for (let t = 0; t < tiers; t++) {
-    const th = t === 0 ? h*0.55 : t === 1 ? h*(tiers === 3 ? 0.27 : 0.45) : h*0.18;
-    k.add(box(ww, th, ww), wall, T(0, y + th/2, 0)); k.add(box(ww + 0.8, 1.2, ww + 0.8), trimM, T(0, y + th, 0));
-    for (let fy = y + 4; fy < y + th - 3; fy += 4.2) for (const f of [0, 1, 2, 3]) {
-      const n = Math.max(2, Math.floor(ww/5)); for (let i = 0; i < n; i++) { const off = -ww/2 + (i + 0.5)*ww/n; if (rand() < 0.15) continue; k.add(box(f < 2 ? 1.8 : 0.1, 2.2, f < 2 ? 0.1 : 1.8), win, T(f === 2 ? ww/2 + 0.02 : f === 3 ? -ww/2 - 0.02 : off, fy, f === 0 ? ww/2 + 0.02 : f === 1 ? -ww/2 - 0.02 : off)); }
+  { let y = 0, ww = w; const tiers = h > 90 ? 3 : 2;                                                             // keep the caller's generator in step with the old builder
+    for (let t = 0; t < tiers; t++) { const th = t === 0 ? h*0.55 : t === 1 ? h*(tiers === 3 ? 0.27 : 0.45) : h*0.18, n = Math.max(2, Math.floor(ww/5));
+      for (let fy = y + 4; fy < y + th - 3; fy += 4.2) for (let i = 0; i < 4*n; i++) rand();
+      y += th; ww *= 0.7; } }
+  const R = lcg(h*977 + w*131 + (hex & 0xffff)), g = new THREE.Group(), t = new Tint(), k = new Kit();
+  const win = G.mat(0x2f3a44, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:0.25});
+  const TRIM = blend(hex, 0xf4ead2, 0.6), SPAN = shade(hex, 0.68), PANE = 0x27313a, BASE = shade(hex, 0.5), IRON = 0x2a2622, GOLD = 0xdba63e;
+  const ACC = [0x2f5d3a, 0x8e231c, 0x1f3b6b, 0xb8862f, 0x4a3a5a][Math.floor(R()*5)], ROOF = [0x4f4a44, 0x5a534a, 0x6a5648, 0x3f3d3c][Math.floor(R()*4)];
+  const block = h < 38, tiers = block ? 1 : h > 90 ? 3 : 2, ribbon = block && R() < 0.35, F = a => RY(a*PI/2);
+  const pane = (M, x, y, pw, ph, z, lit) => { const m = mul(M, T(x, y, z)); if (lit) k.add(rect(pw, ph), win, m); else t.add(rect(pw, ph), PANE, m); };
+  const tierOf = (y0, th, ww, ti) => {
+    t.add(box(ww, th, ww), hex, T(0, y0 + th/2, 0));
+    const n = Math.max(2, Math.floor(ww/4.6)), cw = 1.5, bw = (ww - 2*cw)/n, pw = Math.max(0.9, Math.min(2.3, bw - 1.5)), f0 = y0 + (ti ? 2.8 : 7.6), top = y0 + th - 1.4, hz = ww/2;
+    const nf = Math.max(0, Math.floor((top - 1.3 - f0)/4.2) + 1), bx = i => -ww/2 + cw + (i + 0.5)*bw, py = ti ? y0 : y0 + 5.2;
+    for (let a = 0; a < 4; a++) { const M = F(a);
+      for (let fl = 0; fl < nf; fl++) { const fy = f0 + fl*4.2, mood = R() < 0.14 ? 0.12 : 0.66;                  // now and then a whole floor has gone home
+        if (ribbon) t.add(rect(ww - 2*cw, 2.5), SPAN, mul(M, T(0, fy, hz + 0.03)));
+        for (let i = 0; i < n; i++) pane(M, bx(i), fy, ribbon ? bw - 0.5 : pw, ribbon ? 2.1 : 2.4, hz + 0.06, R() < mood); }
+      if (!ribbon) { if (nf) for (let i = 0; i < n; i++) t.add(rect(pw + 0.6, (nf - 1)*4.2 + 3.6), SPAN, mul(M, T(bx(i), f0 + (nf - 1)*2.1, hz + 0.03)));
+        if (top - py > 2) for (let i = 1; i < n; i++) t.add(pilaster(0.7, top - py, 0.34), TRIM, mul(M, T(-ww/2 + cw + i*bw, py, hz))); }
+      if (!ti) for (let i = 0; i < n; i++) { const x = bx(i);                                                     // the street: a door under a brass canopy, shop windows, awnings
+        if (a === 0 && i === (n >> 1)) { t.add(rect(2.4, 3.3), 0x1a1614, mul(M, T(x, 2.95, hz + 0.05))); t.add(box(Math.min(bw, 3.8), 0.3, 1.8), GOLD, mul(M, T(x, 4.75, hz + 0.9)));
+          for (const s of [1, -1]) k.add(rect(0.4, 1.0), win, mul(M, T(x + s*1.55, 3.3, hz + 0.05))); }
+        else { pane(M, x, 2.9, bw - 0.9, 2.9, hz + 0.05, R() < 0.8); if (R() < 0.4) t.add(awning(bw - 0.7, 1.0, 1.4), R() < 0.5 ? ACC : 0xe8dcc0, mul(M, T(x, 4.5, hz))); } }
     }
-    for (const sx of [1, -1]) k.add(box(1.2, th, 1.2), trimM, T(sx*ww/2, y + th/2, ww/2)), k.add(box(1.2, th, 1.2), trimM, T(sx*ww/2, y + th/2, -ww/2));
-    y += th; ww *= 0.7; lvl++;
+    for (const sx of [1, -1]) for (const sz of [1, -1]) t.add(box(cw*1.1, th, cw*1.1), TRIM, T(sx*(hz - cw*0.45), y0 + th/2, sz*(hz - cw*0.45)));   // corner piers
+    if (!ti) { t.add(box(ww + 0.5, 1.3, ww + 0.5), BASE, T(0, 0.65, 0)); t.add(box(ww + 0.44, 0.8, ww + 0.44), ACC, T(0, 4.95, 0)); }
+    t.add(box(ww + 1.0, 1.1, ww + 1.0), TRIM, T(0, y0 + th - 0.55, 0));
+    t.add(rect(ww - 1.4, ww - 1.4), ROOF, mul(T(0, y0 + th + 0.02, 0), RX(-PI/2)));
+  };
+  let y = 0, ww = w;
+  for (let ti = 0; ti < tiers; ti++) {
+    const th = block ? h : ti === 0 ? h*0.55 : ti === 1 ? h*(tiers === 3 ? 0.27 : 0.45) : h*0.18;
+    tierOf(y, th, ww, ti); y += th;
+    if (ti < tiers - 1) { for (const sx of [1, -1]) for (const sz of [1, -1]) { const px = sx*(ww/2 - 1.3), pz = sz*(ww/2 - 1.3); t.add(box(2.6, 2.6, 2.6), TRIM, T(px, y + 1.3, pz)); t.add(box(1.5, 1.5, 1.5), TRIM, T(px, y + 3.35, pz)); }
+      ww *= 0.7; }
   }
-  if (h > 70) { k.add(cyl(0.1, ww*0.3, h*0.18, 6), BRASS(), T(0, y + h*0.09, 0)); k.add(ball(0.6, 6, 3), lamp(0xff3b30), T(0, y + h*0.18, 0)); }
-  k.build(g); g.userData.top = y; return g;
+  const day = dayNow(), spot = (fx, fz) => [fx*(ww/2 - 3.4), fz*(ww/2 - 3.4)], quads = []; let clearZ = 1;
+  if (h > 70) {
+    // the crown: two steps, a lit lantern on the tallest, crossed fins and the brass needle (0.18 h in all, as it always was)
+    const s = h*0.18, a = s*0.16, b = s*0.14, c = tiers === 3 ? s*0.14 : 0;
+    t.add(box(ww*0.62, a, ww*0.62), hex, T(0, y + a/2, 0)); t.add(box(ww*0.66, 0.5, ww*0.66), TRIM, T(0, y + a, 0)); t.add(box(ww*0.4, b, ww*0.4), TRIM, T(0, y + a + b/2, 0));
+    for (let i = 0; i < 2; i++) t.add(box(ww*0.78, a + b*0.5, 0.4), TRIM, mul(T(0, y + (a + b*0.5)/2, 0), RY(PI/4 + i*PI/2)));
+    if (c) { k.add(cyl(ww*0.15, ww*0.15, c, 8, false), win, T(0, y + a + b + c/2, 0)); t.add(cyl(ww*0.17, ww*0.17, 0.4, 8), TRIM, T(0, y + a + b + c, 0)); }
+    const y1 = y + a + b + c, sl = s - (a + b + c);
+    k.add(cyl(0.12, ww*0.12, sl, 8), BRASS(), T(0, y1 + sl/2, 0)); k.add(ball(0.6, 6, 3), lamp(0xff3b30), T(0, y + s, 0));
+  } else {
+    const corners = [[1, 1], [-1, 1], [-1, -1], [1, -1]], c0 = Math.floor(R()*4), roomy = ww > 15; clearZ = -corners[c0][1];
+    if (roomy) { const [x, z] = spot(...corners[c0]);                                                            // the stair bulkhead
+      t.add(box(3.6, 2.8, 4.6), shade(hex, 0.86), T(x, y + 1.4, z)); t.add(box(4.0, 0.3, 5.0), TRIM, T(x, y + 2.95, z)); t.add(rect(1.1, 2.0), 0x1a1614, mul(T(x, y + 1.05, z), RY(corners[c0][1] > 0 ? PI : 0), T(0, 0, 2.32))); }
+    if (roomy && R() < 0.62) { const [x, z] = spot(...corners[(c0 + 2) % 4]), s = ww > 30 ? 1.3 : 1, M = mul(T(x, y, z), SC(s));   // a water tank on its legs
+      for (const sx of [1, -1]) for (const sz of [1, -1]) t.add(box(0.2, 2.2, 0.2), IRON, mul(M, T(sx*1.1, 1.1, sz*1.1)));
+      t.add(box(3.0, 0.2, 3.0), IRON, mul(M, T(0, 2.2, 0))); t.add(cyl(1.7, 1.7, 2.8, 8), 0x7a5a38, mul(M, T(0, 3.7, 0)));
+      for (const yy of [2.9, 4.5]) t.add(cyl(1.76, 1.76, 0.16, 8, false), IRON, mul(M, T(0, yy, 0))); t.add(cyl(0.15, 1.95, 1.1, 8), 0x3a3530, mul(M, T(0, 5.65, 0))); }
+    if (ww > 24 && R() < 0.5) { const L = ww*0.3; k.add(loft([[[-1.6, y + 0.3, -L/2], [1.6, y + 0.3, -L/2], [0, y + 1.5, -L/2]], [[-1.6, y + 0.3, L/2], [1.6, y + 0.3, L/2], [0, y + 1.5, L/2]]]), win); t.add(box(3.6, 0.3, L + 0.4), TRIM, T(0, y + 0.15, 0)); }   // a lit skylight over the light well
+    for (let i = 0; i < 2; i++) { const [x, z] = spot(...corners[(c0 + 1 + 2*i) % 4]); if (roomy && R() < 0.7) { t.add(cyl(0.45, 0.45, 1.3, 6), 0x8a8e90, T(x, y + 0.65, z)); t.add(cyl(0.75, 0.75, 0.25, 6), 0x6c7074, T(x, y + 1.42, z)); } }
+  }
+  if (block && ww >= 24 && R() < 0.4) {
+    // the firm's name whitewashed across the roof, the way towns marked themselves for airmen
+    const sw = ww*0.8, tex = nameTex(TOWER_SIGNS[Math.floor(R()*TOWER_SIGNS.length)], '#e8dcc0', '#c9bfa6'), sm = signMesh(tex, [[mul(T(0, y + 0.07, clearZ*ww*0.24), RY(R() < 0.5 ? 0 : PI), RX(-PI/2)), sw, sw/8]], false); if (sm) g.add(sm);
+  } else if (ww > 12 && R() < (block ? 0.3 : 0.42)) {
+    // a rooftop sign on raking struts: neon tubing on a dark board, lit after dark
+    const a = Math.floor(R()*4), M = F(a), sw = Math.min(ww*0.82, 22), sh = sw/8, yc = y + 1.4 + sh/2, zc = ww/2 - 0.7, col = TOWER_NEON[Math.floor(R()*TOWER_NEON.length)];
+    t.add(box(sw + 0.7, sh + 0.6, 0.3), 0x1c1a18, mul(M, T(0, yc, zc)));
+    for (const x of [-sw/2 + 1, 0, sw/2 - 1]) { t.add(bar([x, y, zc - 0.1], [x, yc, zc - 0.1], 0.22), IRON, M); t.add(bar([x, y, zc - 2.6], [x, yc + sh*0.3, zc - 0.25], 0.18), IRON, M); }
+    const tex = nameTex(TOWER_SIGNS[Math.floor(R()*TOWER_SIGNS.length)], col[0], col[1]);
+    quads.push([mul(M, T(0, yc, zc + 0.17)), sw, sh]);
+    const sm = signMesh(tex, quads, day < 0.75); if (sm) g.add(sm);
+  }
+  t.build(g); k.build(g); g.userData.top = y; return g;
 };
 
 /* A railway viaduct: stone arches you can fly through, deck at deckY above the lowest ground, spanning `len` along local X.
@@ -1901,14 +2088,53 @@ G.buildGate = (width = 46, height = 34) => {
   k.build(g); g.userData = {width, height}; return g;
 };
 
-/* Floating wreckage for the fog search: a crate, a snapped wing with a skull roundel, a smoke pot. */
+/* What is left of a Black Lantern fighter, for the fog search: found floating or strewn on a hillside, so everything sits
+   about the origin's level and reads the same half sunk. The engine lies at the origin, cowling split, one blade bent, still
+   smouldering (callers raise smoke from a metre over the origin; embers glow in it after dark). Round it: a snapped wing in
+   pirate red with the skull roundel uppermost, bare ribs and spar stubs at the break; the rear fuselage stuck tail-up
+   with the skull on its fin; a wheel, a spilled crate, a drum, planks, and a broken spar planted upright with a rag of
+   black flag, which is what a pilot sees first. No part is more than 6.5 m from the origin or 4.5 m high. */
 G.buildWreck = () => {
-  const g = new THREE.Group(), k = new Kit(), wood = G.mat(0x8a6a44), red = G.mat(0x8e231c);
-  k.add(box(2.4, 1.6, 1.6), wood, T(0, 0.4, 0)); k.add(box(2.5, 0.2, 1.7), DARK(), T(0, 1.0, 0));
-  const af = t => [0, 1.6 - 0.4*t, 0.2, 0, 0]; k.add(pan(t => [0.3 + 4*t, 1.6 - 0.4*t, 0.2, 0, 0], 0, 1), red, mul(T(1.5, 0.3, 1.8), RY(0.6)));
-  k.decal(mul(T(3.2, 0.42, 3.2), RX(-PI/2), SC(0.6, 0.6, 1)), skull(BRASS()));
-  k.add(cyl(0.3, 0.35, 0.7, 6), DARK(), T(-1.2, 0.5, -1.2));
-  k.build(g); return g;
+  const g = new THREE.Group(), k = new Kit(), R = lcg(1931), day = dayNow();
+  const wood = 0x8a6a44, wood2 = 0xa07c46, red = 0x8e231c, char = 0x1c1a19, spruce = 0xb89a64, steel = 0x6c737a, rust = 0x8c3b28, black = 0x111111, bone = 0xf1e9d6, dk = 0x26221f, gold = BRASS(), K = new Mix(k);   // one vertex-coloured mesh, plus the brass and the embers
+  // the engine: crankcase, seven pots, half the cowling, the airscrew with one blade folded back
+  const EM = mul(T(0, 0.42, 0), RY(0.5), RX(-1.05));
+  K.add(lathe([[0.2, -0.5], [0.34, -0.3], [0.34, 0.2], [0.16, 0.42]], 8), steel, EM);
+  for (let i = 0; i < 7; i++) K.add(box(0.2, 0.42, 0.24), i === 2 || i === 5 ? char : dk, mul(EM, RZ(i*2*PI/7), T(0, 0.5, -0.05)));
+  { const ring = (r, z) => { const p = []; for (let j = 0; j <= 5; j++) { const a = -0.3 + j*0.72; p.push([Math.cos(a)*r, Math.sin(a)*r, z]); } return p; }, o = [];
+    const A = ring(0.78, -0.42), B = ring(0.84, 0.05), C = ring(0.7, 0.4); for (let j = 0; j < 5; j++) { quad(o, A[j], A[j+1], B[j+1], B[j]); quad(o, B[j], B[j+1], C[j+1], C[j]); quad(o, B[j], B[j+1], A[j+1], A[j]); quad(o, C[j], C[j+1], B[j+1], B[j]); }
+    K.add(o, red, EM); }
+  K.add(lathe([[0.02, 0.4], [0.17, 0.52], [0.2, 0.7], [0.05, 0.92]], 6), gold, EM);
+  K.add(box(0.2, 1.25, 0.05), dk, mul(EM, T(0, 0.72, 0.62), RY(0.4))); K.add(box(0.2, 0.7, 0.05), dk, mul(EM, RZ(PI), T(0, 0.45, 0.62), RY(0.4))); K.add(box(0.2, 0.7, 0.05), dk, mul(EM, RZ(PI), T(0, 0.8, 0.62), RX(-1.2), T(0, 0.3, 0)));
+  for (const [x, y, z] of [[0.18, 0.5, 0.1], [-0.2, 0.42, -0.16], [0.05, 0.68, -0.22]]) K.add(gem(0.09, 0.14), lamp(0xff6a2a), T(x, y, z));
+  // the snapped wing, skull uppermost
+  const wf = t => [0.2 + 5.2*t, 1.7 - 0.5*t, 0.22 - 0.06*t, -0.1*t, 0], WM = mul(T(1.3, 0.5, 1.6), RY(0.55), RZ(0.08), RX(0.07));
+  K.add(pan(wf, 0.05, 0.64), red, WM); K.add(pan(wf, 0.64, 0.73), bone, WM); K.add(pan(wf, 0.73, 1), red, WM); K.add(tipOf(wf, 0.2, 0.55), red, WM);
+  for (const z of [0.3, -0.25]) K.add(tube([-0.55 - R()*0.3, 0, z], [0.5, 0, z], 0.05, 5), steel, WM);
+  for (const x of [0.02, -0.28]) K.add(box(0.035, 0.19, 1.5 + x), spruce, mul(WM, T(x, 0, 0)));
+  K.add(poly([[0.44, 0.8], [0.44, 0.2], [-0.1, 0.62]]), red, mul(WM, T(0, 0.05, 0), RX(-PI/2))); K.add(poly([[0.44, -0.2], [0.44, -0.8], [-0.25, -0.5]]), red, mul(WM, T(0, 0.05, 0), RX(-PI/2)));   // torn skin
+  K.decal(mul(WM, onTop(2.35, 0.125, 0.03), SC(0.6)), skullT(0xdba63e), 0.02);
+  K.add(tube([3.6, -0.1, -0.2], [3.9, -0.75, -0.25], 0.045, 5), steel, WM); K.add(cyl(0.3, 0.3, 0.16, 8), dk, mul(T(5.3, 0.1, 3.4), RX(0.2), RZ(0.15))); K.add(cyl(0.12, 0.12, 0.18, 6), steel, mul(T(5.3, 0.1, 3.4), RX(0.2), RZ(0.15)));   // a gear leg, the wheel
+  // the rear fuselage, tail in the air
+  const FM = mul(T(-3.0, 0.25, -1.3), RY(2.3), RX(-0.62)), F = [[0.56, 0], [0.52, 0.7], [0.4, 1.9], [0.2, 3.0], [0.06, 3.45]];
+  K.add(lathe(cut(F, 0, 1.35), 8, 1, 1.12, false), red, FM); K.add(lathe(cut(F, 1.35, 1.6), 8, 1, 1.12, false), bone, FM); K.add(lathe(cut(F, 1.6, 3.45), 8, 1, 1.12), red, FM);
+  K.add(lathe([[0.5, 0.02], [0.42, 0.5]], 8, 1, 1.12), char, FM);
+  for (let j = 0; j < 8; j++) { const a = (j + 0.5)*PI/4, l = 0.25 + R()*0.5; K.add(bar([Math.cos(a)*0.52, Math.sin(a)*0.58, 0.1], [Math.cos(a)*0.6, Math.sin(a)*0.68, -l], 0.05), spruce, FM); }
+  const fin = t => [0.3 + 1.25*t, 1.25 - 0.55*t, 0.09, 2.75 - 0.35*t, 0], tp = t => [0.15 + 1.5*t, 1.0 - 0.4*t, 0.08, 2.85 - 0.2*t, 0.05];
+  K.add(pan(fin, 0, 0.62), red, mul(FM, RZ(PI/2))); K.add(pan(fin, 0.62, 1), dk, mul(FM, RZ(PI/2))); K.add(pan(tp, 0, 1), red, FM); K.add(pan(tp, 0, 0.45), red, mul(FM, MIRX));
+  for (const s of [1, -1]) K.decal(mul(FM, T(s*0.06, 0.95, 2.62), RY(s*PI/2), SC(0.3)), skullT(0xdba63e), 0.02);
+  // what came out of her: a split crate, a drum, planks; and the marker, a spar with a rag of black flag
+  K.add(box(1.5, 1.0, 1.1), wood, mul(T(-0.9, 0.3, 3.4), RY(0.4), RZ(0.22))); K.add(box(1.56, 0.1, 1.16), wood2, mul(T(-0.9, 0.3, 3.4), RY(0.4), RZ(0.22), T(0.35, 0.62, 0), RZ(-0.5)));
+  for (const y of [-0.25, 0.25]) K.add(box(1.54, 0.09, 1.14), dk, mul(T(-0.9, 0.3, 3.4), RY(0.4), RZ(0.22), T(0, y, 0)));
+  K.add(cyl(0.34, 0.34, 0.95, 8), rust, mul(T(2.7, 0.2, -2.6), RY(0.9), RZ(PI/2))); K.add(cyl(0.355, 0.355, 0.12, 8, false), dk, mul(T(2.7, 0.2, -2.6), RY(0.9), RZ(PI/2)));
+  for (let i = 0; i < 7; i++) { const a = R()*PI*2, d = 2.2 + R()*3.6; K.add(box(0.24, 0.07, 1.2 + R()*1.4), i % 3 ? wood : wood2, mul(T(Math.cos(a)*d, 0.04 + R()*0.1, Math.sin(a)*d), RY(R()*PI), RX((R() - 0.5)*0.3))); }
+  for (let i = 0; i < 4; i++) { const a = R()*PI*2, d = 1.4 + R()*3; K.add(box(0.5 + R()*0.6, 0.04, 0.4 + R()*0.5), i % 2 ? red : steel, mul(T(Math.cos(a)*d, 0.05, Math.sin(a)*d), RY(R()*PI), RZ((R() - 0.5)*0.5))); }
+  K.add(bar([-1.9, -0.3, -3.6], [-1.6, 4.3, -3.4], 0.1), spruce);
+  K.add(loft([[[-1.63, 4.2, -3.4], [-1.68, 3.05, -3.4], [-0.5, 3.3, -3.0], [-0.2, 3.95, -2.85]], [[-1.63, 4.2, -3.44], [-1.68, 3.05, -3.44], [-0.5, 3.3, -3.04], [-0.2, 3.95, -2.89]]]), black);
+  K.build(g);
+  if (day < 1) g.add(new THREE.Points(haloGeo([[0, 0.55, 0, 0xff7a3a]]), haloMat(day)));
+  g.userData.smoke = new V3(0, 1, 0);
+  return g;
 };
 
 /* ---------- Chapter 2 set pieces ---------- */
@@ -2090,39 +2316,98 @@ G.buildAirstrip = (len = 560, wid = 26, o = {}) => {
 };
 
 /* Halcyon Aero Works: a tall Deco tower with a flying-through gallery cut clean through its upper floors.
-   The skyhook ring hangs from the gallery ceiling, so you fly INTO the building to deliver. The gallery runs along local Z. */
+   The skyhook ring hangs from the gallery ceiling, so you fly INTO the building to deliver. The gallery runs along local Z.
+   Outside: a plinth and shopfronts, piers and dark spandrels with flat panes (most of them lit, in the shared night-window
+   material), stepped corner pylons, a brass-framed portal at each end of the gallery with green and amber marker lamps,
+   the house name on a plain frieze above it, and a crown of two setbacks, crossed fins, a lit lantern and a brass needle
+   (or o.mast: a zeppelin mooring mast). Inside the gallery: a dark deck with the safe lane painted on it (the amber lines
+   are the 16 m you can fly), roof beams, lamps and the lit windows of the works offices down both walls.
+   o.pirate: rough black stone to the gallery and salvaged timber above, braced and patched, a skull over each portal,
+   lean-to cabins, a plank deck with a ship's mast, crow's nest and black flag, lanterns on stays.
+   o: walls, sign / signCol / signGlow, y0 (gallery floor), mast, pirate, day (1 broad daylight .. 0 night; taken from the
+   world being built if absent: it only turns the lamp halos up).
+   Callers rely on: userData.hook (ring centre, y0 + 10.5 on the axis), ringR 4.2, top (= h), w, gallery {y0, y1, ow} with
+   the 26 x 18 m opening, and mast {y0, top, r, platform}. Nothing solid enters the lane |x| < 8, y0 + 2 .. y1 - 1.6. */
 G.buildSkyhookTower = (h = 140, w = 40, o = {}) => {
-  const g = new THREE.Group(), k = new Kit(), PIR = !!o.pirate, wall = G.mat(o.walls || 0xd8c6a4, {roughness:0.85}), trimM = PIR ? G.mat(0x2a221c, {roughness:0.95}) : G.mat(0xe8dcc0), dark = G.mat(0x3a3530, {roughness:0.9});
+  const g = new THREE.Group(), k = new Kit(), t = new Tint(), PIR = !!o.pirate, wallHex = o.walls || 0xd8c6a4, wall = G.mat(wallHex, {roughness:0.85}), trimM = PIR ? G.mat(0x2a221c, {roughness:0.95}) : G.mat(0xe8dcc0), dark = G.mat(0x3a3530, {roughness:0.9});
   const win = G.mat(0x2f3a44, {roughness:0.3, emissive:0xffc45a, emissiveIntensity:0.25});
-  const rr = G.rng ? G.rng(Math.round(h*31 + w*7)) : Math.random;
-  const y0 = o.y0 ?? Math.min(92, h - 32), oh = 18, ow = 26, y1 = y0 + oh, side = (w - ow)/2;
-  const windows = (x0, x1, ya, yb, z, face) => { for (let y = ya + 3; y < yb - 2.5; y += 4.2) for (let x = x0 + 2.5; x < x1 - 2; x += 4.6) k.add(box(1.8, 2.2, 0.12), win, T(x, y, z + face*0.07)); };
+  const rr = G.rng ? G.rng(Math.round(h*31 + w*7)) : Math.random, R = lcg(h*613 + w*29 + (wallHex & 0xfff));
+  const y0 = o.y0 ?? Math.min(92, h - 32), oh = 18, ow = 26, y1 = y0 + oh, side = (w - ow)/2, F = a => RY(a*PI/2);
+  const day = dayNow(o), fit = new G.Fittings({day}), LC = G.LAMP; fit.k = k;
+  const TRIM = 0xe8dcc0, SPAN = shade(wallHex, 0.66), PANE = 0x27313a, GOLD = 0xdba63e, ROOF = 0x4f4a44, IRON = 0x2a2622;
+  const pane = (M, x, y, pw, ph, z, lit) => { const m = mul(M, T(x, y, z)); if (lit) k.add(rect(pw, ph), win, m); else t.add(rect(pw, ph), PANE, m); };
+  /* a stretch of wall on face M, x0..x1 across and ya..yb up, standing at z = hz: bays of flat panes over dark spandrels, a pier between each pair */
+  const facade = (M, x0, x1, ya, yb, hz, lit = 0.66) => {
+    const n = Math.max(1, Math.floor((x1 - x0)/4.6)), bw = (x1 - x0)/n, pw = Math.min(2.3, bw - 1.5), f0 = ya + 2.6, nf = Math.max(0, Math.floor((yb - 2.4 - f0)/4.2) + 1);
+    if (!nf || x1 - x0 < 3) return;                                                                              // too narrow for a bay (the piers of a slim tower): leave it plain
+    for (let i = 0; i < n; i++) { const x = x0 + (i + 0.5)*bw;
+      t.add(rect(pw + 0.6, (nf - 1)*4.2 + 3.6), SPAN, mul(M, T(x, f0 + (nf - 1)*2.1, hz + 0.03)));
+      for (let fl = 0; fl < nf; fl++) pane(M, x, f0 + fl*4.2, pw, 2.4, hz + 0.06, R() < lit);
+      if (i) t.add(pilaster(0.7, yb - ya, 0.34), TRIM, mul(M, T(x0 + i*bw, ya, hz))); }
+  };
   // base block, the two gallery piers, the upper block
   k.add(box(w, y0, w), wall, T(0, y0/2, 0));
   for (const sx of [1, -1]) k.add(box(side, oh, w), wall, T(sx*(ow/2 + side/2), y0 + oh/2, 0));
   k.add(box(w, h - y1, w), wall, T(0, y1 + (h - y1)/2, 0));
   if (!PIR) {
-  for (const f of [1, -1]) { windows(-w/2, w/2, 0, y0, f*w/2, f); windows(-w/2, w/2, y1, h, f*w/2, f); }
-  for (const f of [1, -1]) for (let y = 3; y < h - 2; y += 4.2) { if (y > y0 - 1 && y < y1 + 1) continue; for (let z = -w/2 + 2.5; z < w/2 - 2; z += 4.6) k.add(box(0.12, 2.2, 1.8), win, T(f*(w/2 + 0.07), y, z)); }
+    const e = w/2 - 1.2;
+    for (let a = 0; a < 4; a++) { const M = F(a), front = a % 2 === 0;
+      facade(M, -e, e, 5.4, y0 - 0.6, w/2); facade(M, -e, e, y1 + (front ? 6.6 : 0.6), h - 0.6, w/2);
+      if (front) { for (const s of [1, -1]) facade(M, s > 0 ? ow/2 + 0.6 : -e, s > 0 ? e : -ow/2 - 0.6, y0 + 0.6, y1 - 0.6, w/2);
+        t.add(box(31.6, 0.3, 0.3), GOLD, mul(M, T(0, y1 + 1.7, w/2 + 0.1))); t.add(box(31.6, 0.3, 0.3), GOLD, mul(M, T(0, y1 + 6.3, w/2 + 0.1))); }   // the frieze the name is painted on
+      else facade(M, -e, e, y0 + 0.6, y1 - 0.6, w/2);
+      const n = Math.max(2, Math.floor(2*e/4.6)), bw = 2*e/n;                                                      // the street: tall shop windows, and a door under a brass canopy on the two side streets
+      for (let i = 0; i < n; i++) { const x = -e + (i + 0.5)*bw;
+        if (!front && i === (n >> 1)) { t.add(rect(3.0, 3.8), 0x1a1614, mul(M, T(x, 3.2, w/2 + 0.05))); t.add(box(Math.min(bw + 1, 5.4), 0.35, 2.4), GOLD, mul(M, T(x, 5.3, w/2 + 1.2)));
+          for (const s of [1, -1]) fit.lantern(xf([x + s*2.2, 3.9, w/2 + 0.55], M), {s:1.2, hex:LC.WARM, wall:xf([x + s*2.2, 3.9, w/2], M)}); }
+        else pane(M, x, 3.1, bw - 1.0, 3.2, w/2 + 0.05, R() < 0.85); }
+    }
+    t.add(box(w + 0.6, 1.4, w + 0.6), shade(wallHex, 0.5), T(0, 0.7, 0)); t.add(box(w + 0.5, 0.7, w + 0.5), 0x5a4632, T(0, 5.25, 0));
   } else {
     // a pirate's tower: rough black stone to the gallery, salvaged timber above, braced all over, windows wherever someone knocked one through
     const stone = G.mat(0x2e2a28, {roughness:1}), plank = G.mat(0x5a4632, {roughness:0.95});
     k.add(box(w + 0.6, y0*0.35, w + 0.6), stone, T(0, y0*0.175, 0));
     k.add(box(w + 0.3, h - y1, w + 0.3), plank, T(0, y1 + (h - y1)/2, 0));
+    for (let a = 0; a < 4; a++) { const M = F(a);
+      for (let i = 0; i < 4; i++) { const x = (i - 1.5)*w/4.2; t.add(loft([[[-1.6, 0, 0], [1.6, 0, 0], [1.6, 0, 3.2], [-1.6, 0, 3.2]], [[-1.1, y0*0.35 + 3, 0], [1.1, y0*0.35 + 3, 0], [1.1, y0*0.35 + 3, 0.5], [-1.1, y0*0.35 + 3, 0.5]]]), 0x38332f, mul(M, T(x, 0, w/2 + 0.2))); }   // buttresses
+      for (let y = y1 + 2.6; y < h - 1; y += 2.6) t.add(rect(w + 0.3, 0.16), 0x2e2318, mul(M, T(0, y, w/2 + 0.17)));
+      for (let y = y0*0.35 + 3.4; y < y0 - 1; y += 3.4) t.add(rect(w, 0.14), shade(wallHex, 0.6), mul(M, T(0, y, w/2 + 0.03)));                             // the older boarding below the gallery, on a frame of baulks
+      for (const x of [-w/4, 0, w/4]) k.add(box(0.5, y0*0.65, 0.4), trimM, mul(M, T(x, y0*0.675, w/2 + 0.1)));                                    // the seams between the strakes
+      for (let i = 0; i < 5; i++) { const pw = 2.5 + R()*3, ph = 1.8 + R()*2.4, x = (R() - 0.5)*(w - 7), y = R() < 0.5 ? y1 + 1.5 + R()*(h - y1 - 5) : y0*0.38 + R()*(y0*0.6 - 4);   // patches of tin and odd planks
+        if (a % 2 === 0 && y > y1 && Math.abs(x) < 17) continue;
+        t.add(rect(pw, ph), [0x7a4630, 0x6c737a, 0x7a6a4a, 0x4a3a2c][Math.floor(R()*4)], mul(M, T(x, y, w/2 + (y > y1 ? 0.19 : 0.04)), RZ((R() - 0.5)*0.16))); }
+    }
     for (const f of [1, -1]) for (const ax of [0, 1]) {
       const at = (u, y) => ax ? T(f*(w/2 + 0.2), y, u) : T(u, y, f*(w/2 + 0.2));
-      for (let y = 6; y < h - 3; y += 7 + rr()*5) { if (y > y0 - 2 && y < y1 + 2) continue; if (rr() < 0.55) { const u = (rr() - 0.5)*(w - 6); k.add(ax ? box(0.2, 2.4, 1.8) : box(1.8, 2.4, 0.2), win, at(u, y)); } }
+      for (let y = 6; y < h - 3; y += 7 + rr()*5) { if (y > y0 - 2 && y < y1 + (ax ? 2 : 14)) continue; if (rr() < 0.55) { const u = (rr() - 0.5)*(w - 6); k.add(ax ? box(0.2, 2.4, 1.8) : box(1.8, 2.4, 0.2), win, at(u, y)); k.add(ax ? box(0.3, 0.3, 2.6) : box(2.6, 0.3, 0.3), trimM, at(u, y - 1.4)); } }
       for (let y = 8; y < h - 4; y += 16) { if (y > y0 - 18 && y < y1 + 2) continue; k.add(bar(ax ? [f*(w/2 + 0.5), y, -w/2] : [-w/2, y, f*(w/2 + 0.5)], ax ? [f*(w/2 + 0.5), y + 14, w/2] : [w/2, y + 14, f*(w/2 + 0.5)], 0.35), trimM); k.add(bar(ax ? [f*(w/2 + 0.5), y + 14, -w/2] : [-w/2, y + 14, f*(w/2 + 0.5)], ax ? [f*(w/2 + 0.5), y, w/2] : [w/2, y, f*(w/2 + 0.5)], 0.35), trimM); }
     }
-    for (let i = 0; i < 6; i++) { const a = rr()*PI*2, y = y1 + 6 + rr()*(h - y1 - 12); k.add(box(3 + rr()*3, 2.4, 2.4), plank, mul(T(Math.sin(a)*(w/2 + 1), y, Math.cos(a)*(w/2 + 1)), RY(a))); }   // lean-to cabins nailed on
+    for (let i = 0; i < 6; i++) { const a = rr()*PI*2, y = y1 + 6 + rr()*(h - y1 - 12), cw = 3 + rr()*3, d = w/2 + 1;   // lean-to cabins nailed on, each with a tin roof, a lit window and a prop
+      if (Math.abs(Math.sin(a)) < 0.75 && y < y1 + 14) continue;                                                       // not over the skull and the name
+      const M = mul(T(Math.sin(a)*d, y, Math.cos(a)*d), RY(a));
+      k.add(box(cw, 2.4, 2.4), plank, M); t.add(box(cw + 0.5, 0.14, 3.0), 0x6c737a, mul(M, T(0, 1.4, 0.2), RX(0.22))); k.add(rect(0.9, 0.9), win, mul(M, T(0, 0.1, 1.22)));
+      t.add(bar([0, -1.2, 1.1], [0, -4.2, -1.0], 0.22), 0x2a221c, M); }
+    for (const f of [1, -1]) {                                                                                         // the Jolly Roger over each portal, and a brazier either side of it
+      k.decal(mul(F(f > 0 ? 0 : 2), T(0, y1 + 9.7, w/2 + 0.36), SC(3.5, 3.5, 1)), skull(G.mat(0x9e1b1b, {roughness:0.8})), false, 0.03);
+      for (const s of [1, -1]) fit.lantern([s*(ow/2 + 2.4), y1 - 2.5, f*(w/2 + 1.3)], {s:2.2, hex:LC.RED, wall:[s*(ow/2 + 2.4), y1 - 2.5, f*w/2]});
+    }
   }
-  for (const sx of [1, -1]) for (const sz of [1, -1]) k.add(box(1.6, h, 1.6), trimM, T(sx*w/2, h/2, sz*w/2));   // corner piers
+  for (const sx of [1, -1]) for (const sz of [1, -1]) { k.add(box(1.6, h, 1.6), trimM, T(sx*w/2, h/2, sz*w/2));     // corner piers, stepped at the top
+    if (!PIR) { k.add(box(2.6, 3.4, 2.6), trimM, T(sx*(w/2 - 0.6), h + 1.7, sz*(w/2 - 0.6))); k.add(box(1.5, 1.8, 1.5), trimM, T(sx*(w/2 - 0.6), h + 4.3, sz*(w/2 - 0.6))); } }
   for (const y of [y0, y1]) k.add(box(w + 1.2, 1.2, w + 1.2), trimM, T(0, y, 0));
-  // the gallery: dark floor and ceiling, brass edging, lamps down both walls
-  k.add(box(ow, 0.4, w + 0.4), dark, T(0, y0 + 0.2, 0)); k.add(box(ow, 0.4, w + 0.4), dark, T(0, y1 - 0.2, 0));
+  if (!PIR) { k.add(box(w + 1.0, 1.0, w + 1.0), trimM, T(0, h - 0.5, 0)); t.add(rect(w - 1.6, w - 1.6), ROOF, mul(T(0, h + 0.02, 0), RX(-PI/2))); }
+  // the gallery: dark deck and ceiling, the lane painted on the deck, roof beams, brass edging, lamps and lit office windows down both walls
+  k.add(box(ow, 0.5, w + 1.3), dark, T(0, y0 + 0.45, 0)); k.add(box(ow, 0.5, w + 1.3), dark, T(0, y1 - 0.7, 0));   // proud of the belt courses, which would otherwise show as the floor and the ceiling
+  const deck = (x, z, dx, dz, hex) => t.add(rect(dx, dz), hex, mul(T(x, y0 + 0.73, z), RX(-PI/2)));
+  for (const sx of [1, -1]) deck(sx*8, 0, 0.5, w - 1, PIR ? 0x9e1b1b : 0xe0a030);
+  for (let z = -w/2 + 3; z < w/2 - 2; z += 6) deck(0, z + 1.5, 0.7, 3, PIR ? 0x8a8070 : 0xd9cfb8);
+  for (let z = -w/2 + 4; z < w/2; z += 8) { if (Math.abs(z) > 2) t.add(box(ow - 0.6, 0.55, 0.8), IRON, T(0, y1 - 1.2, z)); }
   for (const sx of [1, -1]) { k.add(box(0.3, oh, w), dark, T(sx*(ow/2 - 0.15), y0 + oh/2, 0)); for (const f of [1, -1]) k.add(box(0.6, oh, 0.6), BRASS(), T(sx*ow/2, y0 + oh/2, f*w/2));
-    for (let z = -w/2 + 4; z < w/2; z += 8) k.add(ball(0.35, 6, 3), lamp(0xffd27a), T(sx*(ow/2 - 0.5), y0 + oh - 2, z)); }
-  for (const f of [1, -1]) k.add(box(ow + 1.2, 0.6, 0.6), BRASS(), T(0, y1, f*w/2));
+    for (let z = -w/2 + 4; z < w/2; z += 8) { const p = [sx*(ow/2 - 0.5), y0 + oh - 2, z]; k.add(ball(0.35, 6, 3), lamp(0xffd27a), T(...p)); fit.halo(p, PIR ? LC.AMBER : LC.WARM); }
+    for (let z = -w/2 + 3.5; z < w/2 - 3; z += 5.2) for (const yy of [y0 + 5, y0 + 10.5]) { if (PIR ? R() < 0.3 : R() < 0.8) k.add(rect(3, 2.2), win, mul(T(sx*(ow/2 - 0.32), yy, z + 0.4), RY(-sx*PI/2))); }
+    for (const f of [1, -1]) { k.add(loft([[[sx*ow/2, y1, f*w/2 - 0.3], [sx*(ow/2 - 2.4), y1, f*w/2 - 0.3], [sx*ow/2, y1 - 2.4, f*w/2 - 0.3]], [[sx*ow/2, y1, f*w/2 + 0.3], [sx*(ow/2 - 2.4), y1, f*w/2 + 0.3], [sx*ow/2, y1 - 2.4, f*w/2 + 0.3]]]), BRASS());   // portal gussets
+      for (let y = y0 + 2.2, i = 0; y < y1 - 1; y += 3.4, i++) { const p = [sx*(ow/2 + 0.1), y, f*(w/2 + 0.55)], c = PIR ? 0xff6a2a : i % 2 ? 0x9ef0a0 : 0xffd27a; k.add(ball(0.32, 6, 3), lamp(c), T(...p)); fit.halo(p, c); } } }
+  for (const f of [1, -1]) { k.add(box(ow + 1.2, 0.6, 0.6), BRASS(), T(0, y1, f*w/2)); k.add(box(ow + 1.2, 0.5, 0.6), BRASS(), T(0, y0 + 0.1, f*w/2)); }
   let mast = null;
   if (!PIR && o.mast) {
     // a zeppelin mooring mast: three setbacks with fluted piers, a winged drum, a faceted glass-and-steel shaft,
@@ -2150,71 +2435,162 @@ G.buildSkyhookTower = (h = 140, w = 40, o = {}) => {
     k.add(cyl(rp, r2, 1.6*u, 12), steel, T(0, y + 0.8*u, 0)); k.add(cyl(rp, rp, 0.5*u, 12), trimM, T(0, y + 1.85*u, 0));
     k.add(torus(rp - 0.15*u, 0.1*u, 12, 4), BRASS(), mul(T(0, y + 3.3*u, 0), RX(PI/2)));
     for (let a = 0; a < 12; a++) { const t = (a + 0.5)*PI/6; k.add(box(0.14*u, 1.3*u, 0.14*u), BRASS(), T(Math.cos(t)*(rp - 0.15*u), y + 2.7*u, Math.sin(t)*(rp - 0.15*u))); }
-    for (let a = 0; a < 4; a++) { const t = a*PI/2 + PI/4; k.add(ball(0.32*u, 6, 3), lamp(0xffd27a), T(Math.cos(t)*rp, y + 1.3*u, Math.sin(t)*rp)); }
+    for (let a = 0; a < 4; a++) { const t = a*PI/2 + PI/4, p = [Math.cos(t)*rp, y + 1.3*u, Math.sin(t)*rp]; k.add(ball(0.32*u, 6, 3), lamp(0xffd27a), T(...p)); fit.halo(p, LC.WARM); }
     y += 2.1*u;
     k.add(cyl(r2*0.82, r2*0.88, 4.4*u, 8), steel, T(0, y + 2.2*u, 0)); k.add(cyl(r2*0.9, r2*0.9, 1.7*u, 8, false), glow, T(0, y + 2.4*u, 0));   // the lantern
     y += 4.4*u;
     k.add(cyl(r2*1.2, r2*1.2, 0.5*u, 12), trimM, T(0, y + 0.25*u, 0)); y += 0.5*u;
     k.add(cyl(r2*0.62, r2*0.95, 3.5*u, 8), steel, T(0, y + 1.75*u, 0)); k.add(cyl(r2*0.14, r2*0.62, 5*u, 8), BRASS(), T(0, y + 6*u, 0)); y += 8.5*u;   // nose cone
     k.add(cyl(0.1*u, 0.2*u, 5*u, 5), STEEL(), T(0, y + 2.5*u, 0)); k.add(bar([0, y - 0.6*u, 0], [0, y - 0.9*u, 3.6*u], 0.2*u), STEEL()); k.add(torus(0.5*u, 0.1*u, 8, 4), BRASS(), T(0, y - 1.4*u, 3.6*u));   // mooring arm and ring
-    y += 5*u; k.add(ball(0.75*u, 6, 3), lamp(0xff3b30), T(0, y + 0.4*u, 0));
+    y += 5*u; k.add(ball(0.75*u, 6, 3), lamp(0xff3b30), T(0, y + 0.4*u, 0)); fit.halo([0, y + 0.4*u, 0], LC.RED, true);
     mast = {y0:yb, top:y + 1.15*u, r:r0, platform:rp};
   } else if (!PIR) {
-  // stepped Deco crown and spire
-  k.add(box(w*0.7, 14, w*0.7), wall, T(0, h + 7, 0)); k.add(box(w*0.7 + 1, 1, w*0.7 + 1), trimM, T(0, h + 14, 0));
-  k.add(box(w*0.4, 10, w*0.4), wall, T(0, h + 19, 0)); k.add(cyl(0.12, 2.2, 22, 6), BRASS(), T(0, h + 35, 0)); k.add(ball(0.7, 6, 3), lamp(0xff3b30), T(0, h + 46.5, 0));
+    // the crown: a windowed setback, a lantern block with tall lit slots between crossed fins, a brass drum and the needle with its red beacon
+    const c1 = w*0.7, c2 = w*0.4;
+    k.add(box(c1, 14, c1), wall, T(0, h + 7, 0)); k.add(box(c1 + 1, 1, c1 + 1), trimM, T(0, h + 14, 0)); t.add(rect(c1 - 1, c1 - 1), ROOF, mul(T(0, h + 14.52, 0), RX(-PI/2)));
+    k.add(box(c2, 8, c2), wall, T(0, h + 18, 0)); k.add(box(c2 + 0.8, 0.8, c2 + 0.8), trimM, T(0, h + 22, 0));
+    for (let a = 0; a < 4; a++) { const M = F(a); facade(M, -c1/2 + 1.2, c1/2 - 1.2, h + 0.4, h + 13.4, c1/2, 0.8);
+      for (const s of [1, -1]) k.add(box(1.3, 14.6, 1.3), trimM, mul(M, T(s*(c1/2 - 0.2), h + 7.3, c1/2 - 0.2)));
+      for (let i = -1; i <= 1; i++) k.add(rect(c2*0.17, 5.6), win, mul(M, T(i*c2*0.28, h + 18, c2/2 + 0.05))); }
+    for (let i = 0; i < 2; i++) k.add(box(c1*1.02, 5, 0.6), trimM, mul(T(0, h + 16.5, 0), RY(PI/4 + i*PI/2)));
+    k.add(cyl(1.5, 2.3, 3, 8), BRASS(), T(0, h + 23.9, 0)); k.add(cyl(1.9, 1.9, 0.35, 8), trimM, T(0, h + 25.4, 0));
+    k.add(cyl(0.12, 1.3, 21, 8), BRASS(), T(0, h + 36, 0)); k.add(ball(0.7, 6, 3), lamp(0xff3b30), T(0, h + 46.5, 0)); fit.halo([0, h + 46.5, 0], LC.RED, true);
   } else {
-    // a plank deck with a rail, a ship's mast, a crow's nest and the black flag
-    const plank = G.mat(0x4a3a2c, {roughness:0.95}), black = G.mat(0x111111, {roughness:0.9}), bone = G.mat(0xe8e0cc, {roughness:0.8});
+    // a plank deck with a rail, a ship's mast, a crow's nest and the black flag, lanterns on the stays
+    const plank = G.mat(0x4a3a2c, {roughness:0.95}), black = G.mat(0x111111, {roughness:0.9}), bone = G.mat(0xe8e0cc, {roughness:0.8}), e = (w + 5)/2;
     k.add(box(w + 6, 0.8, w + 6), plank, T(0, h + 0.4, 0));
-    for (let i = 0; i < 16; i++) { const a = i/16*PI*2, r2 = (w + 5)/2; k.add(box(0.4, 2.2, 0.4), trimM, T(Math.cos(a)*r2*1.15*Math.min(1, 1/Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))))/1.15, h + 1.9, Math.sin(a)*r2*Math.min(1, 1/Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)))))); }
+    for (let a = 0; a < 4; a++) { const M = F(a); k.add(box(2*e, 0.25, 0.25), trimM, mul(M, T(0, h + 2.9, e))); k.add(box(2*e, 0.2, 0.2), trimM, mul(M, T(0, h + 1.9, e)));
+      for (let i = 0; i < 6; i++) k.add(box(0.4, 2.3, 0.4), trimM, mul(M, T(-e + i*2*e/6, h + 1.9, e))); }
+    for (let i = 0; i < 7; i++) t.add(rect(0.14, w + 6), 0x2e2318, mul(T((i - 3)*(w + 6)/7.4, h + 0.82, 0), RX(-PI/2)));
     k.add(cyl(0.5, 0.75, 40, 7), trimM, T(0, h + 20, 0)); k.add(bar([-10, h + 26, 0], [10, h + 26, 0], 0.3), trimM);
-    k.add(cyl(2.4, 2, 2.6, 9), plank, T(0, h + 33, 0));
-    k.add(box(0.2, 7, 11), black, T(0, h + 35, 6)); k.add(box(0.3, 2.2, 2.2), bone, T(0.1, h + 35.6, 6)); k.add(bar([0.2, h + 33.6, 4.4], [0.2, h + 33.6, 7.6], 0.18), bone);
-    k.add(ball(0.7, 6, 3), lamp(0xff6a2a), T(0, h + 40.5, 0));
-    for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) k.add(ball(0.55, 6, 3), lamp(0xffa040), T(x*(w/2 + 2), h + 3.4, z*(w/2 + 2)));
+    k.add(cyl(2.4, 2, 2.6, 9), plank, T(0, h + 33, 0)); k.add(cyl(2.6, 2.6, 0.3, 9, false), trimM, T(0, h + 34.3, 0));
+    k.add(box(0.2, 7, 11), black, T(0, h + 35, 6)); k.decal(mul(T(0.12, h + 35.2, 6), RY(PI/2), SC(2.4, 2.4, 1)), skull(black).slice(2), false, 0.02); k.decal(mul(T(-0.12, h + 35.2, 6), RY(-PI/2), SC(2.4, 2.4, 1)), skull(black).slice(2), false, 0.02);
+    k.add(ball(0.7, 6, 3), lamp(0xff6a2a), T(0, h + 40.5, 0)); fit.halo([0, h + 40.5, 0], LC.RED, true);
+    for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { k.add(ball(0.55, 6, 3), lamp(0xffa040), T(x*(w/2 + 2), h + 3.4, z*(w/2 + 2))); fit.halo([x*(w/2 + 2), h + 3.4, z*(w/2 + 2)], LC.AMBER, true);
+      fit.festoon([0, h + 31, 0], [x*(w/2 + 2), h + 3.2, z*(w/2 + 2)], {every:5, sag:1.5, r:0.34, cols:[LC.AMBER, LC.RED, LC.AMBER, LC.WARM]}); }
+    k.add(box(3.2, 2.6, 4), plank, T(-w/2 + 4, h + 2.1, w/2 - 5)); t.add(box(3.8, 0.16, 4.8), 0x6c737a, mul(T(-w/2 + 4, h + 3.6, w/2 - 5), RZ(0.18))); k.add(rect(1, 1), win, mul(T(-w/2 + 5.62, h + 2.3, w/2 - 5), RY(PI/2)));   // the lookout's shack
   }
   // the skyhook: a drop arm from the gallery ceiling holding the catch-ring in the middle of the opening
-  const R = new V3(0, y0 + 10.5, 0);
-  k.add(tube([0, y1 - 0.4, 0], [0, R.y + 4.6, 0], 0.35, 6), STEEL()); k.add(bar([0, R.y + 4.6, 0], [0, R.y + 4.3, 0], 1.0), BRASS());
-  k.build(g);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.32, 6, 18), BRASS()); ring.position.copy(R); ring.castShadow = true; g.add(ring);
-  for (let i = 0; i < 8; i++) { const a = i*PI/4, l = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 4), lamp(i % 2 ? 0x9ef0a0 : 0xffd27a)); l.position.set(R.x + Math.cos(a)*4.3, R.y + Math.sin(a)*4.3, 0.3); g.add(l); }
+  const HK = new V3(0, y0 + 10.5, 0);
+  k.add(tube([0, y1 - 0.4, 0], [0, HK.y + 4.6, 0], 0.35, 6), STEEL()); k.add(bar([0, HK.y + 4.6, 0], [0, HK.y + 4.3, 0], 1.0), BRASS()); k.add(box(2.4, 0.3, 2.4), STEEL(), T(0, y1 - 0.5, 0));
+  k.add(torus(4.2, 0.32, 18, 6), BRASS(), T(HK.x, HK.y, HK.z));
+  for (let i = 0; i < 8; i++) { const a = i*PI/4, p = [HK.x + Math.cos(a)*4.3, HK.y + Math.sin(a)*4.3, 0.3], c = i % 2 ? 0x9ef0a0 : 0xffd27a; k.add(ball(0.3, 6, 3), lamp(c), T(...p)); fit.halo(p, c); }
+  t.build(g); fit.build(g);
   const nt = nameTex(o.sign || 'HALCYON AERO WORKS', o.signCol || '#2a2420', o.signGlow || '#dba63e');
-  if (nt) for (const f of [1, -1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.75), new THREE.MeshBasicMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(0, y1 + 4, f*(w/2 + 0.15)); m.rotation.y = f > 0 ? 0 : PI; g.add(m); }
-  g.userData = {hook:R, ringR:4.2, top:h, w, gallery:{y0, y1, ow}};
+  if (nt) for (const f of [1, -1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.75), new THREE.MeshBasicMaterial({map:nt, transparent:true, depthWrite:false})); m.position.set(0, y1 + 4, f*(w/2 + 0.24)); m.rotation.y = f > 0 ? 0 : PI; g.add(m); }
+  g.userData = Object.assign(g.userData, {hook:HK, ringR:4.2, top:h, w, gallery:{y0, y1, ow}});
   if (mast) g.userData.mast = mast;   // the slender part above the stepped crown (the crown itself stays below top + 22)
   return g;
 };
 
 /* ---------- Treasure-hunt landmarks ---------- */
-/* Halcyon Point lighthouse: striped tower, gallery, lamp room with a turning beam (userData.beam spins about Y). */
+/* Halcyon Point lighthouse: a tapering tower in six red and white bands on a rock knoll, lit windows winding up it, a stone
+   doorcase with a lantern, a corbelled iron gallery with its rail, the lantern room (astragals, the lens glowing inside),
+   a red cupola with a brass ventilator ball and a lightning rod. On the east side, lower down, the keeper's terrace:
+   a whitewashed cottage with a red roof, chimney and lit windows, steps up to the tower door, the oil store and a signal
+   staff. userData.beam turns about Y (callers spin it): a long beam and a shorter one opposite, brighter after dark.
+   Callers block a 10 m square to y = 47 round the tower: the tower is 5 m in radius at the foot and the cupola ends at 47. */
+const jagRing = (r, y, n, R, j = 0.1, x0 = 0, z0 = 0, sz = 1) => { const p = []; for (let i = 0; i < n; i++) { const a = (i + 0.5)*2*PI/n, q = r*(1 + (R() - 0.5)*2*j); p.push([x0 + Math.cos(a)*q, y + (R() - 0.5)*r*j*0.4, z0 + Math.sin(a)*q*sz]); } return p; };
 G.buildLighthouse = () => {
-  const g = new THREE.Group(), k = new Kit(), red = G.mat(0xb5382c), white = G.mat(0xf1e9d6), rock = G.mat(0x8a8276, {roughness:1});
-  k.add(cyl(14, 18, 6, 9), rock, T(0, 1, 0)); k.add(box(12, 6, 9), white, T(14, 3, 0)); k.add(box(13, 0.8, 10), red, T(14, 6.4, 0));
-  for (let i = 0; i < 6; i++) k.add(cyl(4.6 - i*0.35, 5 - i*0.35, 6, 12), i % 2 ? red : white, T(0, 4 + 3 + i*6, 0));
-  k.add(cyl(3.4, 3.2, 0.6, 12), DARK(), T(0, 40.3, 0)); k.add(cyl(4.6, 4.6, 0.4, 12), DARK(), T(0, 40.8, 0));
-  for (let i = 0; i < 12; i++) { const a = i*PI/6; k.add(tube([Math.cos(a)*4.4, 40.9, Math.sin(a)*4.4], [Math.cos(a)*4.4, 42, Math.sin(a)*4.4], 0.05, 3), DARK()); }
-  k.add(cyl(2.4, 2.4, 3.2, 10, false), G.mat(0xfff2c4, {emissive:0xffd27a, emissiveIntensity:0.8, transparent:true, opacity:0.75}), T(0, 42.6, 0));
-  k.add(lathe([[2.8,44.2],[2.2,45.4],[0.8,46.6],[0.1,47.4]], 10), red);
-  k.build(g);
-  const beam = new THREE.Group(); beam.position.set(0, 42.6, 0); g.add(beam);
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(14, 160, 12, 1, true).rotateZ(PI/2).translate(80, 0, 0), new THREE.MeshBasicMaterial({color:0xfff0c0, transparent:true, opacity:0.12, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending}));
-  beam.add(cone); g.userData = {beam, top:47};
+  const g = new THREE.Group(), k = new Kit(), day = dayNow(), fit = new G.Fittings({day}), LC = G.LAMP, R = lcg(4711); fit.k = k;
+  const red = 0xb5382c, white = 0xf1e9d6, rock = 0x8a8276, rock2 = 0x716a60, stone = 0xb4ab9a, iron = 0x26221f, brick = 0x8a4a38, win = WINDOW(), K = new Mix(k);   // paint and stone are colours in one mesh; glass, brass and lamps are materials
+  // the knoll, a few boulders, the keeper's terrace of dressed stone
+  K.add(loft([jagRing(19.5, -3.4, 9, R, 0.07), jagRing(17.6, 0.4, 9, R, 0.09), jagRing(14.8, 3.1, 9, R, 0.08), jagRing(12.6, 4, 9, R, 0.05)]), rock);
+  for (const [x, z, s] of [[-13, 9, 3.4], [-6, -15, 2.8], [9, 14, 3], [3, 16.5, 2], [-16, -4, 2.6], [12, -13.5, 3.2]]) K.add(loft([jagRing(s*1.2, -2, 5, R, 0.2, x, z), jagRing(s, 1 + s*0.5, 5, R, 0.25, x, z), jagRing(s*0.45, 1.6 + s*0.9, 5, R, 0.2, x, z)]), rock2);
+  K.add(box(16, 4.6, 13), stone, T(14.5, -1.3, 0)); K.add(box(16.5, 0.35, 13.5), rock2, T(14.5, 0.84, 0));
+  for (let i = 0; i < 4; i++) K.add(box(1.0, 1.05*(i + 1), 2.4), stone, T(8.6 - i*0.95, 1.0 + 1.05*(i + 1)/2, 0));                                  // the steps up to the tower door
+  // the tower
+  const rAt = y => 5.0 - (y - 4)*2.05/36, c15 = Math.cos(PI/12), on = (a, y, out = 0) => mul(RY(PI/2 - a), T(0, y, rAt(y)*c15 + out));
+  K.add(cyl(5.25, 5.9, 1.3, 12), stone, T(0, 4.6, 0));
+  for (let i = 0; i < 6; i++) { const ya = 4 + i*6; K.add(cyl(rAt(ya + 6), rAt(ya), 6, 12, false), i % 2 ? red : white, T(0, ya + 3, 0)); }
+  K.add(box(2.2, 3.4, 0.9), stone, on(0, 6.9, -0.1)); K.add(rect(1.2, 2.5), iron, on(0, 6.6, 0.37)); fit.lantern(xf([0, 0, 0.75], on(0, 9.2)), {s:1.3, hex:LC.WARM, wall:xf([0, 0, 0], on(0, 9.2))});
+  [[11.5, 4], [17, 9], [22.5, 2], [28, 7], [33.5, 0], [37, 5]].forEach(([y, f]) => { const a = f*PI/6; K.add(box(1.3, 2.1, 0.4), stone, on(a, y, -0.05)); K.add(rect(0.8, 1.5), win, on(a, y, 0.17)); });
+  // the gallery and its rail
+  K.add(vase([[2.95, 39.0], [3.5, 40.2], [4.95, 40.7], [4.95, 41.0], [2.4, 41.0]], 12), iron);
+  for (let i = 0; i < 12; i++) { const a = i*PI/6; K.add(tube([Math.cos(a)*4.7, 41, Math.sin(a)*4.7], [Math.cos(a)*4.7, 42.1, Math.sin(a)*4.7], 0.05, 4), iron); }
+  for (const y of [41.55, 42.1]) K.add(torus(4.7, 0.045, 12, 4), iron, mul(T(0, y, 0), RX(PI/2)));
+  // the lantern room: a white murette, glazing with its astragals, the lens, the cupola
+  K.add(cyl(2.5, 2.5, 1.0, 12), white, T(0, 41.5, 0));
+  K.add(cyl(2.4, 2.4, 2.5, 12, false), G.mat(0xfff2c4, {emissive:0xffd27a, emissiveIntensity:0.8, transparent:true, opacity:0.55}), T(0, 43.25, 0));
+  for (let i = 0; i < 12; i++) { const a = (i + 0.5)*PI/6; K.add(tube([Math.cos(a)*2.43, 42, Math.sin(a)*2.43], [Math.cos(a)*2.43, 44.5, Math.sin(a)*2.43], 0.05, 4, false), iron); }
+  K.add(torus(2.43, 0.04, 12, 4), iron, mul(T(0, 43.25, 0), RX(PI/2), RZ(PI/12)));
+  K.add(vase([[0.4, 42.15], [1.05, 42.6], [1.25, 43.25], [1.05, 43.9], [0.4, 44.35]], 8), lamp(0xfff2c4)); K.add(cyl(0.5, 0.6, 0.5, 8), BRASS(), T(0, 42.1, 0));
+  K.add(cyl(3.05, 3.05, 0.22, 12), iron, T(0, 44.6, 0)); K.add(vase([[2.9, 44.7], [2.75, 45.1], [2.0, 45.85], [1.0, 46.35], [0.42, 46.5]], 12), red);
+  K.add(ball(0.4, 8, 4), BRASS(), mul(T(0, 46.75, 0), RX(PI/2))); K.add(tube([0, 47, 0], [0, 47.9, 0], 0.035, 4), iron);
+  fit.halo([0, 43.25, 0], LC.WHITE, true);
+  // the keeper's cottage, the oil store, the signal staff
+  K.add(box(11, 3.4, 7.4), white, T(14.5, 2.7, 0)); K.add(box(11.2, 0.5, 7.6), stone, T(14.5, 1.25, 0));
+  for (const s of [1, -1]) { K.add(box(12, 0.28, 5.1), red, mul(T(14.5, 5.62, s*2.1), RX(s*0.55)));
+    K.add(outward(poly([[-3.7, 0], [3.7, 0], [0, 2.3]]), [0, 0, -9]), white, mul(T(14.5 + s*5.51, 4.4, 0), RY(s*PI/2)));
+    for (const x of [10.6, 18.4]) { K.add(rect(1.1, 1.4), win, mul(T(x, 2.9, s*3.72), RY(s > 0 ? 0 : PI))); K.add(box(1.5, 0.16, 0.3), stone, T(x, 2.1, s*3.75)); }
+    K.add(rect(1.1, 1.4), win, mul(T(14.5 + s*5.52, 2.9, 0), RY(s*PI/2))); }
+  K.add(rect(1.1, 2.2), iron, T(14.5, 2.6, 3.72)); K.add(rect(1.1, 1.4), win, mul(T(14.5, 2.9, -3.72), RY(PI))); K.add(box(12.2, 0.3, 0.3), red, T(14.5, 6.98, 0));
+  fit.lantern([15.7, 3.5, 4.2], {s:0.9, hex:LC.AMBER, wall:[15.7, 3.5, 3.7]});
+  K.add(box(1.0, 2.6, 1.0), brick, T(17.6, 7.0, 1.3)); K.add(box(1.25, 0.25, 1.25), stone, T(17.6, 8.35, 1.3)); K.add(cyl(0.22, 0.26, 0.6, 6), iron, T(17.6, 8.75, 1.3));
+  K.add(cyl(1.5, 1.5, 2.2, 8), white, T(20.3, 2.1, -4.6)); K.add(cyl(0.15, 1.75, 1.2, 8), red, T(20.3, 3.8, -4.6));
+  K.add(tube([20.8, 1, 5], [20.8, 11.5, 5], 0.09, 5), white); K.add(bar([19.3, 9.2, 5], [22.3, 9.2, 5], 0.09), white);
+  K.add(loft([[[20.9, 11.2, 4.97], [20.9, 10.2, 4.97], [22.9, 10.7, 4.97]], [[20.9, 11.2, 5.03], [20.9, 10.2, 5.03], [22.9, 10.7, 5.03]]]), red);
+  for (const [x, c] of [[19.4, 0x47e36a], [22.2, 0xff3b30]]) K.add(ball(0.16, 6, 3), lamp(c), T(x, 8.9, 5));
+  K.t.build(g); fit.build(g);
+  const beam = new THREE.Group(); beam.position.set(0, 43.25, 0); g.add(beam);
+  const bm = new THREE.MeshBasicMaterial({color:0xfff0c0, transparent:true, opacity:0.09 + 0.12*(1 - day), depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending});
+  beam.add(new THREE.Mesh(new THREE.ConeGeometry(14, 160, 12, 1, true).rotateZ(PI/2).translate(80, 0, 0), bm));
+  beam.add(new THREE.Mesh(new THREE.ConeGeometry(7, 80, 10, 1, true).rotateZ(-PI/2).translate(-40, 0, 0), bm));
+  g.userData = Object.assign(g.userData, {beam, top:47});
   return g;
 };
 
-/* A Dutch-style windmill on a hill: tapered octagonal body, thatched cap, four sails (userData.sails spins about local Z). */
+/* A smock mill on its hill, front to local +Z: an eight-sided brick base with a green door and lit windows, a railed stage
+   on struts at 9 m with the mill's name on a board, a weatherboarded smock tapering above it, a boat-shaped tarred cap
+   with a finial, the windshaft out of its front and a fantail on a frame behind. At the foot: steps, millstones, sacks,
+   a lantern by the door. userData.sails turns about local Z (callers spin it): four common sails on a cast-iron cross,
+   each a stock with a lattice of sail bars set at a few degrees of weather, a leading board, and canvas spread on the
+   inner two thirds. Callers block a 14 m square to y = 25: the cap ends at 25 and the sails sweep 15.6 m round (0, 21, 7.9). */
 G.buildWindmill = () => {
-  const g = new THREE.Group(), k = new Kit(), body = G.mat(0xd9c9a4, {roughness:0.9}), cap = G.mat(0x6b4a2b), wood = G.mat(0x7a5a38), cloth = G.mat(0xefe6d2, {side:THREE.DoubleSide});
-  k.add(cyl(5.2, 7, 18, 8), body, T(0, 9, 0)); k.add(cyl(7.6, 7.6, 1, 8), wood, T(0, 9, 0));
-  k.add(lathe([[5.6,18],[5.2,20],[3.6,23],[0.4,25]], 8), cap);
-  k.add(box(2.2, 3.2, 0.2), DARK(), T(0, 1.6, 6.6)); for (const y of [6, 12]) k.add(box(1.4, 1.6, 0.2), WINDOW(), T(0, y, 5.9));
-  k.add(tube([0, 21, 4.6], [0, 21, 7.4], 0.5, 6), wood);
-  k.build(g);
-  const sails = new THREE.Group(), sk = new Kit(); sails.position.set(0, 21, 7.6); g.add(sails);
-  for (let i = 0; i < 4; i++) { const A = RZ(i*PI/2); sk.add(box(0.5, 15, 0.4), wood, mul(A, T(0, 8, 0))); sk.add(box(3.4, 11, 0.08), cloth, mul(A, T(1.9, 9.5, 0.2))); }
-  sk.build(sails); g.userData = {sails, top:25};
+  const g = new THREE.Group(), k = new Kit(), day = dayNow(), fit = new G.Fittings({day}), LC = G.LAMP, c8 = Math.cos(PI/8); fit.k = k;
+  const brick = 0x9a5c46, stone = 0xb4ab9a, board = 0xd9c9a4, board2 = 0xc6b58c, tar = 0x3a2c22, wood = 0x7a5a38, wood2 = 0x8f6c44, capM = 0x4f3826, green = 0x2f5d3a, red = 0xb5382c, white = 0xf1e9d6, iron = 0x26221f, sack = 0xd8c8a0;
+  const cloth = G.mat(0xefe6d2, {side:THREE.DoubleSide}), win = WINDOW(), K = new Mix(k);   // every plain colour goes into one mesh (and one more for the sails); the canvas and the lit windows are materials
+  const rB = y => y < 9 ? 7 - y*0.5/9 : 6.4 - (y - 9)*2/9.4;                                                    // the body's corner radius at height y
+  const on = (a, y, out = 0) => mul(RY(PI/2 - a), T(0, y, rB(y)*c8 + out)), V = (a, r, y) => [Math.cos(a)*r, y, Math.sin(a)*r];
+  // the brick base on its plinth, the door, the smock in five courses of board with tarred corner strips
+  K.add(vase([[7.35, -0.6], [7.35, 0.9]], 8), stone); K.add(vase([[7, 0.9], [6.5, 9]], 8, false), brick);
+  for (let i = 0; i < 5; i++) { const ya = 9 + i*1.88; K.add(vase([[rB(ya), ya], [rB(ya + 1.88), ya + 1.88]], 8, false), i % 2 ? board2 : board); }
+  for (let j = 0; j < 8; j++) { const a = (j + 0.5)*PI/4; K.add(bar(V(a, rB(9.1) + 0.04, 9.1), V(a, rB(18.4) + 0.04, 18.4), 0.3), tar); }
+  K.add(box(2.7, 3.7, 0.6), stone, on(PI/2, 2.45, -0.12)); K.add(rect(1.95, 3.1), green, on(PI/2, 2.3, 0.2)); K.add(rect(0.06, 3.1), iron, on(PI/2, 2.3, 0.215));
+  K.add(box(3.4, 0.4, 1.4), stone, T(0, 0.2, 7.3)); K.add(box(2.8, 0.4, 0.8), stone, T(0, 0.6, 7.0));
+  const light = (a, y, s = 1) => { K.add(box(1.5*s, 2.0*s, 0.36), y < 9 ? stone : tar, on(a, y, -0.05)); K.add(rect(0.95*s, 1.45*s), win, on(a, y, 0.15)); };
+  light(0, 4.6); light(PI, 4.6); light(-PI/2, 4.6); light(PI/2, 6.5, 0.8); light(PI/2, 12.4, 0.85); light(PI/2, 16, 0.75); light(0, 13.6, 0.85); light(PI, 13.6, 0.85); light(-PI/2, 12.4, 0.85);
+  // the stage: deck, struts off the brickwork, a rail all round
+  K.add(vase([[8.0, 8.82], [8.0, 9.08]], 8), wood);
+  for (let j = 0; j < 8; j++) { const a = (j + 0.5)*PI/4, b = a + PI/4;
+    K.add(bar(V(a, 6.55, 5.9), V(a, 7.8, 8.82), 0.26), wood); K.add(bar(V(a, 7.75, 9.08), V(a, 7.75, 10.25), 0.18), wood);
+    for (const y of [9.68, 10.25]) K.add(bar(V(a, 7.75, y), V(b, 7.75, y), 0.12), wood);
+    const m = V(a + PI/8, 7.75*c8, 9.08); K.add(bar(m, [m[0], 10.25, m[2]], 0.12), wood);
+    if (j % 2 === 0) fit.lantern(V(a, 7.75, 10.75), {s:0.9, hex:LC.AMBER}); }
+  // the cap, the windshaft, the fantail on its frame
+  K.add(vase([[5.2, 18.2], [5.55, 18.9], [5.15, 20.6], [3.9, 22.6], [2.0, 24.2], [0.4, 24.85]], 8, true, 1, 1.22), capM);
+  K.add(ball(0.36, 8, 4), red, mul(T(0, 25.1, 0), RX(PI/2))); K.add(tube([0, 24.6, 0], [0, 25.9, 0], 0.05, 4), iron);
+  K.add(tube([0, 21, 4.6], [0, 21, 7.6], 0.55, 8), wood); K.add(box(2.2, 1.5, 0.5), tar, T(0, 22.5, 5.3));
+  for (const s of [1, -1]) { K.add(bar([s*1.5, 20.3, -5.4], [s*1.1, 24.4, -9.7], 0.26), wood); K.add(bar([s*1.5, 18.8, -5.9], [s*1.1, 22.4, -7.6], 0.2), wood); }
+  K.add(bar([-1.3, 24.4, -9.7], [1.3, 24.4, -9.7], 0.22), wood); K.add(tube([0, 24.4, -9.5], [0, 24.4, -10.15], 0.2, 6), iron);
+  for (let i = 0; i < 6; i++) K.add(box(0.85, 1.9, 0.05), i % 2 ? white : red, mul(T(0, 24.4, -10.05), RZ(i*PI/3), T(0, 1.3, 0), RY(0.45)));
+  // at the foot: millstones, sacks, the lantern by the door
+  K.add(cyl(1.15, 1.15, 0.32, 10), stone, mul(T(3.7, 1.0, 6.75), RY(-0.35), RX(PI/2 - 0.28))); K.add(cyl(1.05, 1.05, 0.3, 10), stone, T(5.4, 0.15, 8.6)); K.add(cyl(0.2, 0.2, 0.34, 6), iron, T(5.4, 0.15, 8.6));
+  for (const [x, y, z, a] of [[-3.4, 0.36, 7.3, 0.3], [-4.3, 0.36, 7.7, -0.5], [-3.9, 0.98, 7.5, 1.2], [-5.1, 0.36, 6.9, 0.1]]) K.add(ball(0.5, 6, 4), sack, mul(T(x, y, z), RY(a), SC(0.8, 0.72, 1.25)));
+  fit.lantern([2.0, 3.4, 6.95], {s:1.1, hex:LC.AMBER, wall:[2.0, 3.4, 6.3]});
+  K.add(box(6.7, 1.0, 0.12), green, T(0, 9.72, 7.22));
+  K.t.build(g); fit.build(g);
+  const sm = signMesh(nameTex('OLD TOLLIVER MILL · 1871', '#f1e9d6', '#dba63e'), [[T(0, 9.72, 7.292), 6.5, 0.8125]], false); if (sm) g.add(sm);
+  // the sails
+  const sails = new THREE.Group(), sk = new Mix(); sails.position.set(0, 21, 7.9); g.add(sails);
+  sk.add(cyl(0.8, 0.8, 0.8, 8), iron, RX(PI/2)); sk.add(cyl(0.25, 0.6, 0.5, 8), iron, mul(T(0, 0, 0.6), RX(PI/2)));
+  for (let i = 0; i < 4; i++) { const A = RZ(i*PI/2), S = mul(A, T(0, 0, 0.12), RY(-0.16));
+    sk.add(box(0.4, 15.6, 0.34), wood, mul(A, T(0, 7.8, 0)));                                                   // the stock
+    sk.add(box(0.14, 11.4, 0.14), wood, mul(S, T(3.2, 9.9, 0))); sk.add(box(0.1, 11.4, 0.1), wood, mul(S, T(1.65, 9.9, 0)));   // hemlath and middle lath
+    for (let j = 0; j < 9; j++) sk.add(box(3.3, 0.12, 0.12), wood, mul(S, T(1.6, 4.2 + j*1.425, 0)));           // sail bars
+    sk.add(box(0.9, 11.4, 0.06), wood2, mul(S, T(-0.6, 9.9, 0.05), RY(0.5)));                                    // the leading board
+    sk.add(rect(3.0, 7.7), cloth, mul(S, T(1.65, 8.15, -0.09))); sk.add(tube([0.2, 12.2, -0.1], [3.2, 12.2, -0.1], 0.16, 5), cloth, S); }   // canvas, furled above the roll
+  sk.build(sails); g.userData = Object.assign(g.userData, {sails, top:25});
   return g;
 };
 
@@ -2242,46 +2618,238 @@ G.buildBoostRing = (R = 9) => {
 };
 
 /* ---------- Traffic ---------- */
-/* A 1930s sedan or delivery truck: rounded fenders, running boards, a lit headlamp pair. About 5 m long, nose +Z. */
+/* A 1930s motor car, nose +Z, wheels standing on y = 0. G.buildCar(hex) is a streamline sedan about 5 m long: a tapered
+   bonnet behind a chromed radiator shell, a raked windscreen, black teardrop wings and running boards, a spare on the
+   boot, headlamps on a cross bar. G.buildCar(hex, true) is a 6 m lorry in the same paint: mostly a delivery van with a
+   cream body and its firm's name down both sides, now and then a stake-bed with a load under a tarpaulin.
+   Built by the dozen, so the geometry of each body style is made once and shared, and a car is three draw calls: the
+   paint (G.mat(hex)), one vertex-coloured mesh for everything else, and one for the lamps. A van adds its lettering.
+   After dark a car also gets its headlamp halos and a pool of light on the road (shared geometry and materials again). */
+const CAR_PARTS = {};
+const TRUCK_FIRMS = ['BLUE HERON LAUNDRY', 'OTTOLINE\'S BAKERY', 'KETTERIDGE ICE & COAL', 'MERIDIAN PIANO MOVERS', 'TRI-COUNTY DAIRY', 'PELICAN BAY EXPRESS', 'LARKSPUR TEA CO.'];
+const POOLMATS = new Map();
+function carParts(style){
+  if (CAR_PARTS[style]) return CAR_PARTS[style];
+  const t = new Tint(), lamps = new Tint(), paint = [], P = tris => { for (const v of tris) paint.push(v); };
+  const BLK = 0x1d1b1a, TYRE = 0x121110, CHROME = 0xc8cdd2, GLS = 0x1f2c36, CREAM = 0xe8dcc0, HEAD = 0xfff2c4, TAIL = 0xff3b30;
+  const hexa = (z, w, yb, ys, wt, yt) => [[-w, yb, z], [w, yb, z], [w, ys, z], [wt, yt, z], [-wt, yt, z], [-w, ys, z]];
+  const quadS = (z, wb, yb, wt, yt) => [[-wb, yb, z], [wb, yb, z], [wt, yt, z], [-wt, yt, z]];
+  const wheel = (x, z, r, w) => { const s = Math.sign(x); t.add(cyl(r, r, w, 10), TYRE, mul(T(x, r, z), RZ(PI/2))); t.add(disc(r*0.44, 8), 0xaab0b6, mul(T(x + s*(w/2 + 0.012), r, z), RY(s*PI/2))); };
+  /* a wing: a strip from x0 to x1 following pts [z, y] over the wheel, its thickness towards the wheel centre */
+  const wing = (x0, x1, pts, cz, cy, th) => { for (const s of [1, -1]) t.add(loft(pts.map(([z, y]) => { const dz = cz - z, dy = cy - y, l = Math.hypot(dz, dy) || 1, zi = z + dz/l*th, yi = y + dy/l*th; return [[s*x0, y, z], [s*x1, y, z], [s*x1, yi, zi], [s*x0, yi, zi]]; })), BLK); };
+  const headlamps = (x, y, z) => { t.add(bar([-x - 0.1, y - 0.1, z - 0.06], [x + 0.1, y - 0.1, z - 0.06], 0.045), CHROME);
+    for (const s of [1, -1]) { t.add(lathe([[0.03, -0.2], [0.13, -0.08], [0.155, 0.06]], 6), CHROME, T(s*x, y, z)); lamps.add(disc(0.13, 6), HEAD, T(s*x, y, z + 0.072)); } };
+  const grille = (y, z, w, h) => { t.add(rect(w, h), CHROME, T(0, y, z + 0.012)); t.add(rect(w - 0.12, h - 0.1), BLK, T(0, y, z + 0.024)); t.add(rect(0.05, h - 0.06), CHROME, T(0, y, z + 0.036)); };
+  let halo, sign = null, IN;
+  if (style === 'sedan') {
+    IN = [0, 1.3, -0.3];
+    const zf = 1.5, zr = -1.42, r = 0.4;
+    P(loft([hexa(2.3, 0.34, 0.52, 0.98, 0.26, 1.1), hexa(2.1, 0.42, 0.46, 1.02, 0.32, 1.2), hexa(0.72, 0.7, 0.4, 1.08, 0.58, 1.27), hexa(0.6, 0.84, 0.38, 1.1, 0.8, 1.16),
+      hexa(-1.25, 0.84, 0.38, 1.1, 0.8, 1.16), hexa(-1.95, 0.78, 0.44, 1.04, 0.62, 1.1), hexa(-2.36, 0.62, 0.56, 0.9, 0.5, 0.96)]));
+    const gh = [[0.66, 0.78, 1.14, 0.72, 1.18], [0.4, 0.78, 1.14, 0.66, 1.68], [-0.95, 0.78, 1.14, 0.66, 1.72], [-1.5, 0.76, 1.12, 0.58, 1.5], [-1.9, 0.7, 1.08, 0.56, 1.12]];
+    P(loft(gh.map(s => quadS(...s))));
+    const top = i => [[-gh[i][3], gh[i][4], gh[i][0]], [gh[i][3], gh[i][4], gh[i][0]]], side = (i, s) => [[s*gh[i][1], gh[i][2], gh[i][0]], [s*gh[i][3], gh[i][4], gh[i][0]]];
+    t.add(panelOn(top(0)[0], top(0)[1], top(1)[1], top(1)[0], 0.07, 0.93, 0.14, 0.9, 0.012, IN), GLS);                                   // windscreen
+    t.add(panelOn(top(4)[0], top(4)[1], top(3)[1], top(3)[0], 0.2, 0.8, 0.3, 0.86, 0.012, IN), GLS);                                     // back light
+    t.add(panelOn(top(1)[0], top(1)[1], top(2)[1], top(2)[0], 0.1, 0.9, 0.06, 0.94, 0.012, IN), 0x2a2622);                               // the fabric roof insert
+    for (const s of [1, -1]) {
+      const a = side(1, s), b = side(2, s), c = side(3, s);
+      for (const [u0, u1] of [[0.06, 0.47], [0.53, 0.94]]) t.add(panelOn(a[0], b[0], b[1], a[1], u0, u1, 0.16, 0.86, 0.012, IN), GLS);  // door glass
+      t.add(panelOn(b[0], c[0], c[1], b[1], 0.14, 0.8, 0.22, 0.8, 0.014, IN), GLS);                                                      // quarter light
+      const A = [s*0.84, 0.38, 0.6], B = [s*0.84, 0.38, -1.25], C = [s*0.84, 1.1, -1.25], D = [s*0.84, 1.1, 0.6];
+      t.add(panelOn(A, B, C, D, 0, 1, 0.86, 0.93, 0.012, IN), CREAM); t.add(panelOn(A, B, C, D, 0.485, 0.5, 0, 0.84, 0.012, IN), BLK);  // coach line, door shut
+      t.add(panelOn([s*0.42, 0.46, 2.1], [s*0.7, 0.4, 0.72], [s*0.7, 1.08, 0.72], [s*0.42, 1.02, 2.1], 0.3, 0.8, 0.56, 0.76, 0.012, IN), BLK);   // bonnet louvres
+      t.add(box(0.3, 0.06, 1.2), BLK, T(s*0.8, 0.29, -0.24));                                                                           // running board
+      lamps.add(box(0.09, 0.09, 0.06), TAIL, T(s*0.8, 0.74, -2.06));
+    }
+    wing(0.6, 0.99, [[zf + 0.56, 0.34], [zf + 0.52, 0.62], [zf + 0.3, 0.84], [zf, 0.92], [zf - 0.34, 0.84], [zf - 0.62, 0.6], [zf - 0.95, 0.36], [zf - 1.16, 0.3]], zf, 0.3, 0.1);
+    wing(0.6, 0.99, [[zr + 0.62, 0.3], [zr + 0.56, 0.6], [zr + 0.32, 0.84], [zr, 0.92], [zr - 0.36, 0.8], [zr - 0.62, 0.52], [zr - 0.72, 0.34]], zr, 0.3, 0.1);
+    for (const s of [1, -1]) { wheel(s*0.82, zf, r, 0.22); wheel(s*0.82, zr, r, 0.22); }
+    grille(0.76, 2.3, 0.6, 0.48); t.add(gem(0.05, 0.16), CHROME, T(0, 1.2, 2.16)); headlamps(0.5, 0.98, 2.08);
+    t.add(box(1.56, 0.13, 0.08), CHROME, T(0, 0.5, 2.4)); t.add(box(1.5, 0.13, 0.08), CHROME, T(0, 0.5, -2.5));                                  // bumpers: across the car, inside the wings, hard up to nose and tail
+    for (const s of [1, -1]) { t.add(box(0.07, 0.07, 0.36), BLK, T(s*0.3, 0.5, 2.2)); t.add(box(0.07, 0.07, 0.4), BLK, T(s*0.42, 0.5, -2.28)); }
+    t.add(cyl(0.33, 0.33, 0.16, 10), TYRE, mul(T(0, 0.8, -2.36), RX(-(PI/2 - 0.3)))); t.add(disc(0.17, 8), CHROME, mul(T(0, 0.8 + 0.296*0.09, -2.36 - 0.955*0.09), RX(PI + 0.3)));   // the spare
+    halo = [[0.5, 0.98, 2.2, 0xffe6a8], [-0.5, 0.98, 2.2, 0xffe6a8]];
+  } else {
+    IN = [0, 1.6, 0];
+    const zf = 2.0, zr = -1.7, r = 0.46;
+    t.add(box(1.0, 0.16, 5.5), BLK, T(0, 0.62, -0.1));                                                                                   // the chassis
+    P(loft([hexa(2.9, 0.36, 0.64, 1.2, 0.28, 1.34), hexa(2.68, 0.46, 0.6, 1.26, 0.36, 1.46), hexa(1.6, 0.74, 0.58, 1.32, 0.62, 1.54)]));
+    P(xf(box(1.96, 0.9, 1.1), T(0, 1.03, 1.05)));
+    const cab = [[1.6, 0.98, 1.48, 0.94, 1.52], [1.46, 0.98, 1.48, 0.9, 2.28], [0.5, 0.98, 1.48, 0.92, 2.32]];
+    P(loft(cab.map(s => quadS(...s))));
+    t.add(panelOn([-0.94, 1.52, 1.6], [0.94, 1.52, 1.6], [0.9, 2.28, 1.46], [-0.9, 2.28, 1.46], 0.07, 0.93, 0.14, 0.88, 0.012, IN), GLS);
+    t.add(panelOn([-0.98, 1.48, 0.5], [0.98, 1.48, 0.5], [0.92, 2.32, 0.5], [-0.92, 2.32, 0.5], 0.25, 0.75, 0.4, 0.8, 0.012, [0, 1.9, 1]), GLS);
+    t.add(box(1.84, 0.05, 0.26), BLK, mul(T(0, 2.25, 1.64), RX(0.25)));                                                                   // sun visor
+    for (const s of [1, -1]) {
+      t.add(panelOn([s*0.98, 1.48, 1.46], [s*0.98, 1.48, 0.5], [s*0.92, 2.32, 0.5], [s*0.9, 2.28, 1.46], 0.1, 0.9, 0.14, 0.86, 0.012, IN), GLS);
+      t.add(panelOn([s*0.46, 0.6, 2.68], [s*0.74, 0.58, 1.6], [s*0.74, 1.32, 1.6], [s*0.46, 1.26, 2.68], 0.25, 0.8, 0.52, 0.8, 0.012, IN), BLK);
+      t.add(box(0.26, 0.06, 0.9), BLK, T(s*0.92, 0.5, 1.0));                                                                              // cab step
+      lamps.add(box(0.1, 0.1, 0.06), TAIL, T(s*0.9, 0.72, -3.06));
+      wheel(s*0.9, zf, r, 0.26); wheel(s*0.97, zr, r, 0.36);
+    }
+    wing(0.62, 1.06, [[zf + 0.62, 0.4], [zf + 0.56, 0.72], [zf + 0.32, 0.96], [zf, 1.04], [zf - 0.36, 0.94], [zf - 0.66, 0.66], [zf - 0.9, 0.46]], zf, 0.36, 0.1);
+    wing(0.74, 1.17, [[zr + 0.64, 0.66], [zr + 0.42, 0.98], [zr, 1.08], [zr - 0.42, 0.98], [zr - 0.64, 0.66]], zr, 0.4, 0.08);
+    grille(0.94, 2.9, 0.62, 0.54); t.add(gem(0.05, 0.16), CHROME, T(0, 1.44, 2.76)); headlamps(0.56, 1.12, 2.62);
+    t.add(box(1.7, 0.14, 0.09), CHROME, T(0, 0.62, 2.99)); for (const s of [1, -1]) t.add(box(0.08, 0.08, 0.4), BLK, T(s*0.3, 0.62, 2.78));
+    if (style === 'van') {
+      const sec = z => [[-1.1, 0.8, z], [1.1, 0.8, z], [1.1, 2.76, z], [0.88, 2.98, z], [-0.88, 2.98, z], [-1.1, 2.76, z]];
+      t.add(loft([sec(-3.0), sec(0.44)]), CREAM);
+      t.add(panelOn([-0.88, 2.98, 0.44], [0.88, 2.98, 0.44], [0.88, 2.98, -3], [-0.88, 2.98, -3], 0.04, 0.96, 0.03, 0.97, 0.012, IN), 0xb8ad94);   // the canvas roof
+      const quads = [];
+      for (const s of [1, -1]) { const A = [s*1.1, 0.8, 0.44], B = [s*1.1, 0.8, -3], C = [s*1.1, 2.76, -3], D = [s*1.1, 2.76, 0.44];
+        P(panelOn(A, B, C, D, 0, 1, 0, 0.24, 0.012, IN)); P(panelOn(A, B, C, D, 0.03, 0.97, 0.56, 0.59, 0.012, IN)); P(panelOn(A, B, C, D, 0.03, 0.97, 0.86, 0.89, 0.012, IN));   // skirt and two coach lines
+        quads.push([mul(T(s*1.114, 2.22, -1.28), RY(s*PI/2)), 3.3, 0.4125]); }
+      P(xf(rect(2.2, 0.47), mul(T(0, 1.035, -3.012), RY(PI)))); t.add(rect(0.035, 1.9), BLK, mul(T(0, 2.0, -3.024), RY(PI)));
+      for (const s of [1, -1]) t.add(rect(0.07, 0.3), CHROME, mul(T(s*0.12, 1.9, -3.024), RY(PI)));
+      sign = signGeo(quads);
+    } else {
+      const WOOD = 0x8a6a44, WOOD2 = 0xa07c46;
+      t.add(box(2.24, 0.12, 3.5), WOOD, T(0, 0.86, -1.28)); t.add(box(2.16, 1.2, 0.08), WOOD2, T(0, 1.5, 0.4));
+      for (const s of [1, -1]) { for (const z of [-2.95, -2.1, -1.25, -0.4]) t.add(box(0.07, 0.95, 0.07), WOOD, T(s*1.07, 1.38, z)); for (const y of [1.3, 1.72]) t.add(box(0.05, 0.16, 3.4), WOOD2, T(s*1.07, y, -1.3)); }
+      for (const y of [1.3, 1.72]) t.add(box(2.1, 0.16, 0.05), WOOD2, T(0, y, -2.98));
+      t.add(loft([[[-0.9, 0.92, -1.5], [0.9, 0.92, -1.5], [0.9, 0.92, 0.3], [-0.9, 0.92, 0.3]], [[-0.7, 1.75, -1.3], [0.6, 1.9, -1.2], [0.7, 1.8, 0.1], [-0.6, 1.7, 0.2]]]), 0x5f6a4e);   // the load under its tarpaulin
+      t.add(box(0.9, 0.8, 0.9), 0xbc9658, mul(T(-0.4, 1.32, -2.3), RY(0.2))); for (const [x, z] of [[0.55, -2.0], [0.6, -2.62]]) t.add(cyl(0.29, 0.29, 0.88, 8), 0x8c3b28, T(x, 1.36, z));
+    }
+    halo = [[0.56, 1.12, 2.74, 0xffe6a8], [-0.56, 1.12, 2.74, 0xffe6a8]];
+  }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(paint), 3)); pg.computeVertexNormals();
+  const z0 = halo[0][2] + 0.4, pool = new THREE.BufferGeometry();
+  pool.setAttribute('position', new THREE.BufferAttribute(new Float32Array(outward(face4([-0.8, 0.04, z0], [0.8, 0.04, z0], [2.6, 0.04, z0 + 10], [-2.6, 0.04, z0 + 10]), [0, -9, z0])), 3)); pool.computeVertexNormals();
+  return (CAR_PARTS[style] = {paint:pg, tint:t.geo(), lamps:lamps.geo(), halo:haloGeo(halo), pool, sign, tris:paint.length/9 + t.tris + lamps.tris});
+}
 G.buildCar = (hex, truck) => {
-  const g = new THREE.Group(), k = new Kit(), body = G.mat(hex, {roughness:0.45, metalness:0.2});
-  if (truck) { k.add(box(2.2, 2.4, 3.4), G.mat(0xe8dcc0), T(0, 1.75, -1.2)); k.add(box(2, 1.4, 2.2), body, T(0, 1.25, 1.7)); }
-  else { k.add(box(1.9, 0.9, 4.6), body, T(0, 0.95, 0)); k.add(box(1.7, 0.85, 2.4), body, T(0, 1.8, -0.4)); k.add(box(1.72, 0.55, 2.2), G.mat(0x2a3640, {roughness:0.2}), T(0, 1.78, -0.4)); }
-  k.add(box(2.1, 0.12, 3.6), DARK(), T(0, 0.55, 0));
-  for (const sx of [1, -1]) for (const sz of [1.5, -1.5]) k.add(cyl(0.42, 0.42, 0.3, 8), DARK(), mul(T(sx*0.95, 0.42, sz), RZ(PI/2)));
-  for (const sx of [0.6, -0.6]) k.add(ball(0.16, 6, 3), lamp(0xfff2c4), T(sx, 1.05, 2.33));
-  k.add(box(1.5, 0.5, 0.15), STEEL(), T(0, 0.95, 2.32));
-  k.build(g); return g;
+  const h = (Math.imul(hex | 0, 0x9e3779b1) >>> 12), style = !truck ? 'sedan' : hex === 0x3a2a1a || h % 4 ? 'van' : 'stake';
+  const C = carParts(style), g = new THREE.Group(), day = dayNow();
+  const put = (geo, mat, solid) => { const m = new THREE.Mesh(geo, mat); m.castShadow = solid; m.receiveShadow = solid; g.add(m); return m; };
+  put(C.paint, G.mat(hex, {roughness:0.45, metalness:0.2}), true); put(C.tint, TINTM(), true); put(C.lamps, TINTLAMP(), false);
+  if (C.sign) { const tex = nameTex(hex === 0x3a2a1a ? 'HALCYON AERO WORKS' : TRUCK_FIRMS[h % TRUCK_FIRMS.length], '#2a1d10', '#9e2a1e'); if (tex) put(C.sign, signMat(tex, false), false); }
+  if (day < 1) {
+    g.add(new THREE.Points(C.halo, haloMat(day)));
+    let pm = POOLMATS.get(day); if (!pm) POOLMATS.set(day, pm = new THREE.MeshBasicMaterial({color:0xffe2a0, transparent:true, opacity:0.2*(1 - day), blending:THREE.AdditiveBlending, depthWrite:false}));
+    put(C.pool, pm, false);
+  }
+  g.userData = {style, length:style === 'sedan' ? 5.2 : 6.2};
+  return g;
 };
 
 /* ---------- Chapter 3 set pieces ---------- */
-/* Skull Rock: the Black Lantern's island base. A sea stack whose cliff face reads as a skull, cave hangars at the waterline,
-   and the parts the raid needs as separate Groups (returned in userData.targets with local positions). */
+/* Skull Rock: the Black Lantern's island base, a sea stack weathered (and helped) into a skull that stares south (+Z).
+   One vertex-coloured mesh for the rock: a cranium dome with a brow ridge, two eye sockets with a fire burning in each,
+   the nose, cheekbones, and a jaw whose mouth is the cave hangar at the waterline, bone-pale teeth hanging over it and
+   stumps of lower teeth standing in the channel. Gun terraces are cut into both temples for the flak towers. At the foot:
+   a stone quay to the east with a derrick, a shed, drums and a timber pier; an apron and seaplane slip to the west; lamps
+   along both. On the crown the lookout's hut and the black flag, beside the radio mast.
+   The parts the raid needs are separate Groups, returned in userData.targets as {kind, label, pos, r, hp, group} with the
+   same local positions as ever: four fuel tanks on the quays, the radio mast on the crown, two flak towers, the hangar doors.
+   Callers block boxes of half-width 105 / 70 / 35 up to 95 / 120 / 134 round the origin; the stack stays inside 131 m. */
+const SKULL_W = [[-12, 1.07], [0, 1.0], [18, 0.975], [34, 0.93], [50, 0.95], [66, 0.985], [82, 1.0], [98, 0.975], [110, 0.9], [122, 0.76], [130, 0.6], [136, 0.44], [140, 0.27]];
 G.buildSkullRock = () => {
-  const g = new THREE.Group(), k = new Kit(), rock = G.mat(0x6d6459, {roughness:1}), rock2 = G.mat(0x5a5248, {roughness:1}), dark = G.mat(0x1a1716);
-  k.add(lathe([[0,-20],[150,-20],[140,0],[120,40],[95,85],[60,118],[20,132],[0,134]], 10), rock);
-  for (const [x, z, s] of [[120, 40, 40], [-110, 60, 34], [40, -130, 30], [-80, -100, 26]]) k.add(ball(s, 7, 4), rock2, mul(T(x, 0, z), SC(1, 1.4, 1)));
-  // the skull: two eye caves and a nose on the south face, a jaw of cave mouths at the waterline
-  for (const sx of [1, -1]) k.add(ball(16, 8, 5), dark, mul(T(sx*30, 82, 82), SC(1, 1.2, 0.5)));
-  k.add(poly([[-8, 0], [8, 0], [0, 18]]), dark, mul(T(0, 52, 108), RX(-0.25)));
-  for (let i = -3; i <= 3; i++) k.add(box(10, 14, 6), dark, T(i*16, 8, 128 - Math.abs(i)*3));
-  // jetty and seaplane ramp
-  k.add(box(14, 2, 70), G.mat(0x5a4632), T(70, 1, 150)); k.add(box(40, 1, 30), G.mat(0x45423e), T(-60, 0.6, 140));
-  k.build(g);
+  const g = new THREE.Group(), k = new Kit(), rockT = new Tint(), K = new Mix(k, rockT), R = lcg(1313), day = dayNow(), fit = new G.Fittings({day}), LC = G.LAMP; fit.k = k;
+  const rock2 = 0x5a5248, stone = 0x77706a, timber = 0x5a4632, timber2 = 0x45382a, tin = 0x6c737a, black = 0x111111, rustM = 0x8c3b28, dk = 0x26221f, steel = 0x9aa0a6, win = WINDOW();   // colours go into the rock's own mesh; only glass and lamps are materials
+  const ROCK = 0x6d6459, BONEROCK = 0x8f8676, WET = 0x45403a, HOLE = 0x14110f, TOP = 0x837b6c;
+  /* ---- the rock: radius as a function of bearing (0 = south, towards +X positive) and height ---- */
+  const widthAt = y => { const W = SKULL_W; if (y <= W[0][0]) return W[0][1]; for (let i = 0; i < W.length - 1; i++) if (y <= W[i + 1][0]) return W[i][1] + (W[i + 1][1] - W[i][1])*(y - W[i][0])/(W[i + 1][0] - W[i][0]); return W[W.length - 1][1]; };
+  const eye = (x, y) => Math.max(0, 1 - ((Math.abs(x) - 31)/20)**2 - ((y - 80)/16)**2), nose = (x, y) => y > 45 && y < 69 && Math.abs(x) < 3 + 9*(68 - y)/22, mouth = (x, y) => y < 22 && Math.abs(x) < 52;
+  const wrap = a => { while (a > PI) a -= 2*PI; while (a < -PI) a += 2*PI; return a; };
+  const TERR = [[Math.atan2(70, 40), 96, 68, 0.26], [Math.atan2(-75, -10), 90, 62, 0.3]];                        // gun terraces: bearing, from this height up, cut back to this radius, half-angle
+  const radius = (th, y, jit) => {
+    const c = Math.cos(th), s = Math.sin(th); let r = (106 + 25*c)*widthAt(y);
+    if (y < 50) r *= 1 - 0.12*(1 - Math.max(y, 0)/50)*s*s;                                                        // the jaw is narrower than the cranium
+    r *= 1 + 0.035*Math.sin(3*th + 1) + 0.03*Math.sin(5*th + y*0.06);
+    const front = c > 0.25, x = s*r;
+    if (front) {
+      r -= 21*Math.pow(eye(x, y), 0.6);
+      if (nose(x, y)) r -= 12;
+      if (y > 94 && y < 107 && Math.abs(x) < 64) r += 6;                                                          // the brow
+      r += 7*Math.exp(-(((Math.abs(x) - 50)/15)**2 + ((y - 57)/13)**2));                                          // cheekbones
+      if (y > 22 && y < 38 && Math.abs(x) < 58) r += 3.5;                                                         // the upper jaw
+      if (mouth(x, y)) r -= 4;
+    }
+    for (const [tc, y0, rin, ha] of TERR) if (y >= y0 && Math.abs(wrap(th - tc)) < ha) r = Math.min(r, rin + (y - y0)*0.2);
+    return r*(1 + jit*(front && y > 20 && y < 110 ? 0.012 : 0.04));
+  };
+  const NC = 44, YS = [-12, 0, 8, 18, 26, 34, 42, 50, 58, 66, 74, 82, 90, 98, 106, 114, 122, 130, 136, 140], P = [];
+  for (let i = 0; i < NC; i++) { const u = i/NC, th = 2*PI*u - 0.55*Math.sin(2*PI*u), col = [];
+    for (const y of YS) { const r = radius(th, y, R()*2 - 1); col.push([Math.sin(th)*r, y, Math.cos(th)*r]); } P.push(col); }
+  const paint = (a, b, c) => { const x = (a[0] + b[0] + c[0])/3, y = (a[1] + b[1] + c[1])/3, z = (a[2] + b[2] + c[2])/3, f = 0.9 + R()*0.2;
+    if (z > 30 && (eye(x, y) > 0.12 || nose(x, y) || (mouth(x, y) && y > -1))) return HOLE;
+    if (y < 4) return shade(WET, f);
+    if (y > 124) return shade(TOP, f);
+    const strata = Math.sin(y*0.36 + x*0.01) > 0.72 ? 0.84 : 1;
+    return shade(z > 40 && y > 20 && y < 112 ? blend(ROCK, BONEROCK, 0.5) : ROCK, f*strata); };
+  const T3 = (a, b, c) => rockT.add([...a, ...b, ...c], paint(a, b, c));                       // wound by the grid, so the walls of the sockets face the right way too
+  for (let i = 0; i < NC; i++) { const A = P[i], B = P[(i + 1) % NC];
+    for (let j = 0; j < YS.length - 1; j++) { T3(A[j], B[j], B[j + 1]); T3(A[j], B[j + 1], A[j + 1]); }
+    T3(A[YS.length - 1], B[YS.length - 1], [0, 143, 0]); }
+  const surf = (x, y, out = 0) => { let th = Math.asin(Math.max(-1, Math.min(1, x/125))); for (let n = 0; n < 4; n++) th = Math.asin(Math.max(-1, Math.min(1, x/radius(th, y, 0)))); const r = radius(th, y, 0); return [x, y, Math.cos(th)*r + out]; };   // the south face at lateral x
+  // teeth over the cave mouth, stumps of the lower ones in the channel
+  const tooth = (x, yT, yB, w, hex) => { const a = surf(x, 27), z = a[2] - 1.5; rockT.add(loft([[[x - w/2, yT, z - 3], [x + w/2, yT, z - 3], [x + w/2, yT, z + 5], [x - w/2, yT, z + 5]], [[x - w*0.32, yB, z - 1], [x + w*0.32, yB, z - 1], [x + w*0.3, yB, z + 3.4], [x - w*0.3, yB, z + 3.4]]]), hex); };
+  for (const x of [-45, -33, -21, 21, 33, 45]) tooth(x, 31, 11 + R()*3, 10, shade(0xb5ab94, 0.9 + R()*0.2));
+  for (const x of [-9.5, 0, 9.5]) tooth(x, 31, 23.6, 8.6, shade(0xb5ab94, 0.9 + R()*0.2));
+  for (const [x, s] of [[-26, 5], [-39, 6.5], [27, 5.5], [40, 6], [-51, 4.5], [52, 5]]) rockT.add(loft([jagRing(s, -4, 5, R, 0.15, x, 136 + R()*4), jagRing(s*0.8, 4 + R()*3, 5, R, 0.2, x, 137), jagRing(s*0.3, 7 + R()*4, 5, R, 0.2, x, 137)]), shade(0x9a917e, 0.85 + R()*0.2));
+  // outlying stacks
+  for (const [x, z, s, hh] of [[128, 30, 26, 46], [-124, 48, 22, 38], [46, -128, 24, 52], [-84, -108, 20, 34], [-136, -30, 14, 22]]) rockT.add(loft([jagRing(s*1.25, -12, 7, R, 0.12, x, z), jagRing(s, hh*0.3, 7, R, 0.16, x, z), jagRing(s*0.7, hh*0.75, 7, R, 0.2, x, z), jagRing(s*0.25, hh, 7, R, 0.2, x, z)]), shade(0x5f574d, 0.9 + R()*0.2));
+  // a fire in each eye
+  for (const s of [1, -1]) { const p = surf(s*31, 78, 3); K.add(gem(3.2, 6.5, 5), lamp(0xff6a2a), T(...p)); K.add(gem(1.8, 4, 4), lamp(0xffd27a), T(p[0], p[1] + 0.5, p[2] + 1.5)); K.add(cyl(4.2, 3, 1.6, 6), dk, T(p[0], p[1] - 3.6, p[2])); fit.halo(p, LC.RED, true); fit.halo([p[0], p[1], p[2] + 3], LC.AMBER, true); }
+  // the east quay: dressed stone, a timber pier, a derrick, a shed, stores
+  K.add(box(58, 6, 80), stone, T(75, -1, 137)); K.add(box(59, 0.5, 81), rock2, T(75, 1.8, 137));
+  K.add(box(10, 0.8, 22), timber, T(78, 1.7, 188)); for (const z of [180, 187, 194, 198.4]) for (const sx of [1, -1]) K.add(cyl(0.6, 0.7, 9, 6), timber2, T(78 + sx*4.6, -1.6, z));
+  for (let z = 179; z < 199; z += 2.2) K.add(box(10.2, 0.14, 0.2), timber2, T(78, 2.14, z));
+  { const cx = 98, cz = 170; K.add(cyl(1.6, 2, 2.4, 8), stone, T(cx, 3.2, cz)); K.add(tube([cx, 2, cz], [cx, 20, cz], 0.5, 6), timber2); K.add(bar([cx, 5, cz], [cx - 3, 19, cz + 14], 0.5), timber);       // the derrick
+    K.add(wire([cx, 20, cz], [cx - 3, 19, cz + 14], 0.08), dk); K.add(wire([cx - 3, 19, cz + 14], [cx - 3, 8, cz + 14], 0.07), dk); K.add(box(2.4, 2, 2.4), timber, T(cx - 3, 7, cz + 14)); K.add(wire([cx, 20, cz], [cx + 6, 2.2, cz - 8], 0.07), dk); }
+  const shed = (x, z, w, d, hh, yaw) => { const M = mul(T(x, 2, z), RY(yaw)); K.add(box(w, hh, d), timber, mul(M, T(0, hh/2, 0)));
+    for (const s of [1, -1]) K.add(box(w + 1, 0.22, d*0.62), tin, mul(M, T(0, hh + 0.75, s*d*0.27), RX(s*0.42)));
+    for (const s of [1, -1]) K.add(rect(1.6, 1.4), win, mul(M, T(s*w*0.25, hh*0.55, d/2 + 0.04))); K.add(rect(1.6, 2.6), dk, mul(M, T(0, 1.3, -d/2 - 0.04), RY(PI))); };
+  shed(60, 120, 14, 9, 5, 0.1); shed(-96, 122, 12, 8, 4.4, -0.2);
+  for (const [x, z] of [[68, 150], [70.4, 151], [69, 153], [84, 142], [86.2, 143.3], [-58, 136], [-60.3, 137.2]]) K.add(cyl(0.9, 0.9, 2.4, 8), rustM, T(x, 3.2, z));
+  for (const [x, z, s, a] of [[80, 128, 3, 0.2], [83.4, 129.5, 2.4, 0.7], [81, 128.6, 2, 0.5], [-74, 128, 3, -0.3], [-110, 138, 2.6, 0.4]]) K.add(box(s, s*0.8, s), timber, mul(T(x, 2 + s*0.4 + (s === 2 ? 2.4 : 0), z), RY(a)));
+  // the west apron and its seaplane slip
+  K.add(box(68, 6, 80), stone, T(-84, -1.2, 138)); K.add(box(69, 0.5, 81), rock2, T(-84, 1.6, 138));
+  K.add(loft([[[-112, 1.8, 178], [-84, 1.8, 178], [-84, -4, 178], [-112, -4, 178]], [[-112, -2.6, 204], [-84, -2.6, 204], [-84, -4, 204], [-112, -4, 204]]]), timber);
+  for (let z = 181; z < 203; z += 3) K.add(box(28.4, 0.2, 0.3), timber2, T(-98, 1.8 - (z - 178)*4.4/26 + 0.12, z));
+  // lamps along the water, on posts
+  for (const [x, z] of [[48, 150], [48, 172], [76, 176], [102, 176], [74, 198], [82, 198], [-52, 150], [-52, 174], [-80, 177], [-116, 177], [-116, 140]]) { K.add(tube([x, 2, z], [x, 7, z], 0.2, 5), timber2); fit.lantern([x, 7.6, z], {s:1.6, hex:Math.abs(x) < 60 ? LC.AMBER : LC.WARM}); }
+  // on the crown: the lookout's hut and the black flag
+  K.add(box(7, 4, 6), timber, T(13, 143.4, 9)); K.add(box(8, 0.25, 7.4), tin, mul(T(13, 145.9, 9), RZ(0.16))); K.add(rect(1.4, 1.2), win, T(13, 143.8, 12.04));
+  K.add(tube([-12, 136, 6], [-12, 162, 6], 0.3, 6), timber2);
+  K.add(loft([[[-12, 161.5, 5.9], [-12, 153.5, 5.9], [-1, 155, 9], [0, 160, 9.4]], [[-12, 161.5, 6.1], [-12, 153.5, 6.1], [-1, 155, 9.2], [0, 160, 9.6]]]), black);
+  K.decal(mul(T(-6.26, 157.6, 7.9), RY(-0.271), SC(2.6)), skullT(0).slice(2), 0.04); K.decal(mul(T(-6.12, 157.6, 7.32), RY(PI - 0.271), SC(2.6)), skullT(0).slice(2), 0.04);
+  fit.lantern([13, 147.6, 9], {s:1.8, hex:LC.AMBER});
   const targets = [];
-  const add = (kind, label, pos, r, hp, build) => { const tg = new THREE.Group(), tk = new Kit(); tg.position.copy(pos); build(tk, tg); tk.build(tg); g.add(tg); targets.push({kind, label, pos, r, hp, group:tg}); };
-  const tankM = G.mat(0x8a2f2f, {roughness:0.6}), steel = STEEL();
+  const add = (kind, label, pos, r, hp, build) => { const tg = new THREE.Group(), tk = new Mix(); tg.position.copy(pos); build(tk, tg); tk.build(tg); g.add(tg); targets.push({kind, label, pos, r, hp, group:tg}); };
+  const tankM = 0x8a2f2f, tankD = 0x6a2424;
   [[60, 2, 160], [90, 2, 160], [-70, 2, 150], [-100, 2, 160]].forEach(([x, y, z], i) => add('tank', `Fuel tank ${i + 1}`, new V3(x, y + 9, z), 10, 160, tk => {
-    tk.add(cyl(8, 8, 16, 12), tankM); tk.add(lathe([[8,8],[5,10],[0.5,11]], 12), tankM); tk.add(cyl(8.3, 8.3, 0.6, 12), steel, T(0, 4, 0)); tk.add(cyl(8.3, 8.3, 0.6, 12), steel, T(0, -4, 0));
-    tk.add(box(0.4, 18, 0.4), DARK(), T(8.3, 0, 0)); }));
+    const c12 = Math.cos(PI/12);
+    tk.add(cyl(8.6, 8.9, 1.2, 12), stone, T(0, -8.4, 0)); tk.add(cyl(8, 8, 15.4, 12, false), tankM, T(0, -0.3, 0)); tk.add(vase([[8.25, 7.4], [8.25, 7.9], [5, 9.9], [0.9, 10.9], [0.9, 11.6]], 12), tankD);
+    for (const y of [-5.4, -1.2, 5.0]) tk.add(cyl(8.14, 8.14, 0.5, 12, false), steel, T(0, y, 0));
+    const a = (i % 2 ? 1 : -1)*PI/6, M = RY(PI/2 - (PI/2 + a));                                                    // a ladder up one facet, the skull stencilled on the seaward one
+    for (const s of [1, -1]) tk.add(box(0.14, 16.4, 0.14), dk, mul(M, T(s*0.5, 0.2, 8*c12 + 0.3))); for (let y = -7; y < 8.4; y += 1.3) tk.add(box(1.0, 0.1, 0.1), dk, mul(M, T(0, y, 8*c12 + 0.3)));
+    tk.decal(mul(T(0, 1.9, 8*c12 + 0.06), SC(2.3)), skullT(0).slice(2), 0.03);
+    tk.add(tube([6.2, -7.6, 5.6], [9.4, -7.6, 8.6], 0.35, 6), steel); tk.add(cyl(0.6, 0.6, 0.5, 6), steel, T(0, 11.6, 0)); }));
   add('radio', 'Radio tower', new V3(0, 150, 0), 6, 120, tk => {
-    tk.add(tube([0, -16, 0], [0, 26, 0], 0.5, 6), steel); for (const y of [0, 12, 22]) tk.add(bar([-5, y, 0], [5, y, 0], 0.3), steel);
-    for (const sx of [1, -1]) tk.add(wire([sx*5, 12, 0], [sx*18, -16, sx*6], 0.06), DARK()); tk.add(ball(0.8, 6, 3), lamp(0xff3b30), T(0, 27, 0)); });
+    const L = (y, f) => { const q = 2.4 + (0.45 - 2.4)*f; return [q, y]; }, lv = [-16, -8, -1, 6, 12, 18, 23, 26.5].map((y, i, a) => L(y, i/(a.length - 1)));
+    for (let i = 0; i < lv.length - 1; i++) { const [q0, ya] = lv[i], [q1, yb] = lv[i + 1];
+      for (let c = 0; c < 4; c++) { const sx = c & 1 ? 1 : -1, sz = c & 2 ? 1 : -1, [nx, nz] = [[1, -1], [1, 1], [-1, -1], [-1, 1]][c];
+        tk.add(bar([sx*q0, ya, sz*q0], [sx*q1, yb, sz*q1], 0.22), steel); tk.add(bar([sx*q0, ya, sz*q0], [nx*q1, yb, nz*q1], 0.12), steel); tk.add(bar([sx*q1, yb, sz*q1], [nx*q1, yb, nz*q1], 0.12), steel); } }
+    tk.add(tube([0, 26.5, 0], [0, 31, 0], 0.12, 5), steel); for (const y of [14, 22]) tk.add(bar([-5, y, 0], [5, y, 0], 0.22), steel);
+    for (const sx of [1, -1]) { tk.add(wire([sx*5, 14, 0], [sx*18, -16, sx*6], 0.06), dk); tk.add(wire([sx*5, 22, 0], [sx*5, 14, 0], 0.05), dk); tk.add(wire([0, 23, 0], [sx*4, -16, -sx*16], 0.06), dk); }
+    tk.add(ball(0.8, 6, 3), lamp(0xff3b30), T(0, 31.4, 0)); tk.add(box(5, 3.6, 4), timber, T(-6.5, -5.6, -4)); tk.add(box(5.6, 0.25, 4.8), tin, mul(T(-6.5, -3.6, -4), RZ(-0.15))); });
   [[70, 95, 40], [-75, 88, -10]].forEach(([x, y, z], i) => add('flak', `Flak tower ${i + 1}`, new V3(x, y + 6, z), 7, 140, tk => {
-    tk.add(box(10, 12, 10), rock2, T(0, -6, 0)); tk.add(cyl(4, 4.6, 2, 8), DARK(), T(0, 1, 0)); tk.add(box(3, 2, 3.2), steel, T(0, 2.8, 0));
-    for (const sx of [0.6, -0.6]) tk.add(tube([sx, 3, 0.5], [sx, 6.6, 4], 0.25, 6), DARK()); }));
-  add('hangar', 'Cave hangar doors', new V3(0, 12, 126), 12, 220, tk => { tk.add(box(30, 20, 2), G.mat(0x4a4038)); tk.add(box(0.6, 20, 2.2), DARK()); for (const sx of [1, -1]) tk.add(ball(0.6, 6, 3), lamp(0xffd27a), T(sx*14, 11, 1.4)); });
-  g.userData = {targets};
+    tk.add(cyl(6.2, 7.2, 13, 8), rock2, T(0, -6.5, 0)); tk.add(cyl(6.6, 6.6, 0.8, 8), stone, T(0, 0.2, 0));
+    for (let j = 0; j < 10; j++) { const a = j*PI/5 + 0.2; if (j === 2) continue; tk.add(box(2.5, 1.0, 1.3), 0x8a7f62, mul(T(Math.cos(a)*5.3, 1.1, Math.sin(a)*5.3), RY(-a + PI/2))); tk.add(box(2.3, 0.9, 1.2), 0x7a7058, mul(T(Math.cos(a + 0.3)*5.3, 2.0, Math.sin(a + 0.3)*5.3), RY(-a - 0.3 + PI/2))); }
+    tk.add(cyl(1.3, 1.8, 1.6, 8), dk, T(0, 1.4, 0)); tk.add(box(3, 2, 3.2), steel, T(0, 3.0, 0)); tk.add(box(3.6, 2.6, 0.25), 0x4a4a4e, mul(T(0, 3.6, 1.7), RX(-0.3)));
+    for (const sx of [0.6, -0.6]) { tk.add(tube([sx, 3.2, 0.5], [sx, 7.2, 4.6], 0.25, 6), dk); tk.add(tube([sx, 6.9, 4.3], [sx, 7.4, 4.8], 0.36, 6), dk); } }));
+  add('hangar', 'Cave hangar doors', new V3(0, 12, 126), 12, 220, tk => {
+    const door = 0x4a4038, red = 0x9e1b1b, bone = 0xf1e9d6;
+    tk.add(box(30, 20, 2), door); tk.add(box(0.6, 20, 2.2), dk); tk.add(box(31, 1.2, 2.6), steel, T(0, 10.3, 0));
+    for (const sx of [1, -1]) { for (const x of [4, 9, 14]) tk.add(box(0.5, 19.6, 0.3), dk, T(sx*x - sx*1.6, 0, 1.1));
+      for (let j = 0; j < 5; j++) tk.add(poly([[0, 0], [2.4, 0], [4.4, 2.4], [2, 2.4]]), j % 2 ? red : bone, mul(T(sx > 0 ? 0.4 + j*2.4 : -15 + j*2.4, -9.9, 1.03)));   // hazard chevrons along the sill
+      tk.add(ball(0.6, 6, 3), lamp(0xffd27a), T(sx*14, 11, 1.4)); }
+    tk.decal(mul(T(0, 2.5, 1.3), SC(4.6)), skullT(red), 0.03); });
+  for (const s of [1, -1]) fit.halo([s*14, 23, 127.4], LC.WARM, true);
+  rockT.build(g); fit.build(g);
+  g.userData = Object.assign(g.userData, {targets});
   return g;
 };
 /* the geometry kit, for scenery built in other files (Rustwater's city, bridges and balloons) */
