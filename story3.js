@@ -722,8 +722,8 @@ const COVE = {x:2633, z:-1900, yaw:-0.525, r:360};
 const MASTODON_PAINT = [0x55606a, 0xe8e0cc, 0x1f3b6b];
 G.MISSIONS.c9x1 = EP({
   id:'c9x1', title:'The Heavy', place:'Blackwater Cove to Puerto Azul, the Corsair Keys', region:'keys', wing:3,
-  brief:'Hale has one heavy bomber left, the Mastodon: four engines, four gunners, and a bomb load that could sink a raider in one pass. She\'s sitting on a navy field at Blackwater Cove, and her pilot\'s in the infirmary with a Syndicate slug in him. Fly out to the cove, land, climb into her and bring her to Puerto Azul for the fleet. The Syndicate knows she\'s there. They\'ll come for her the moment she\'s off the ground. She\'s slow, she turns like a church, and her gunners will do their best. Put her down at Puerto Azul in one piece.',
-  sides:[{text:'Bring the Mastodon in above half'}, {text:'Down 6 Syndicate fighters'}, {text:'Lose no wingman'}],
+  brief:'Hale has one heavy bomber left, the Mastodon: four engines, four gunners, and a bomb bay that could sink a raider in one pass. She\'s sitting on a navy field at Blackwater Cove, and her pilot\'s in the infirmary with a Syndicate slug in him. Fly out to the cove, land, climb into her and bring her to Puerto Azul for the fleet. On the way, the bay\'s carrying three crates of medicine for Rosa\'s people at the Rusty Anchor: open the bombsight (B), let the co-pilot fly, read the wind off their smoke pot and put one on their cross. The Syndicate knows she\'s there. They\'ll come for her the moment she\'s off the ground.',
+  sides:[{text:'Bring the Mastodon in above half'}, {text:'A crate right on the cross'}, {text:'Lose no wingman'}],
   pay:{success:6000, perfect:2500, kill:250},
   worldOpts:() => { const w = G.regionWorld('keys', 'evening'); w.flats = w.flats.concat([{x:COVE.x, z:COVE.z, r:COVE.r}]); return w; },
   setup(g){
@@ -739,13 +739,25 @@ G.MISSIONS.c9x1 = EP({
     const L = G.stockLoadout('mastodon'); L.paint = MASTODON_PAINT.slice(); L.rocket = 'he'; L.arm = [75, 65, 65, 65];   // the navy plated her for this run
     this.spot = g.parkPlane({loadout:L, pos:apron.clone().add(new V3(0, 0, 0)), yaw:yaw - Math.PI/2, label:'the Mastodon', reach:95, name:'HMA Mastodon', internalMul:1.6, hostOnly:true,
       onTake:(gg, now, was) => this.tookHer(gg, now, was)});
-    this.bomber = this.spot.plane; this.stage = 'out'; this.waveN = 0; this.runT = 0; this.landedAt = 0; this.wing0 = 0;
+    this.bomber = this.spot.plane; this.bomber.packages = 3; this.delivered = false; this.bull = false;
+    // the wind off the sea: a steady breeze from somewhere east, gusting; the smoke pot shows it
+    { const a = -0.6 + Math.random()*1.6, s = 5 + Math.random()*4; g.wind = new V3(Math.sin(a)*s, 0, Math.cos(a)*s); }
+    { const A = this.P.anchor, rw = g.runways.find(r => r.hl > 100 && r.pos.distanceTo(new V3(A.x, r.pos.y, A.z)) < 300), yaw = rw ? rw.yaw || 0 : 0;
+      this.zone = g.addDropZone({pos:new V3(A.x + Math.cos(yaw)*150, 0, A.z - Math.sin(yaw)*150), label:'THE RUSTY ANCHOR · MEDICINE', onLand:(gg, c, d, z) => this.crateDown(gg, d, z)}); }
+    this.stage = 'out'; this.waveN = 0; this.runT = 0; this.landedAt = 0; this.wing0 = 0;
     const pz = this.P.puerto; this.puertoRw = g.runways.find(r => r.hl > 100 && r.pos.distanceTo(new V3(pz.x, r.pos.y, pz.z)) < 300) || null;
   },
   tookHer(g, now, was){
     this.stage = 'taxi'; this.wing0 = (g.wingmen || []).filter(w => w.p.alive).length;
     G.HUD.radio('Chief Mulvaney', 'She\'s fuelled, she\'s armed, and the gunners are aboard and sober. Mostly. Taxi her out and give her all four, she wants every yard of that runway.');
     G.HUD.radio(SPARKS(), `We'll have your ${(G.CHASSIS[was.L.chassis] || {name:'kite'}).name} flown home. Go on, Ace.`);
+  },
+  crateDown(g, d, z){
+    if (d <= z.bull) this.bull = true;
+    if (d <= z.good && !this.delivered) { this.delivered = true; z.done = d <= z.bull; G.HUD.radio('Rosa', d <= z.bull ? '¡Perfecto! Right on the cross. My people will drink to you tonight, Thirteen.' : 'We have it! A little walk for the boys, but we have it. Gracias.'); }
+    else if (d > z.good) G.HUD.radio('Rosa', G.pick(['That one is in the mangroves. We will look for it later.', 'Too far! The wind, Thirteen, watch the smoke!', 'Again, por favor. That one went to the goats.']));
+    if (this.delivered && this.bull) z.done = true;
+    if (!this.delivered && !(this.bomber.packages > 0) && !g.crates.some(c => !c.landed)) { G.HUD.radio('Rosa', 'All three in the scrub. Ay. My people will have to walk for it.'); this.lose(g, 'crates'); }
   },
   onLiftoff(g){
     if (g.player !== this.bomber || this.stage === 'run') return;
@@ -754,6 +766,7 @@ G.MISSIONS.c9x1 = EP({
   },
   onTouchdown(g, hard){
     if (g.player === this.bomber && this.stage === 'run' && this.puertoRw && g.runwayAt(g.player.pos) && g.player.pos.distanceTo(this.puertoRw.pos) < this.puertoRw.hl + 60) {
+      if (!this.delivered) { G.HUD.radio('Puerto Azul tower', 'Mastodon, you\'ve still got the Rusty Anchor\'s medicine aboard. Rosa\'s on the line and she is not happy.'); return; }
       this.stage = 'down'; this.landedAt = this.pt;
       G.HUD.radio('Puerto Azul tower', hard ? 'Mastodon, you bounced her like a rubber ball. Welcome to Puerto Azul anyway.' : 'Mastodon, that\'s the sweetest thing I\'ve seen all week. Roll her out to the end.');
     }
@@ -769,6 +782,7 @@ G.MISSIONS.c9x1 = EP({
       G.HUD.objective(B.onGround ? 'Taxi out, full throttle, lift her off' : 'Climb out and head for Puerto Azul');
     } else if (this.stage === 'run') {
       this.runT += dt;
+      if (!this.delivered) g.markers.push({pos:this.zone.pos.clone().add(new V3(0, 40, 0)), label:'DROP THE MEDICINE · RUSTY ANCHOR (B: bombsight)', col:'#ff8a6a', box:true});
       g.markers.push({pos:PZ, label:'PUERTO AZUL · LAND THE MASTODON', col:'#9ec7f0', box:true});
       const d = Math.round(P.pos.distanceTo(PZ)*YD);
       // the assault: wave after wave out of the Syndicate's islands, heavier the closer she gets
@@ -784,6 +798,7 @@ G.MISSIONS.c9x1 = EP({
         G.HUD.radio(SPARKS(), line);
       }
       if (B.onGround && !this.puertoRw) G.HUD.objective('Land her at Puerto Azul');
+      else if (!this.delivered) G.HUD.objective(`Drop Rosa\'s medicine on the Rusty Anchor\'s cross · B for the bombsight · ${B.packages} crates`);
       else G.HUD.objective(`Land the Mastodon at Puerto Azul · ${d.toLocaleString()} yd · ${g.planes.filter(p => p.alive && p.team !== 0).length} bandits`);
     } else if (this.stage === 'down') {
       G.HUD.objective('Roll her to a stop');
@@ -795,7 +810,7 @@ G.MISSIONS.c9x1 = EP({
   sideState(g){
     const B = this.bomber, hp = B ? Math.max(0, B.internal)/B.internalMax : 1, wm = (g.wingmen || []).filter(w => w.p.alive).length, lost = this.wing0 && wm < this.wing0;
     return [{text:this.sides[0].text, st:!B || !B.alive || hp < 0.5 ? 'fail' : this.ended ? 'ok' : 'live', val:Math.round(hp*100) + '%'},
-            {text:this.sides[1].text, st:g.kills >= 6 ? 'ok' : 'live', val:`${Math.min(6, g.kills)}/6`},
+            {text:this.sides[1].text, st:this.bull ? 'ok' : this.delivered && !(B && B.packages > 0) ? 'fail' : 'live', val:this.bull ? 'bullseye' : this.delivered ? 'delivered' : `${B ? B.packages : 0} crates`},
             {text:this.sides[2].text, st:lost ? 'fail' : this.ended ? 'ok' : 'live', val:`${wm} flying`}];
   },
   result(g, kind, why){
@@ -803,7 +818,7 @@ G.MISSIONS.c9x1 = EP({
     return RES(this, g, kind, {cash:this.pay3(g, kind)}, Object.assign({
       perfect:{mood:'pleased', say:'The Mastodon\'s at Puerto Azul with barely a hole in her, and the Syndicate lost a squadron trying to stop you. Hale\'s found a crew for her.', then:'The fleet sails with a heavy bomber in the van. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'},
       success:{mood:'pleased', say:'She\'s down at Puerto Azul, holed like a colander, but she\'s down. The riggers are already at her.', then:'The fleet sails with a heavy bomber in the van. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'},
-      fail:{mood:'stern', say:why === 'margaret' ? 'The Margaret went down off the cove. Everyone swam for it.' : this.stage === 'out' ? 'You never made it to the cove. The Syndicate burned the Mastodon on the ground that night.' : 'The Mastodon\'s in the sea off the Keys. The gunners got out. Hale didn\'t say a word, which was worse.', then:'The fleet sails without its heavy bomber. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'}
+      fail:{mood:'stern', say:why === 'crates' ? 'Every crate missed the Anchor. Rosa\'s people walked half the night to find them, and the corsairs remember.' : why === 'margaret' ? 'The Margaret went down off the cove. Everyone swam for it.' : this.stage === 'out' ? 'You never made it to the cove. The Syndicate burned the Mastodon on the ground that night.' : 'The Mastodon\'s in the sea off the Keys. The gunners got out. Hale didn\'t say a word, which was worse.', then:'The fleet sails without its heavy bomber. The Syndicate\'s raiders, the Anvil and the Hammer, are coming.'}
     }[kind]), {mastodon:got ? 'delivered' : 'lost'});
   }
 });

@@ -9,7 +9,7 @@ const ACTIONS = [
   {id:'KeyA', label:'Roll left (double-tap: barrel roll)'}, {id:'KeyD', label:'Roll right (double-tap: barrel roll)'},
   {id:'ArrowDown', label:'Pull up'}, {id:'ArrowUp', label:'Push down'},
   {id:'KeyQ', label:'Rudder left (double-tap: snap turn)'}, {id:'KeyE', label:'Rudder right (double-tap: snap turn)'},
-  {id:'Space', label:'Rockets (and drop off the trapeze)'}, {id:'ShiftLeft', label:'Nitro'}, {id:'KeyB', label:'Wheel brakes'},
+  {id:'Space', label:'Rockets (and drop off the trapeze)'}, {id:'ShiftLeft', label:'Nitro'}, {id:'KeyB', label:'Wheel brakes (on the ground) / bombsight (Mastodon, in the air)'},
   {id:'KeyR', label:'Immelmann'}, {id:'KeyZ', label:'Split-S'},
   {id:'KeyF', label:'Flaps'}, {id:'KeyG', label:'Landing gear'},
   {id:'KeyC', label:'Chase / cockpit view'}, {id:'KeyV', label:'Look back (hold)'},
@@ -64,7 +64,7 @@ const KM = G.keymap = {
       ['Mouse', 'Aim (the plane follows)'], ['Left click', 'Guns'], [`Right click / ${k('Space')}`, 'Rockets'],
       [two('KeyW', 'KeyS'), 'Throttle'], [two('KeyA', 'KeyD'), 'Roll'], [two('KeyQ', 'KeyE'), 'Rudder'], [two('ArrowUp', 'ArrowDown'), 'Push / pull'],
       [`Double-tap ${two('KeyA', 'KeyD')}`, 'Barrel roll (dodges fire)'], [two('KeyR', 'KeyZ'), 'Immelmann / Split-S'],
-      [k('KeyF'), 'Flaps (land, dock, skyhook)'], [k('KeyY'), 'Climb into a parked aeroplane'], [k('KeyG'), 'Landing gear (retractable planes)'], [`Double-tap ${two('KeyQ', 'KeyE')}`, 'Snap turn'],
+      [k('KeyF'), 'Flaps (land, dock, skyhook)'], [k('KeyY'), 'Climb into a parked aeroplane'], [k('KeyB'), 'Bombsight (Mastodon): A/D steer, Q/E wind direction, W/S wind strength, Space drops'], [k('KeyG'), 'Landing gear (retractable planes)'], [`Double-tap ${two('KeyQ', 'KeyE')}`, 'Snap turn'],
       [['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].map(k).join(' '), 'Wingmen: attack, cover, zeppelin, form, go home'],
       [k('ShiftLeft'), 'Nitro'], [k('KeyT'), 'Hover (Whirligig) / torpedo (bombers)'], [k('KeyP'), 'Camera (photo objectives)'], [k('KeyC'), 'Chase / cockpit'], [k('KeyV'), 'Look back'], [k('KeyM'), 'Sound'], [k('KeyH'), 'This help'], ['Esc', 'Pause']
     ];

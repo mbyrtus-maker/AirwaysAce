@@ -225,6 +225,7 @@ view.addEventListener('mousedown', e => {
   if (g.mission.awaitDrop) { g.mission.drop(); lock(); return; }
   if (!locked()) lock();
   g.keys['Mouse' + e.button] = true; e.preventDefault();
+  if (e.button === 0 && g.sight) g.dropCrate();   // the bombsight: a click lets a crate go
 });
 addEventListener('mouseup', e => { const g = G.game; if (g) g.keys['Mouse' + e.button] = false; });
 view.addEventListener('contextmenu', e => e.preventDefault());

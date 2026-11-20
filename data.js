@@ -127,7 +127,7 @@ G.CHASSIS = {
   thunderbuss:C({id:'thunderbuss', name:'Thunderbuss', role:'Heavy bomber', cs:'Balmoral', cls:'heavy', speed:'Fair', agility:'Poor', armorR:'Good', offense:'Good',
                  max:15760, arm:[40,35,25,25], guns:['50','50'], slots:2, turrets:['30','30'], hp:8, hpMax:8, torpedo:true}),
   mastodon:   C({id:'mastodon', name:'Mastodon', role:'Four-engine heavy bomber', cs:'—', cls:'giant', speed:'Poor', agility:'Poor', armorR:'Excellent', offense:'Good',
-                 max:26000, arm:[60,55,45,45], guns:['50','50'], slots:2, turrets:['40','50','50','50'], hp:4, hpMax:4, special:true, pitchMul:0.55, rollMul:0.42, yawMul:0.7, accelMul:0.7,
+                 max:26000, arm:[60,55,45,45], guns:['50','50'], slots:2, turrets:['40','50','50','50'], hp:4, hpMax:4, special:true, bombsight:true, pitchMul:0.55, rollMul:0.42, yawMul:0.7, accelMul:0.7,
                  blurb:'Four engines, four gunners and a bomb bay you could park a Gallant in. Hale\'s navy built two; this is the one that\'s left. Not for sale at any price.'}),
   zephyr:     C({id:'zephyr', name:'Zephyr', role:'Twin-jet interceptor (Hollis turbojets)', cs:'—', cls:'light', speed:'Excellent', agility:'Fair', armorR:'Fair', offense:'Good',
                  max:8200, arm:[20,20,20,20], guns:['70','70','60','60'], slots:4, turrets:[], hp:2, hpMax:4, jet:true, interceptor:true,

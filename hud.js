@@ -98,9 +98,51 @@ const H = G.HUD = {
         <div class="tsec"><small>Plating: bow · stern · port · stbd · gondola</small><div>${sec}</div></div>`;
     }
   },
+  /* the bombsight (game.toggleSight): the window, the computed fall line and where it ends, the drop zone, the wind dial */
+  drawSight(g, P, c, W, Hh){
+    const S = g.sight, cx = W/2, cy = Hh/2, R = Math.min(W, Hh)*0.46, pt = {x:0, y:0, z:0};
+    c.save(); c.fillStyle = 'rgba(8,10,8,0.92)'; c.beginPath(); c.rect(0, 0, W, Hh); c.arc(cx, cy, R, 0, Math.PI*2, true); c.fill('evenodd');
+    c.strokeStyle = 'rgba(210,200,160,0.9)'; c.lineWidth = 3; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI*2); c.clip();
+    // the drift wires: the line the plane's track takes across the ground, ticked
+    c.strokeStyle = 'rgba(230,220,180,0.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.stroke();
+    for (let i = -6; i <= 6; i++) { c.beginPath(); c.moveTo(cx - 6, cy + i*R/7); c.lineTo(cx + 6, cy + i*R/7); c.stroke(); }
+    // the drop zones, ringed at their bullseye and their delivery distance
+    for (const z of g.dropZones || []) {
+      if (z.done) continue; this.proj(z.pos, pt); if (pt.z >= 1) continue;
+      const e = {x:0, y:0, z:0}; this.proj(tA.copy(z.pos).add(tB.set(z.good, 0, 0)), e); const rr = Math.max(6, Math.hypot(e.x - pt.x, e.y - pt.y));
+      c.strokeStyle = 'rgba(255,120,90,0.95)'; c.lineWidth = 2; c.beginPath(); c.arc(pt.x, pt.y, rr, 0, Math.PI*2); c.stroke();
+      c.setLineDash([4, 4]); c.beginPath(); c.arc(pt.x, pt.y, rr*z.bull/z.good, 0, Math.PI*2); c.stroke(); c.setLineDash([]);
+      c.fillStyle = 'rgba(255,170,140,0.95)'; c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(z.label, pt.x, pt.y - rr - 6);
+    }
+    // where a crate let go now would come down, on the wind as set
+    const hit = g.predictCrate(tC);
+    if (hit) { this.proj(hit, pt); if (pt.z < 1) {
+      c.strokeStyle = '#f2c14e'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(pt.x, pt.y); c.stroke();
+      c.beginPath(); c.arc(pt.x, pt.y, 11, 0, Math.PI*2); c.moveTo(pt.x - 20, pt.y); c.lineTo(pt.x - 6, pt.y); c.moveTo(pt.x + 6, pt.y); c.lineTo(pt.x + 20, pt.y); c.moveTo(pt.x, pt.y - 20); c.lineTo(pt.x, pt.y - 6); c.moveTo(pt.x, pt.y + 6); c.lineTo(pt.x, pt.y + 20); c.stroke();
+      for (const z of g.dropZones || []) if (!z.done) { const dd = Math.hypot(hit.x - z.pos.x, hit.z - z.pos.z); if (dd < z.good*3) { c.fillStyle = dd <= z.bull ? '#9ef0a0' : dd <= z.good ? '#f2c14e' : '#ff8a6a'; c.font = '700 14px "Barlow Condensed", sans-serif'; c.textAlign = 'left'; c.fillText(`${Math.round(dd*1.0936)} yd`, pt.x + 16, pt.y + 18); } }
+    } }
+    c.restore();
+    // the wind dial: what the bombardier has told the computer (the arrow points where the wind blows to)
+    const dx = cx + R + 70 > W - 70 ? W - 90 : cx + R + 70, dy = cy - R*0.5, rd = 46;
+    c.strokeStyle = 'rgba(230,220,180,0.9)'; c.lineWidth = 2; c.beginPath(); c.arc(dx, dy, rd, 0, Math.PI*2); c.stroke();
+    const rel = S.wDir - Math.atan2(P.fwd.x, P.fwd.z), ax = -Math.sin(rel), ay = -Math.cos(rel), L = 10 + Math.min(1, S.wSpd/20)*(rd - 12);   // screen: up is the nose
+    c.strokeStyle = '#f2c14e'; c.lineWidth = 3; c.beginPath(); c.moveTo(dx - ax*L, dy - ay*L); c.lineTo(dx + ax*L, dy + ay*L); c.stroke();
+    c.beginPath(); c.arc(dx + ax*L, dy + ay*L, 4, 0, Math.PI*2); c.fillStyle = '#f2c14e'; c.fill();
+    c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(240,230,200,0.95)';
+    c.fillText(`WIND SET · ${Math.round(S.wSpd*2.237)} mph`, dx, dy + rd + 18); c.fillText('Q/E direction · W/S strength', dx, dy + rd + 34);
+    // readouts
+    const ly = cy + R*0.25, lx = dx;
+    const lines = [`ALT ${Math.round(P.pos.y*FT).toLocaleString()} ft`, `GROUND SPEED ${Math.round(Math.hypot(P.vel.x, P.vel.z)/G.MPH)} mph`, `FALL ${S.fall ? S.fall.toFixed(1) : '—'} s`, `CRATES ${P.packages || 0}`];
+    c.textAlign = 'center'; c.font = '700 15px "Barlow Condensed", sans-serif'; lines.forEach((t, i) => c.fillText(t, lx, ly + i*20));
+    c.font = '600 13px "Barlow Condensed", sans-serif'; c.fillStyle = 'rgba(240,230,200,0.8)';
+    c.fillText('A/D steer the run · Space or click drops · B back to the stick', cx, cy + R + 26);
+    c.fillText('Read the wind off the drop zone\'s smoke', cx, cy - R - 12);
+  },
   proj(v, out){ tC.copy(v).project(G.game.camera); out.x = (tC.x*0.5 + 0.5)*innerWidth; out.y = (-tC.y*0.5 + 0.5)*innerHeight; out.z = tC.z; return out; },
   draw(g, P){
     const c = this.cx, d = this.dpr, W = innerWidth, Hh = innerHeight; c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, W, Hh);
+    if (g.sight) { this.drawSight(g, P, c, W, Hh); return; }
     if (!g.running || !P.alive) return;
     const pt = {x:0, y:0, z:0}, cam = g.camera;
     // gun crosshair at convergence, mouse-aim circle

@@ -3,7 +3,7 @@
 /* The game: scene, mouse-aim input, cameras, and the first test mission. */
 const G = window.G, V3 = THREE.Vector3, Q = THREE.Quaternion;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const tA = new V3(), tB = new V3(), tC = new V3(), qA = new Q();
+const tA = new V3(), tB = new V3(), tC = new V3(), tD = new V3(), qA = new Q();
 
 const STUNT_KEYS = {KeyA:'rollL', KeyD:'rollR', ArrowDown:'immel', ArrowUp:'splits', KeyQ:'snapL', KeyE:'snapR'};
 G.RADIO = {name:'Mabel "Sparks" Calloway', short:'Sparks', role:'Radio, Lucky Margaret'};
@@ -74,6 +74,8 @@ G.Game = class {
     if (code === 'KeyP' && this.running) { this.snapPhoto = true; G.HUD.shutter(); if (this.audio && this.audio.one) try { this.audio.one('hitshort', 0.25, 2.4); } catch (e) {} }   // the camera: missions read snapPhoto this frame
     if (G.ORDERS[code] && this.wingmen && this.wingmen.length) this.order(G.ORDERS[code]);
     if (code === 'KeyY' && this.running && this.swapNear) this.takeParked(this.swapNear);
+    if (code === 'KeyB' && this.running && this.player && this.player.alive && !this.player.onGround) this.toggleSight();
+    if (code === 'Space' && this.sight) this.dropCrate();
     if (code === 'KeyF' && this.player && this.player.alive) { const P = this.player; P.flaps = !P.flaps; G.HUD.toast(P.flaps ? `Flaps down · ${Math.round(P.flapMax()/G.MPH)} mph max` : 'Flaps up'); }
     if (code === 'KeyG' && this.player && this.player.alive) G.HUD.toast(this.player.toggleGear());
     if (code === 'KeyM' && this.audio) G.HUD.toast(this.audio.toggleMute() ? 'Sound off' : 'Sound on');
@@ -193,6 +195,86 @@ G.Game = class {
     if (this.mission.onSwap) this.mission.onSwap(this, now, was);
     return now;
   }
+  /* ---- the bombsight: a window in the floor, a co-pilot on the stick, and crates to drop ----
+     Any plane whose chassis has bombsight:true and carries crates (P.packages > 0). B in the air opens and closes it.
+     The co-pilot holds height and speed; A/D talk him a few degrees left or right. The sight's computer knows the height,
+     the speed and the drag on a crate falling under its streamer; the wind it has to be told. Q/E swing the wind arrow,
+     W/S set its strength: read them off the smoke drifting from the drop zone. Space (or the trigger) lets a crate go.
+     Missions add drop zones with g.addDropZone({pos, label, onLand(g, crate, dist, zone)}) and set g.wind (V3, m/s);
+     gusts wander round it, so a perfect setting still isn't a sure thing. */
+  canSight(P = this.player){ return !!(P && P.alive && !P.onGround && (G.CHASSIS[P.L.chassis] || {}).bombsight && P.packages > 0); }
+  toggleSight(off){
+    const P = this.player;
+    if (this.sight || off) { if (!this.sight) return; this.sight = null; if (P) { this.aimYaw = Math.atan2(P.fwd.x, P.fwd.z); this.aimPitch = Math.asin(clamp(P.fwd.y, -1, 1)); } G.HUD.toast('Back on the stick'); return; }
+    if (!this.canSight(P)) { if (P && (G.CHASSIS[P.L.chassis] || {}).bombsight) G.HUD.toast(P.packages > 0 ? 'Get her in the air first' : 'No crates left aboard'); return; }
+    this.sight = {hdg:Math.atan2(P.fwd.x, P.fwd.z), alt:P.pos.y, wDir:this.sightWind ? this.sightWind.dir : 0, wSpd:this.sightWind ? this.sightWind.spd : 0, fov:40, thr:P.throttle};
+    G.HUD.toast('Bombsight · the co-pilot has her');
+  }
+  sightControl(dt){
+    const P = this.player, S = this.sight, k = this.keys, pad = G.pad && G.pad.active ? G.pad : null;
+    const steer = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0) + (pad ? pad.lx || 0 : 0);
+    S.hdg -= steer*0.06*dt;
+    S.wDir += ((k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0) + (pad ? pad.rx || 0 : 0))*1.1*dt;
+    S.wSpd = clamp(S.wSpd + ((k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0) - (pad ? pad.ry || 0 : 0))*3*dt, 0, 25);
+    this.sightWind = {dir:S.wDir, spd:S.wSpd};
+    // the co-pilot: level at the height you opened the sight, on the heading you're asking for
+    const pitch = clamp((S.alt - P.pos.y)*0.004, -0.12, 0.12), cp = Math.cos(pitch);
+    this.aimYaw = S.hdg; this.aimPitch = pitch; this.aimDir.set(Math.sin(S.hdg)*cp, Math.sin(pitch), Math.cos(S.hdg)*cp);
+    P.steer(this.aimDir); P.throttle += (S.thr - P.throttle)*Math.min(1, dt); P.fire = false; P.fireRk = false;
+    if (pad && pad.hold && pad.hold.fire && !this.padFire) this.dropCrate(); this.padFire = !!(pad && pad.hold && pad.hold.fire);
+  }
+  windAt(t){   // the wind with its gusts: strength and direction wander slowly round the mission's setting
+    const W = this.wind; if (!W) return tD.set(0, 0, 0);
+    const k = 1 + 0.22*Math.sin(t*0.13 + 1.7) + 0.09*Math.sin(t*0.71), a = 0.14*Math.sin(t*0.09 + 0.4);
+    const c = Math.cos(a), s = Math.sin(a); return tD.set((W.x*c - W.z*s)*k, 0, (W.x*s + W.z*c)*k);
+  }
+  crateStep(c, wind, dt){   // gravity, and drag on the streamer against the moving air
+    const rx = c.vel.x - wind.x, ry = c.vel.y, rz = c.vel.z - wind.z, sp = Math.hypot(rx, ry, rz), K = 0.012;
+    c.vel.x -= K*sp*rx*dt; c.vel.y -= (9.81 + K*sp*ry)*dt; c.vel.z -= K*sp*rz*dt; c.pos.addScaledVector(c.vel, dt);
+  }
+  /* where a crate let go now would land, on the wind the bombardier has dialled in */
+  predictCrate(out){
+    const P = this.player, S = this.sight; if (!P || !S) return null;
+    const w = new V3(Math.sin(S.wDir)*S.wSpd, 0, Math.cos(S.wDir)*S.wSpd), c = {pos:tA.copy(P.pos).add(tB.set(0, -2.5, 0)).clone(), vel:P.vel.clone()};
+    let t = 0; for (; t < 80; t += 0.05) { this.crateStep(c, w, 0.05); if (c.pos.y <= Math.max(this.world.height(c.pos.x, c.pos.z), 0.4)) break; }
+    S.fall = t; return (out || new V3()).copy(c.pos);
+  }
+  dropCrate(){
+    const P = this.player; if (!this.sight || !P || !(P.packages > 0)) return;
+    if ((this.crateCd || 0) > this.t) return; this.crateCd = this.t + 0.8;
+    P.packages--; const m = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.2), G.mat(0x8a6a3a, {roughness:0.9})); m.add(box);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.18, 1.25), G.mat(0xf1e9d6)); m.add(band);
+    const tail = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 4), new THREE.MeshBasicMaterial({color:0xe0742a, side:THREE.DoubleSide})); tail.position.y = 2.4; m.add(tail);
+    const c = {pos:P.pos.clone().add(new V3(0, -2.5, 0)), vel:P.vel.clone(), m, t:0, landed:false}; m.position.copy(c.pos); this.scene.add(m);
+    (this.crates || (this.crates = [])).push(c);
+    if (this.audio && this.audio.gear) this.audio.gear();
+    G.HUD.toast(`Crate away! ${P.packages} left`);
+    if (!P.packages) setTimeout(() => { if (this.sight) this.toggleSight(true); }, 2500);
+  }
+  addDropZone(o){
+    const z = Object.assign({label:'DROP ZONE', bull:23, good:60, smoke:true}, o), grp = new THREE.Group(), white = G.mat(0xf1ece0, {roughness:0.95}), red = G.mat(0xc0392b, {roughness:0.9});
+    grp.add(new THREE.Mesh(new THREE.BoxGeometry(34, 0.3, 5), white)); grp.add(new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 34), white));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(z.bull - 1.2, z.bull, 40), red); ring.rotation.x = -Math.PI/2; ring.position.y = 0.2; grp.add(ring);
+    z.pos.y = Math.max(this.world.height(z.pos.x, z.pos.z), 0.4); grp.position.copy(z.pos); this.scene.add(grp); z.obj = grp;
+    (this.dropZones || (this.dropZones = [])).push(z); return z;
+  }
+  cratesTick(dt){
+    const w = this.windAt(this.t);
+    for (const z of this.dropZones || []) if (z.smoke && !z.done && Math.random() < 0.7) this.fx.smoke.emit(z.pos.x + 20, z.pos.y + 1.5, z.pos.z, w.x*0.9, 2.2, w.z*0.9, 3.2, 7, 0.85, 0.2, 0.15, 0.55, 5, 0, 0);   // the smoke pot: red, and it leans with the wind
+    for (const c of this.crates || []) {
+      if (c.landed) continue;
+      c.t += dt; this.crateStep(c, w, dt); c.m.position.copy(c.pos);
+      const sp = c.vel.clone(); sp.y = Math.min(sp.y, -0.01); c.m.lookAt(tA.copy(c.pos).sub(sp)); c.m.rotateX(-Math.PI/2);
+      const gh = Math.max(this.world.height(c.pos.x, c.pos.z), 0.4);
+      if (c.pos.y > gh) continue;
+      c.landed = true; c.pos.y = gh + 0.45; c.m.position.copy(c.pos); c.m.rotation.set(0, Math.random()*6, 0); c.m.children[2].visible = false;
+      this.fx.smoke.emit(c.pos.x, c.pos.y + 1, c.pos.z, 0, 2, 0, 5, 1.6, 0.75, 0.68, 0.55, 0.6, 4, 0, 0);
+      let best = null, bd = 1e9; for (const z of this.dropZones || []) { const d = Math.hypot(c.pos.x - z.pos.x, c.pos.z - z.pos.z); if (d < bd) { bd = d; best = z; } }
+      const yd = Math.round(bd*1.0936), wet = this.world.height(c.pos.x, c.pos.z) < 0.4;
+      G.HUD.toast(wet ? `In the drink, ${yd} yd off` : best && bd <= best.bull ? `On the cross! ${yd} yd` : best && bd <= best.good ? `Delivered, ${yd} yd off` : `Missed by ${yd} yd`);
+      if (best && best.onLand) best.onLand(this, c, bd, best);
+    }
+  }
   /* runway rectangles: {pos, yaw, hw, hl} */
   runwayAt(p){
     for (const r of this.runways) {
@@ -225,6 +307,7 @@ G.Game = class {
   }
   playerControl(dt){
     const P = this.player, k = this.keys; if (!P || !P.alive) return;
+    if (this.sight) { this.sightControl(dt); return; }
     if (P.hover && !P.onGround) {
       const cp = Math.cos(this.aimPitch); this.aimDir.set(Math.sin(this.aimYaw)*cp, Math.sin(this.aimPitch), Math.cos(this.aimYaw)*cp);
       const turn = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0); if (turn) this.aimYaw -= turn*1.3*dt;
@@ -259,6 +342,7 @@ G.Game = class {
     dt = Math.min(dt, 0.05); this.t += dt;
     if (this.running) this.playerControl(dt);
     if (this.parkedSpots) this.swapTick(dt);
+    if (this.crates || this.dropZones) this.cratesTick(dt);
     if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; }
     else if (this.done && this.player && this.player.alive && !this.player.frozen) {
       const P = this.player, gh = P.pos.y - Math.max(this.world.height(P.pos.x, P.pos.z), 0.4);
@@ -280,6 +364,12 @@ G.Game = class {
   }
   updateCamera(dt){
     const P = this.player, cam = this.camera; if (!P) return;
+    if (this.sight && (!P.alive || P.onGround)) this.toggleSight(true);
+    if (this.sight) {   // the bombsight: straight down through the floor window, nose at the top of the picture
+      const f = tB.set(P.fwd.x, 0, P.fwd.z).normalize(); cam.position.copy(P.pos).addScaledVector(f, 3).add(tC.set(0, -2.6, 0));
+      cam.up.copy(f); cam.lookAt(tA.copy(cam.position).add(tC.set(0, -100, 0))); cam.up.set(0, 1, 0);
+      cam.fov += (this.sight.fov - cam.fov)*Math.min(1, dt*6); cam.updateProjectionMatrix(); this.camPos.set(0, 0, 0); return;
+    }
     const head = P.obj.getObjectByName('pilot');
     if (this.cine) { this.cine(dt, cam); if (head) head.visible = true; return; }
     const cockpit = this.view === 'cockpit' && P.alive && !this.lookBack;
