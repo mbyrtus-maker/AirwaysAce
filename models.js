@@ -3601,6 +3601,89 @@ G.buildSupplyCrate = () => {
   return g;
 };
 
+/* ---------- the parachute: a bailed-out flier, or a stores crate, under a gored silk canopy ----------
+   G.buildParachutist(o): o.kind 'pilot' (default) or 'cargo'; o.silk 'cream' | 'red' | 'olive' | 'cargo' (default: cargo chutes are
+   orange and white like the crate's drogue, pilots mostly cream and off-white with the odd faded red-and-white or olive); o.rand a
+   random source. Origin: the man's middle (his boots are 0.9 m below it) or the crate's centre; +Y up; the pilot faces +Z.
+   Pilot canopy: twelve gores, 3.2 m radius, skirt 5.4 m above the origin, crown vent, scalloped hem, twelve lines gathered to
+   four risers. Cargo canopy: the same silk at three-quarter size, twelve lines to a ring and a four-leg bridle on the crate.
+   userData for combat.js updateChutes: swing (Group pivoted at the canopy: tilt it and the whole rig swings like a pendulum),
+   rig (canopy and lines, pivoted where the lines gather: scale it to make the canopy breathe), man (the flier or crate, same pivot),
+   scarf ([root, tip] Groups, pilot only), t (a random phase so no two chutes move in step).
+   Geometry is built once and shared by every chute: an instance is about a dozen Mesh objects and no new buffers. */
+let CHUTE = null;
+const SILKS = {cream:[0xebe3cd, 0xbfae84, 0xa8875a], red:[0xb24a3c, 0xe6dfcb, 0x8a3428], olive:[0x6f7044, 0x9a9660, 0x4f5030], cargo:[0xe0742a, 0xe9e1cc, 0x2e2a24]};
+const silkMat = hex => G.mat(hex, {side:THREE.DoubleSide, roughness:0.9, emissive:hex, emissiveIntensity:0.1});   // a little light comes through silk
+function chuteParts(){
+  if (CHUTE) return CHUTE;
+  const geos = kit => kit.build(new THREE.Group()).children.map(m => [m.geometry, m.material]);
+  const N = 12, RH = 3.1, YH = -0.16, P = (a, r, y) => [Math.cos(a)*r, y, Math.sin(a)*r];
+  const face = (o, a, b, c) => {                                                                              // wound to face away from the canopy's middle
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const d = (uy*vz - uz*vy)*(a[0] + b[0] + c[0]) + (uz*vx - ux*vz)*(a[1] + b[1] + c[1] - 0.9) + (ux*vy - uy*vx)*(a[2] + b[2] + c[2]);
+    if (d < 0) tri(o, a, c, b); else tri(o, a, b, c); };
+  const q4 = (o, a, b, c, d) => { face(o, a, b, c); face(o, a, c, d); };
+  // the canopy, origin at the middle of the skirt: [radius at the seam, height, how far the gore bellies out between its seams]
+  const prof = [[0.46, 2.03, 0], [1.3, 1.84, 0.015], [2.28, 1.34, 0.03], [2.96, 0.66, 0.04], [3.2, 0.12, 0.04]], gA = [], gB = [], gT = [];
+  for (let j = 0; j < N; j++) { const a0 = (j + 0.5)*2*PI/N, a1 = a0 + 2*PI/N, am = (a0 + a1)/2, o = j % 2 ? gB : gA;
+    for (let i = 0; i < prof.length - 1; i++) { const [r, y, b] = prof[i], [r2, y2, b2] = prof[i + 1], m = P(am, r*(1 + b), y), m2 = P(am, r2*(1 + b2), y2);
+      q4(o, P(a0, r, y), m, m2, P(a0, r2, y2)); q4(o, m, P(a1, r, y), P(a1, r2, y2), m2); }
+    const [r, y, b] = prof[prof.length - 1], m = P(am, r*(1 + b), y), hm = P(am, r*(1 + b) - 0.03, y - 0.06);     // the hem: deep at the seams where the lines pull, shallow between
+    q4(gT, P(a0, r, y), m, hm, P(a0, RH, YH)); q4(gT, m, P(a1, r, y), P(a1, RH, YH), hm);
+    q4(gT, P(a0, 0.28, 2.06), P(a1, 0.28, 2.06), P(a1, 0.46, 2.03), P(a0, 0.46, 2.03)); }                       // the vent's collar; the hole is open
+  const mk = a => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a), 3)); geo.computeVertexNormals(); return geo; };
+  const cord = G.mat(0x4a4236, {roughness:1}), web = G.mat(0xb8ad84, {roughness:0.95});
+  const lines = (s, yc, to) => { const k = new Kit(); for (let j = 0; j < N; j++) { const a = (j + 0.5)*2*PI/N; k.add(wire(to(a), P(a, RH*s, YH*s + yc), 0.02), cord); } return geos(k)[0]; };
+
+  /* the flier. Pilot coordinates: origin at his middle, facing +Z; everything is shifted so the group pivots where the lines gather */
+  const OY = 0.3, PY = 1.42 + OY, dy = OY - PY, k = new Kit(), at = (x, y, z) => [x, y + dy, z], B = (w, h, d, x, y, z, mat, R) => k.add(box(w, h, d), mat, R ? mul(T(x, y + dy, z), R) : T(x, y + dy, z));
+  const jacket = G.mat(0x6a4526, {roughness:0.7}), hide = G.mat(0x35241a, {roughness:0.75}), jodh = G.mat(0xc2a36a, {roughness:0.9}), skin = G.mat(0xe0a67c, {roughness:0.8});
+  const fleece = G.mat(0xece4d0, {roughness:1}), lens = G.mat(0xb9d8e2, {roughness:0.2, metalness:0.2}), pack = G.mat(0x6f6a40, {roughness:1});
+  const ring4 = (w, d, y) => [[-w, y + dy, -d], [w, y + dy, -d], [w, y + dy, d], [-w, y + dy, d]];
+  k.add(loft([ring4(0.17, 0.105, -0.12), ring4(0.165, 0.1, 0.02), ring4(0.225, 0.13, 0.4), ring4(0.25, 0.12, 0.55), ring4(0.09, 0.08, 0.64)]), jacket);   // leather jacket
+  B(0.37, 0.09, 0.235, 0, -0.1, 0, hide);                                                                      // its knitted waistband
+  B(0.33, 0.22, 0.2, 0, -0.24, 0, jodh);                                                                       // seat of the jodhpurs
+  B(0.3, 0.075, 0.21, 0, 0.635, -0.01, fleece);                                                                // fleece collar and the knot of the scarf
+  k.add(ball(0.17, 6, 4), hide, T(0, 0.83 + dy, 0)); B(0.35, 0.15, 0.16, 0, 0.76, -0.01, hide);                // flying helmet and its ear flaps
+  B(0.2, 0.17, 0.1, 0, 0.775, 0.125, skin);                                                                    // face
+  B(0.27, 0.075, 0.06, 0, 0.855, 0.15, INK()); for (const s of [1, -1]) B(0.1, 0.06, 0.03, s*0.065, 0.855, 0.178, lens);   // goggles
+  for (const s of [1, -1]) {                                                                                   // arms up, gloved hands on the risers
+    k.add(tube(at(s*0.27, 0.5, 0), at(s*0.4, 0.84, 0.1), 0.08, 5, true, 0.068), jacket); k.add(tube(at(s*0.4, 0.84, 0.1), at(s*0.25, 1.17, 0.02), 0.068, 5, true, 0.055), jacket);
+    B(0.1, 0.14, 0.24, s*0.245, 1.2, 0, hide);
+    for (const z of [1, -1]) k.add(bar([s*0.26, 0, z*0.1], at(s*0.16, 0.56, z*0.115), 0.05, 0.02), web);       // risers
+    k.add(bar(at(s*0.16, 0.56, 0.125), at(s*0.11, -0.08, 0.115), 0.05, 0.02), web); }                          // harness down the chest
+  B(0.46, 0.05, 0.275, 0, 0.3, 0, web); B(0.34, 0.3, 0.1, 0, -0.16, -0.16, pack);                              // chest strap; the empty seat pack
+  const leg = (s, kx, ky, kz, ax, ay, az) => {                                                                 // jodhpurs flared at the thigh, tall boots, toes hanging
+    k.add(tube(at(s*0.1, -0.3, 0), at(kx, ky, kz), 0.158, 5, true, 0.082), jodh); k.add(tube(at(kx, ky, kz), at(ax, ay, az), 0.085, 5, true, 0.068), hide);
+    B(0.12, 0.09, 0.27, ax, ay - 0.05, az + 0.06, hide, RX(0.55)); };
+  leg(1, 0.14, -0.7, 0.2, 0.13, -1.09, 0.02); leg(-1, -0.12, -0.75, 0.03, -0.14, -1.13, -0.12);
+  const sc = []; [[0.1, 0, 0], [0.1, 0.18, 0.07], [0.09, 0.36, -0.05], [0.075, 0.55, 0.03]].forEach((p, i, a) => { if (i) { const q = a[i - 1]; quad(sc, [-q[0], q[1], q[2]], [q[0], q[1], q[2]], [p[0], p[1], p[2]], [-p[0], p[1], p[2]]); } });   // one length of scarf
+  /* the stores: G.buildSupplyCrate's crate hangs PYC below the ring its bridle and the canopy's lines meet at */
+  const PYC = 1.4, bk = new Kit();
+  for (const sx of [1, -1]) for (const sz of [1, -1]) bk.add(wire([0, 0, 0], [sx*0.54, 0.45 - PYC, sz*0.54], 0.02), cord);
+  bk.add(xf(torus(0.09, 0.025, 6, 3), RX(PI/2)), cord);
+  return (CHUTE = {can:[mk(gA), mk(gB), mk(gT)],
+    pilot:{py:PY, yc:5.4, s:1, lines:lines(1, 5.4 - PY, a => [Math.sign(Math.cos(a))*0.26, 0, Math.sign(Math.sin(a))*0.1]), fig:geos(k), scarf:mk(sc), neck:[0, 0.66 + dy, -0.1]},
+    cargo:{py:PYC, yc:4.3, s:0.75, lines:lines(0.75, 4.3 - PYC, () => [0, 0, 0]), fig:geos(bk)}});
+}
+G.buildParachutist = (o = {}) => {
+  const C = chuteParts(), cargo = o.kind === 'cargo', K = cargo ? C.cargo : C.pilot, rnd = o.rand || Math.random, r = rnd();
+  const cols = SILKS[o.silk] || (cargo ? SILKS.cargo : r < 0.7 ? SILKS.cream : r < 0.86 ? SILKS.red : SILKS.olive);
+  const g = new THREE.Group(), swing = new THREE.Group(), rig = new THREE.Group(), can = new THREE.Group(), man = new THREE.Group();
+  const put = (to, geo, mat) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; to.add(m); return m; };
+  C.can.forEach((geo, i) => put(can, geo, silkMat(cols[i]))); can.position.y = K.yc - K.py; can.scale.setScalar(K.s);
+  rig.add(can); put(rig, K.lines[0], K.lines[1]);
+  for (const p of K.fig) put(man, p[0], p[1]);
+  let scarf = null;
+  if (cargo) { const c = G.buildSupplyCrate(); c.remove(c.userData.streamer); c.position.y = -K.py; man.add(c); }
+  else { const m = silkMat(0xece4d0), a = new THREE.Group(), b = new THREE.Group();                             // the white scarf, streaming up and back
+    put(a, K.scarf, m); put(b, K.scarf, m); a.position.set(K.neck[0], K.neck[1], K.neck[2]); b.position.set(0, 0.55, 0.03); b.scale.setScalar(0.85); a.add(b); man.add(a); scarf = [a, b];
+    a.rotation.set(-1.0, 0.6, 0); b.rotation.set(0.4, 0.8, 0); }
+  swing.position.y = K.yc; rig.position.y = man.position.y = K.py - K.yc; swing.add(rig); swing.add(man); g.add(swing);
+  g.userData = {kind:cargo ? 'cargo' : 'pilot', swing, rig, man, scarf, t:rnd()*40, radius:3.3*K.s, top:K.yc + 2.1*K.s};
+  return g;
+};
+
 /* G.buildDropZone(o): what the ground crew laid out, flat on the ground round the zone's centre (the origin). Local +X is east.
    A cross of whitewashed canvas panels on dark tarpaulin, weighted with stones, a red aiming square in the middle and a drum at
    the end of each arm; a dashed ring of red cloth and whitewashed stones with its outer edge at the bullseye radius o.bull;

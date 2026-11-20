@@ -507,13 +507,9 @@ G.Combat = {
     setTimeout(() => { if (G.game === this) G.UI.redocked(this); }, 2600);
   },
 
-  /* ---------- Parachutes: shot-down pilots float home (mostly) ---------- */
-  spawnChute(pos, vel){
-    const g = new THREE.Group();
-    const can = new THREE.Mesh(new THREE.SphereGeometry(3.2, 8, 4, 0, Math.PI*2, 0, Math.PI/2).scale(1, 0.55, 1), G.mat(0xf1ece0, {side:THREE.DoubleSide}));
-    can.position.y = 5; g.add(can);
-    const man = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.4), G.mat(0x5a3a22)); g.add(man);
-    for (let i = 0; i < 4; i++) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 5, 3), G.mat(0x444444)); const a = i*Math.PI/2 + 0.78; l.position.set(Math.cos(a)*1.4, 2.6, Math.sin(a)*1.4); l.rotation.set(Math.sin(a)*0.5, 0, -Math.cos(a)*0.5); g.add(l); }
+  /* ---------- Parachutes: shot-down pilots float home (mostly). The art is G.buildParachutist in models.js; o.kind 'cargo' hangs a stores crate instead ---------- */
+  spawnChute(pos, vel, o){
+    const g = G.buildParachutist(o);
     g.position.copy(pos); this.scene.add(g);
     this.chutes.push({g, vel:vel.clone().multiplyScalar(0.3), t:30});
   },
@@ -521,6 +517,12 @@ G.Combat = {
     for (let i = this.chutes.length - 1; i >= 0; i--) {
       const c = this.chutes[i]; c.t -= dt; c.vel.multiplyScalar(1 - dt*0.9); c.vel.y = Math.max(c.vel.y - 9.8*dt, -5.5);
       c.g.position.addScaledVector(c.vel, dt); c.g.rotation.y += dt*0.3;
+      const u = c.g.userData;
+      if (u.swing) { const t = (u.t += dt), br = Math.sin(t*2.3);                                             // a little life: pendulum swing, the canopy breathing, the scarf snapping
+        u.swing.rotation.x = Math.sin(t*1.4)*0.09; u.swing.rotation.z = Math.sin(t*1.15 + 1.3)*0.07;
+        u.man.rotation.x = Math.sin(t*2.1 + 0.6)*0.07; u.man.rotation.y = Math.sin(t*0.7)*0.12;
+        u.rig.scale.set(1 + br*0.025, 1 - br*0.018, 1 + br*0.025);
+        if (u.scarf) { u.scarf[0].rotation.x = -1.0 + Math.sin(t*9)*0.22; u.scarf[0].rotation.y = 0.6 + Math.sin(t*6.3)*0.5; u.scarf[1].rotation.x = 0.4 + 0.4*Math.sin(t*11 + 2); } }
       const gh = Math.max(this.world.height(c.g.position.x, c.g.position.z), 0.4);
       if (c.g.position.y < gh + 0.8 || c.t <= 0) { this.scene.remove(c.g); this.chutes.splice(i, 1); }
     }

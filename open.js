@@ -1912,7 +1912,7 @@ ENG.errand = (O, def) => {
       const ok = dH < 90 && agl < 70 && P.speed < 150*MPH;
       g.markers.push({pos:at.clone().setY(at.y + 8), label:dH < 600 ? `DROP ZONE${agl < 70 ? ' · alt ✓' : ' · under 230 ft'}${P.speed < 150*MPH ? ' · speed ✓' : ' · under 150 mph'}` : `DROP · ${name.toUpperCase()}`, col:ok ? '#9ef0a0' : '#f2c14e'});
       if (Math.random() < dt*4) g.fx.fire.emit(at.x, at.y + 1, at.z, 0, 4, 0, 3.2, 0.5, 1, 0.3, 0.2, 1, 0, 1, 2);
-      if (ok) { g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel); G.HUD.toast('Cargo away!'); done(); }
+      if (ok) { g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel, {kind:'cargo'}); G.HUD.toast('Cargo away!'); done(); }
     } else if (l.how === 'near') {
       g.markers.push({pos:at.clone().setY(at.y + 40), label:J.i === 0 && !def.time ? 'CLUE' : name.toUpperCase(), col:'#f2c14e', edgeOnly:!!l.riddle && dH > 1500, noDist:!!l.riddle && dH > 1500});
       if (dH < (l.r || 220) && agl < 420) done();

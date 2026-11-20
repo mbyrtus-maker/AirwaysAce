@@ -371,7 +371,7 @@ G.MISSIONS.c8m1 = EP({
       if (!c.fed) {
         const dH = Math.hypot(P.pos.x - c.at.x, P.pos.z - c.at.z), agl = P.pos.y - ground(g, P.pos.x, P.pos.z), ok = dH < 90 && agl < 70 && P.speed < 150*0.44704;
         g.markers.push({pos:c.at.clone().setY(c.at.y + 10), label:dH < 600 ? `DROP · ${agl < 70 ? 'alt ✓' : 'under 230 ft'} · ${P.speed < 150*0.44704 ? 'speed ✓' : 'under 150 mph'}` : `CAMP · ${c.name.toUpperCase()}`, col:'#ff6a3a'});
-        if (ok) { c.fed = true; g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel); G.HUD.toast('Supplies away!'); if (g.audio) g.audio.ding(); G.HUD.radio('Survey party', G.pick(['Got it! Blankets and coffee! God bless you!', 'Crate\'s down, right on the flare. We\'ll hold out now.', 'Supplies! Tell the blimp we\'re ready to go.'])); }
+        if (ok) { c.fed = true; g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel, {kind:'cargo'}); G.HUD.toast('Supplies away!'); if (g.audio) g.audio.ding(); G.HUD.radio('Survey party', G.pick(['Got it! Blankets and coffee! God bless you!', 'Crate\'s down, right on the flare. We\'ll hold out now.', 'Supplies! Tell the blimp we\'re ready to go.'])); }
       }
     }
     // the St. Bernard goes round the camps, hovers to winch each party up, then makes for the lodge

@@ -91,7 +91,7 @@ const drop = (m, g, at, label) => {
   const P = g.player, dH = Math.hypot(P.pos.x - at.x, P.pos.z - at.z), agl = P.pos.y - ground(g, P.pos.x, P.pos.z), ok = dH < 90 && agl < 70 && P.speed < 150*MPH;
   g.markers.push({pos:at.clone().setY(at.y + 10), label:dH < 600 ? `DROP · ${agl < 70 ? 'alt ✓' : 'under 230 ft'} · ${P.speed < 150*MPH ? 'speed ✓' : 'under 150 mph'}` : `DROP · ${label}`, col:ok ? '#9ef0a0' : '#f2c14e'});
   if (Math.random() < 0.15) g.fx.fire.emit(at.x, at.y + 1, at.z, 0, 4, 0, 3, 0.4, 1, 0.3, 0.2, 1, 0, 1, 2);
-  if (ok) { g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel); if (g.audio) g.audio.ding(); }
+  if (ok) { g.spawnChute(P.pos.clone().add(new V3(0, -3, 0)), P.vel, {kind:'cargo'}); if (g.audio) g.audio.ding(); }
   return ok;
 };
 
