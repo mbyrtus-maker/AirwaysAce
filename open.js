@@ -738,9 +738,9 @@ function buildCave(C){
   return g;
 }
 function ringMesh(R, kind){
-  const g = new THREE.Group(), col = kind === 'boost' ? 0x5fe08a : kind === 'start' ? 0xf2c14e : 0xe0583a;
+  const g = new THREE.Group(), col = kind === 'start' ? 0xf2c14e : 0xe0583a;
+  if (kind === 'boost') { g.add(G.buildBoostRing(R - 0.7)); return g; }   // the boost ring is its own hoop now: same opening the plain torus had
   g.add(new THREE.Mesh(new THREE.TorusGeometry(R, 0.7, 6, 30), new THREE.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:0.6, roughness:0.5})));
-  if (kind === 'boost') g.add(G.buildBoostRing(R - 1.8));
   return g;
 }
 

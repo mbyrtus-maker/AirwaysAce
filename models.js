@@ -2076,16 +2076,40 @@ G.buildViaduct = (len, deckY, heights, o = {}) => {
   k.build(g); g.userData = {span, n, x0, x1}; return g;
 };
 
-/* Air-race gate: two striped pylons with a pennant line between, numbered by a brass disc on each pylon. */
+/* Air-race gate, the pylons of the island derbies: two chequered timber pylons, red and white, square and tapering, each on a
+   stone footing with a brass ball and a red beacon on its cap and marker lamps up its faces, and between their heads a canvas
+   banner lettered with the meeting's name (painted by day, lit after dark; both faces), chequered at the ends, with a row of
+   bulbs along its foot. The opening is the caller's: nothing hangs below `height`, and the pylons stand no further into
+   `width` than the old striped poles did (1.4 m). The pylons run 4.8 m above `height` to carry the banner; the beacons top
+   out near height + 7.5. Lamps follow the world being built (dayNow). userData: width, height. */
+const RACE_NAME = 'GOLDEN GULL AIR DERBY';
 G.buildGate = (width = 46, height = 34) => {
-  const g = new THREE.Group(), k = new Kit(), red = G.mat(0xc0392b), white = G.mat(0xf1e9d6);
+  const g = new THREE.Group(), k = new Kit(), K = new Mix(k), L = new Tint(), day = dayNow(), fit = new G.Fittings({day}), LC = G.LAMP, dim = hex => shade(hex, 1 - 0.2*day);
+  const red = 0xc0392b, white = 0xf1e9d6, ink = 0x151312, canvas = 0xe9dfc4, stone = 0x8f8676, PT = height + 4.8, X = width/2 + 0.5, hw = y => 1.9 - 0.9*Math.max(0, y)/PT;
+  const glow = (p, hex, r, big) => { L.add(gem(r, r*2.3), dim(hex), T(p[0], p[1], p[2])); fit.halo(p, hex, big); };
+  const tiers = Math.max(6, Math.round(PT/3.3)), th = PT/tiers;
   for (const sx of [1, -1]) {
-    for (let i = 0; i < 6; i++) k.add(cyl(1.2, 1.4, height/6, 8), i % 2 ? white : red, T(sx*width/2, (i + 0.5)*height/6, 0));
-    k.add(ball(1.6, 8, 4), BRASS(), T(sx*width/2, height + 0.8, 0));
+    const cx = sx*X;
+    for (let i = 0; i < tiers; i++) { const y0 = i*th, y1 = y0 + th, a = hw(y0), b = hw(y1), face = face4([-a, y0, a], [a, y0, a], [b, y1, b], [-b, y1, b]);
+      for (let f = 0; f < 4; f++) K.add(face, (i + f) % 2 ? white : red, mul(T(cx, 0, 0), RY(f*PI/2))); }
+    K.add(box(3.8, 4, 3.8), stone, T(cx, -1.6, 0));                                                               // the footing, sunk well in: a gate may stand on a slope
+    K.add(box(2*hw(PT) + 0.5, 0.36, 2*hw(PT) + 0.5), ink, T(cx, PT + 0.18, 0));
+    k.add(ball(0.8, 8, 4), BRASS(), mul(T(cx, PT + 1.1, 0), RX(PI/2)));
+    glow([cx, PT + 2.3, 0], LC.RED, 0.42, true);
+    for (const f of [0.2, 0.4, 0.6, 0.8]) for (const sz of [1, -1]) glow([cx, PT*f, sz*(hw(PT*f) + 0.32)], LC.WARM, 0.3);
   }
-  for (let i = 0; i < 12; i++) { const x = -width/2 + (i + 0.5)*width/12; k.add(poly([[-1.4, 0], [1.4, 0], [0, -2.6]]), i % 2 ? red : BRASS(), T(x, height - 0.2, 0)); k.add(xf(poly([[-1.4, 0], [1.4, 0], [0, -2.6]]), RY(PI)), i % 2 ? red : BRASS(), T(x, height - 0.2, 0)); }
-  k.add(tube([-width/2, height, 0], [width/2, height, 0], 0.08, 4), DARK());
-  k.build(g); g.userData = {width, height}; return g;
+  /* the banner: wholly above the opening */
+  const yb = height + 0.7, bd = PT - 0.5 - yb, ym = yb + bd/2, BW = 2*(X - hw(ym)) + 0.3, c = (bd - 0.56)/3, zf = 0.13;
+  K.add(box(BW, bd, 0.14), canvas, T(0, ym, 0));
+  for (const y of [yb + 0.14, yb + bd - 0.14]) K.add(box(BW, 0.28, 0.2), red, T(0, y, 0));
+  for (const e of [1, -1]) for (const s of [0, PI]) for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++)
+    K.add(rect(c, c), (i + j) % 2 ? ink : white, mul(RY(s), T(e*(BW/2 - 0.7 - (i + 0.5)*c), yb + 0.28 + (j + 0.5)*c, zf)));
+  const sw = Math.min((bd - 0.9)*8, BW - 2*(2*c + 1.6)), lit = day < 0.75;
+  const sm = signMesh(lit ? nameTex(RACE_NAME, '#ffe2a0', '#ffb347') : nameTex(RACE_NAME, '#1f3b6b', '#c0392b'), [0, PI].map(s => [mul(RY(s), T(0, ym, zf)), sw, sw/8]), lit); if (sm) g.add(sm);
+  const nb = Math.max(4, Math.round(BW/2.3));
+  for (let i = 0; i < nb; i++) glow([-BW/2 + (i + 0.5)*BW/nb, yb - 0.25, 0], i % 2 ? LC.AMBER : LC.WARM, 0.24);
+  K.build(g); L.build(g, TINTLAMP()); fit.build(g);
+  g.userData = Object.assign(g.userData, {width, height}); return g;
 };
 
 /* What is left of a Black Lantern fighter, for the fog search: found floating or strewn on a hillside, so everything sits
@@ -2594,27 +2618,115 @@ G.buildWindmill = () => {
   return g;
 };
 
-/* The Meridian: a silver record-racer lying broken on a mountainside, one wing torn off, smoke rising from the cowling. */
+/* The Meridian: Cyrus Vane's silver record-racer, No. 7, eight years broken on a mountainside. She lies nose down and one
+   wing low about the origin: a barrel fuselage in silver with a blue and gold speed stripe and the gold 7 on a blue disc on
+   her flank, an open cockpit with its headrest, a blue fin with the 7 on it; the cowling gone, so the radial stands bare and
+   scorched with its collector ring, one airscrew blade folded back and the other snapped short, soot and oil down the
+   flanks and on the ground under her. The starboard wing is still on, buckled at the gold tip, its number uppermost; the
+   port wing was torn off at the root (ribs and spar stubs at the break) and lies behind her. Round about: the cowling ring,
+   a cowl panel, torn skin, wing ribs, an aileron, the blade, a wheel on its leg and a wheel still in its spat, and the
+   crated prototype engine she was carrying, stencilled, lid sprung. Embers glow in the engine, with a halo after dark.
+   Nothing is more than 8 m from the origin or 4.2 m high. userData.smoke (V3, from the origin): where callers raise smoke. */
 G.buildWreckRacer = () => {
-  const g = new THREE.Group(), plane = G.buildPlane('gallant', [0xc8ced4, 0x1f3b6b, 0xdba63e]);
-  plane.rotation.set(0.32, 0.6, 0.42); plane.position.y = 0.6; g.add(plane);   // nose dug in, one wing low
-  const pilot = plane.getObjectByName('pilot'); if (pilot) pilot.visible = false;
-  if (plane.userData.prop) plane.userData.prop.rotation.z = 0.4;
-  const k = new Kit(), silver = G.mat(0xc8ced4, {metalness:0.4, roughness:0.35});
-  k.add(box(4.5, 0.25, 1.6), silver, mul(T(-7, 0.4, -3), RY(1.1), RZ(0.3)));                     // the torn wing, lying apart
-  for (let i = 0; i < 7; i++) k.add(box(0.6 + Math.random(), 0.15, 0.4 + Math.random()), silver, T((Math.random() - 0.5)*14, 0.2, (Math.random() - 0.5)*14));
-  k.add(box(1.4, 1.0, 1.0), G.mat(0x6b5a3a), T(3, 0.5, -2)); k.add(box(1.5, 0.12, 1.1), G.mat(0x8a6a44), T(3, 1.06, -2));   // the engine crate
-  k.build(g); g.userData = {smoke:new V3(0.5, 2.5, 2.5)};
+  const g = new THREE.Group(), k = new Kit(), K = new Mix(k), R = lcg(1929), day = dayNow();
+  const silver = 0xc8ced4, dull = 0x8d9399, blue = 0x1f3b6b, gold = 0xdba63e, soot = 0x35302c, char = 0x1c1a19, oil = 0x0e0d0c, steel = 0x6c737a, dk = 0x26221f, spruce = 0xb89a64, rust = 0x8c3b28, wood = 0x8a6a44, wood2 = 0xa07c46, wood3 = 0x5e4a30;
+  const flip = tris => { const o = tris.slice(); for (let i = 0; i < o.length; i += 9) for (let j = 0; j < 3; j++) { o[i+3+j] = tris[i+6+j]; o[i+6+j] = tris[i+3+j]; } return o; };
+  const seven = h => xf([...poly([[-0.31, 0.5], [-0.31, 0.3], [0.31, 0.3], [0.31, 0.5]]), ...poly([[0.31, 0.3], [0.05, 0.3], [-0.22, -0.5], [0.04, -0.5]]), ...poly([[-0.31, 0.3], [-0.31, 0.14], [-0.19, 0.14], [-0.19, 0.3]])], SC(h, h, 1));
+  const badge = r => [[disc(r, 12), gold], [disc(r*0.86, 12), blue], [seven(r*1.12), gold]];
+  /* a piece of curved skin: an arc of a barrel of radius r about Z, torn along its far edge; outside in paint, inside bare */
+  const skin = (r, half, len, n, hex, M, inner = dull) => { const o = [], A = j => PI/2 - half + j*2*half/n, jag = []; for (let j = 0; j <= n; j++) jag.push(len*(0.75 + R()*0.5));
+    for (let j = 0; j < n; j++) quad(o, [Math.cos(A(j))*r, Math.sin(A(j))*r, 0], [Math.cos(A(j + 1))*r, Math.sin(A(j + 1))*r, 0], [Math.cos(A(j + 1))*r, Math.sin(A(j + 1))*r, jag[j + 1]], [Math.cos(A(j))*r, Math.sin(A(j))*r, jag[j]]);
+    const Mm = mul(M, T(0, -r*Math.cos(half), 0)); K.add(flip(o), hex, Mm); K.add(o, inner, Mm); };
+  const PM = mul(T(-0.6, 1.1, 0.9), RY(0.6), RX(0.38), RZ(0.24)), SY = 1.08, c8 = Math.cos(PI/8);
+  const P = (tris, c, M) => K.add(tris, c, M ? mul(PM, M) : PM), P2 = (tris, c) => { P(tris, c); P(tris, c, MIRX); };
+  /* ---- the fuselage ---- */
+  const F = [[0.05, -3.4], [0.2, -3.0], [0.42, -2.1], [0.66, -1.0], [0.8, 0.1], [0.84, 1.0], [0.8, 1.5]];
+  [[-3.4, -2.5, silver], [-2.5, -2.2, blue], [-2.2, -2.12, gold], [-2.12, 1.15, silver], [1.15, 1.5, soot]].forEach(([a, b, c]) => P(lathe(cut(F, a, b), 8, 1, SY, false), c));
+  P2(stripe(F, -2.12, 1.15, -0.13, 0.11, 1, SY, 8), blue); P2(stripe(F, -2.12, 1.15, 0.14, 0.2, 1, SY, 8), gold);
+  P(xf(disc(0.8, 8), mul(T(0, 0, 1.5), SC(1, SY, 1))), char);
+  [[1, 0.5], [2, 0.15], [3, 0.7]].forEach(([j, z0]) => P(facet(F, z0, 1.15, j, -0.2 - R()*0.1, 0.2 + R()*0.1, 1, SY, 8, 0.02), soot));          // scorch running aft from the firewall
+  P(facet(F, -0.9, 1.15, 0, -0.37, -0.2, 1, SY, 8, 0.02), oil); P(facet(F, -1.4, 1.15, 4, 0.18, 0.37, 1, SY, 8, 0.02), oil); P(facet(F, -0.3, 1.15, 7, -0.3, 0.1, 1, SY, 8, 0.02), oil);   // oil thrown back down both flanks
+  { const z = -1.5, x = rAt(F, z)*c8 + 0.035, d = 0.2;                                                         // the race number, either flank
+    K.decal(mul(PM, T(x, 0, z), RY(PI/2 + d)), badge(0.25)); K.decal(mul(PM, T(-x, 0, z), RY(-PI/2 - d)), badge(0.25)); }
+  P(facet(F, -0.8, 0.05, 2, -0.3, 0.3, 1, SY, 8, 0.02), char);                                                  // the cockpit, open
+  P(loft([[[-0.2, 0.66, -0.8], [0.2, 0.66, -0.8], [0.13, 1.0, -0.8], [-0.13, 1.0, -0.8]], [[-0.06, 0.4, -2.05], [0.06, 0.4, -2.05], [0.04, 0.46, -2.05], [-0.04, 0.46, -2.05]]]), blue);
+  for (const s of [1, -1]) P(bar([s*0.3, 0.78, 0.08], [s*0.17, 1.14, -0.1], 0.04), steel); P(bar([-0.19, 1.14, -0.1], [0.19, 1.14, -0.1], 0.04), steel);
+  /* ---- the tail ---- */
+  const fin = t => [0.3 + 1.15*t, 1.15 - 0.5*t, 0.08, -2.7 - 0.3*t, 0], tp = t => [0.1 + 1.4*t, 0.95 - 0.4*t, 0.07, -2.75 - 0.15*t, 0.12];
+  P(pan(fin, 0, 0.72), blue, RZ(PI/2)); P(pan(fin, 0.72, 1), gold, RZ(PI/2)); P(tipOf(fin, 0.12, 0.6), gold, RZ(PI/2));
+  P2(pan(tp, 0, 0.7), silver); P2(pan(tp, 0.7, 1), blue); P2(tipOf(tp, 0.12, 0.6), blue);
+  for (const s of [1, -1]) K.add(seven(0.52), gold, mul(PM, T(s*0.055, 0.74, -2.84), RY(s*PI/2)));
+  /* ---- the wings: starboard still on and buckled, port a stub ---- */
+  const wf = t => [0.55 + 3.3*t, 1.75 - 0.75*t, 0.2 - 0.08*t, 0.35 - 0.25*t, -0.42 + 0.12*t], w6 = wf(0.6), BM = mul(MIRX, T(w6[0], w6[4], 0), RZ(0.45), T(-w6[0], -w6[4], 0));
+  const top = (t, z = 0.025) => { const s = wf(t); return [s[0], s[4] + s[2]*0.5 + 0.014, s[3] + s[1]*z]; }, rib = (M, s, hex = spruce) => K.add(box(0.04, s[2]*0.86, s[1]*0.8), hex, mul(M, T(s[0], s[4], s[3])));
+  P(pan(wf, 0, 0.5), silver, MIRX); P(pan(wf, 0.5, 0.6), blue, MIRX); P(pan(wf, 0.6, 1), gold, BM); P(tipOf(wf, 0.2, 0.55), gold, BM);
+  { const a = top(0.3); K.decal(mul(PM, onTop(-a[0], a[1], a[2])), badge(0.4)); }
+  P(facet(F, 0.3, 1.15, 5, -0.3, 0.3, 1, SY, 8, 0.02), oil);
+  { const s = wf(0.14); P(pan(wf, 0, 0.14), silver); rib(PM, s);
+    for (const z of [0.35, -0.3]) P(tube([s[0] - 0.05, s[4], s[3] + z], [s[0] + 0.45 + R()*0.4, s[4] + 0.05, s[3] + z], 0.045, 5), steel);
+    P(poly([[0, 0.75], [0, 0.2], [0.5, 0.55]]), silver, mul(T(s[0], s[4] + s[2]*0.5, s[3]), RX(-PI/2), RZ(PI))); P(poly([[0, -0.1], [0, -0.7], [0.34, -0.35]]), silver, mul(T(s[0], s[4] + s[2]*0.5, s[3]), RX(-PI/2), RZ(PI))); }
+  /* ---- the engine, cowling gone: crankcase, seven pots, the collector ring, what is left of the airscrew ---- */
+  P(lathe([[0.26, 1.5], [0.36, 1.62], [0.36, 2.05], [0.2, 2.28]], 8), steel);
+  for (let i = 0; i < 7; i++) P(box(0.2, 0.44, 0.26), i % 3 ? dk : char, mul(T(0, 0, 1.84), RZ(i*2*PI/7), T(0, 0.56, 0)));
+  P(torus(0.62, 0.05, 10, 3), rust, T(0, 0, 1.58));
+  P(lathe([[0.15, 2.28], [0.19, 2.42], [0.12, 2.6], [0.04, 2.66]], 6), gold);
+  { const B = mul(RZ(0.5), T(0, 0, 2.46)); P(box(0.2, 0.55, 0.05), dk, mul(B, T(0, 0.42, 0), RY(0.4)));          // one blade folded back, one snapped off short
+    P(box(0.2, 0.62, 0.05), dk, mul(B, T(0, 0.69, 0), RX(-1.15), T(0, 0.31, 0), RY(0.4))); P(box(0.17, 0.16, 0.05), gold, mul(B, T(0, 0.69, 0), RX(-1.15), T(0, 0.7, 0), RY(0.4)));
+    P(box(0.2, 0.36, 0.05), dk, mul(B, RZ(PI), T(0, 0.34, 0), RY(0.4))); P(poly([[-0.1, 0], [0.1, 0], [0.04, 0.2]]), dk, mul(B, RZ(PI), T(0, 0.52, 0.026), RY(0.4))); P(poly([[0.1, 0], [-0.1, 0], [0.04, 0.2]]), dk, mul(B, RZ(PI), T(0, 0.52, -0.026), RY(0.4))); }
+  for (const [x, y, z] of [[0.2, 0.34, 1.9], [-0.26, 0.2, 1.74], [0.05, 0.42, 1.66]]) k.add(gem(0.09, 0.14), lamp(0xff6a2a), mul(PM, T(x, y, z)));
+  /* ---- the port wing, torn off, lying behind her with its number to the sky ---- */
+  { const WM = mul(T(1.3, 0.3, -5.3), RY(-2.2), RZ(-0.05), T(-2.5, 0.4, -0.2)), s = wf(0.16), a = top(0.36);
+    K.add(pan(wf, 0.16, 0.5), silver, WM); K.add(pan(wf, 0.5, 0.6), blue, WM); K.add(pan(wf, 0.6, 1), gold, WM); K.add(tipOf(wf, 0.2, 0.55), gold, WM);
+    rib(WM, s); for (const z of [0.35, -0.3]) K.add(tube([s[0] - 0.4 - R()*0.4, s[4], s[3] + z], [s[0] + 0.1, s[4], s[3] + z], 0.045, 5), steel, WM);
+    K.add(poly([[0, 0.7], [-0.45, 0.4], [0, 0.15]]), silver, mul(WM, T(s[0], s[4] + s[2]*0.5, s[3]), RX(-PI/2), RZ(PI)));
+    K.decal(mul(WM, onTop(a[0], a[1], a[2])), badge(0.4)); }
+  /* ---- strewn about: cowling, skin, ribs, wheels, an aileron, the blade ---- */
+  { const CM = mul(T(3.8, 0.62, 4.0), RY(-0.7), RX(1.2), SC(1, 0.84, 1)), C = [[0.84, -0.45], [0.9, -0.05], [0.88, 0.3]], Lp = [[0.88, 0.3], [0.74, 0.44]], sm = SC(0.96, 0.96, 1);
+    K.add(lathe(C, 10, 1, 1, false), blue, CM); K.add(lathe(Lp, 10, 1, 1, false), gold, CM); K.add(flip(lathe([...C, Lp[1]], 10, 1, 1, false)), soot, mul(CM, sm)); }
+  skin(0.9, 0.62, 0.8, 3, blue, mul(T(-2.7, 0.02, 4.7), RY(0.9)), soot);
+  for (const [x, z, r, len, hex] of [[5.6, 1.9, 1.3, 0.9, silver], [-5.2, 2.4, 1.6, 1.2, silver], [-3.6, -4.1, 1.2, 0.8, blue], [4.3, -5.4, 1.5, 1.0, silver], [0.4, 6.2, 1.1, 0.7, silver]]) skin(r, 0.34 + R()*0.14, len, 2, hex, mul(T(x, 0.02, z), RY(R()*6.3), RZ((R() - 0.5)*0.3)));
+  for (const [x, z, c] of [[-3.3, 6.1, 1.3], [5.9, -1.7, 1.1], [-6.4, -1.2, 0.9]]) K.add(loft([foil(0, c, c*0.13, 0, 0), foil(0.035, c, c*0.13, 0, 0)]), spruce, mul(T(x, 0.05, z), RY(R()*6.3), RZ(PI/2)));
+  { const SM = mul(T(-4.7, 0.2, -1.9), RY(1.9), RZ(1.4));                                                       // a wheel still in its spat
+    K.add(lathe(SPAT, 8, 0.44, 1), gold, SM); K.add(cyl(0.3, 0.3, 0.17, 8), dk, mul(SM, T(0, -0.3, 0.05), RZ(PI/2))); K.add(tube([0, 0.3, 0], [0.1, 0.95, -0.1], 0.05, 5), steel, SM); }
+  { const M = mul(T(5.0, 0.12, -0.2), RZ(0.12));                                                               // the other wheel, on its leg
+    K.add(cyl(0.3, 0.3, 0.17, 8), dk, M); K.add(cyl(0.12, 0.12, 0.2, 6), steel, M); K.add(tube([0, 0.05, 0], [-0.9, 0.2, 0.5], 0.05, 5), steel, M); }
+  { const af = t => [1.5*t, 0.36 - 0.08*t, 0.06, 0, 0]; K.add(pan(af, 0, 1), gold, mul(T(-1.9, 0.05, -4.3), RY(0.8))); }
+  K.add(box(0.2, 0.05, 0.72), dk, mul(T(2.3, 0.04, 5.7), RY(0.5))); K.add(box(0.17, 0.05, 0.18), gold, mul(T(2.3, 0.04, 5.7), RY(0.5), T(0, 0, 0.45)));
+  /* ---- scorched earth and oil under the engine ---- */
+  { const blot = (r, n, j) => { const p = []; for (let i = 0; i < n; i++) { const a = i*2*PI/n; p.push([Math.cos(a)*r*(1 - j + R()*2*j), Math.sin(a)*r*(1 - j + R()*2*j)]); } return poly(p); };
+    K.add(blot(1.9, 9, 0.3), 0x2a2623, mul(T(0.7, 0.03, 2.5), RX(-PI/2))); K.add(blot(0.8, 7, 0.25), oil, mul(T(2.0, 0.05, 1.3), RX(-PI/2))); K.add(blot(0.5, 6, 0.25), oil, mul(T(-0.9, 0.05, 3.4), RX(-PI/2))); }
+  /* ---- the prototype engine in its crate, thrown clear ---- */
+  const CR = mul(T(3, 0.56, -2), RY(0.5), RZ(0.07));
+  K.add(box(1.5, 1.0, 1.1), wood, CR); K.add(box(1.58, 0.08, 1.18), wood2, mul(CR, T(0.12, 0.56, 0), RZ(-0.16)));
+  for (const sz of [1, -1]) { for (const sx of [1, -1]) K.add(box(0.13, 1.02, 0.05), wood3, mul(CR, T(sx*0.68, 0, sz*0.565))); for (const y of [0.42, -0.42]) K.add(box(1.24, 0.12, 0.05), wood3, mul(CR, T(0, y, sz*0.565))); }
+  for (const sx of [1, -1]) for (const y of [0.42, -0.42]) K.add(box(0.05, 0.12, 1.1), wood3, mul(CR, T(sx*0.765, y, 0)));
+  K.build(g);
+  const sm = signMesh(nameTex('VANE AERO · No.1', '#2a1d10', '#2a1d10'), [0, PI].map(s => [mul(CR, RY(s), T(0, 0, 0.562)), 1.2, 0.15]), false); if (sm) g.add(sm);
+  if (day < 1) { const e = xf([0, 0.3, 1.85], PM); g.add(new THREE.Points(haloGeo([[e[0], e[1], e[2], 0xff7a3a]]), haloMat(day))); }
+  g.userData = {smoke:new V3(0.5, 2.5, 2.5)};
   return g;
 };
 
-/* Speed-boost ring for races: a big brass hoop with green lamps and checkered flags, facing local Z. */
+/* Speed-boost ring for races, facing local Z: a brass-and-canvas hoop. A square brass rim round the opening, a band of doped
+   canvas outside it (chequered next the rim, racing green beyond), a second brass rim, a green neon tube on both faces
+   between the two and twenty-four running lamps round the edge, green and warm by turns. After dark (dayNow) the green
+   canvas is lit from within and the lamps get their halos, so the hoop shows as a ring of light.
+   Nothing comes inside radius R: the rim's flats stand exactly on it. The band is 1 to 2 m deep according to R, so the
+   whole hoop reaches about R + 3 at the lamps. userData.R. */
 G.buildBoostRing = (R = 9) => {
-  const g = new THREE.Group(), k = new Kit();
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 0.55, 6, 24), BRASS()); g.add(ring);
-  for (let i = 0; i < 12; i++) { const a = i*PI/6; k.add(ball(0.45, 6, 3), lamp(i % 2 ? 0x9ef0a0 : 0xfff2c4), T(Math.cos(a)*R, Math.sin(a)*R, 0.6)); k.add(ball(0.45, 6, 3), lamp(i % 2 ? 0x9ef0a0 : 0xfff2c4), T(Math.cos(a)*R, Math.sin(a)*R, -0.6)); }
-  for (const sx of [1, -1]) for (let j = 0; j < 4; j++) for (let i = 0; i < 2; i++) k.add(box(0.9, 0.9, 0.05), (i + j) % 2 ? INK() : BONE(), T(sx*(R + 1.2 + i*0.9), 1.5 - j*0.9, 0));
-  k.build(g); g.userData.R = R; return g;
+  const g = new THREE.Group(), k = new Kit(), t = new Tint(), L = new Tint(), day = dayNow(), fit = new G.Fittings({day}), dim = hex => shade(hex, 1 - 0.2*day);
+  const n = 24, ci = Math.cos(PI/n), w = Math.max(1, Math.min(2, R*0.18)), ri = R/ci + 0.17, b0 = ri + 0.15, bm = b0 + w*0.5, b1 = b0 + w, ro = b1 + 0.1, zf = 0.13, lit = day < 0.75;
+  const ink = 0x151312, bone = 0xf1e9d6, green = 0x2c8a57, P = (a, r, z) => [Math.cos(a)*r, Math.sin(a)*r, z];
+  k.add(torus(ri, 0.24, n, 4), BRASS()); k.add(torus(ro, 0.2, n, 4), BRASS());
+  for (let i = 0; i < n; i++) { const a0 = i*2*PI/n, a1 = a0 + 2*PI/n;
+    for (const z of [zf, -zf]) {
+      t.add(outward(face4(P(a0, b0, z), P(a1, b0, z), P(a1, bm, z), P(a0, bm, z)), [0, 0, 0]), i % 2 ? ink : bone);
+      (lit ? L : t).add(outward(face4(P(a0, bm, z), P(a1, bm, z), P(a1, b1, z), P(a0, b1, z)), [0, 0, 0]), lit ? shade(green, 1.25 - 0.5*day) : green); }
+    const p = P(a0, ro + 0.42, 0), hex = i % 2 ? 0x9ef0a0 : 0xfff2c4;
+    L.add(gem(0.34, 0.8), dim(hex), mul(T(p[0], p[1], 0), RZ(a0 - PI/2))); fit.halo(p, hex); }
+  for (const s of [0, PI]) L.add(ring(bm - 0.15, bm + 0.15, n), dim(0x9ef0a0), mul(RY(s), T(0, 0, zf + 0.05)));
+  t.build(g); k.build(g); L.build(g, TINTLAMP()); fit.build(g);
+  g.userData.R = R; return g;
 };
 
 /* ---------- Traffic ---------- */
