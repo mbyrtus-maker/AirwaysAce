@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 G.Pilot = class {
   constructor(game, plane, o = {}){
-    this.g = game; this.p = plane; this.role = o.role || 'fighter'; this.skill = o.skill ?? 0.5;
+    this.g = game; this.p = plane; this.role = o.role || 'fighter'; this.skill = (o.skill ?? 0.5)*(plane.team !== 0 && !o.wing && G.TUNE ? G.TUNE.enemySkill : 1);
     this.state = 'attack'; this.t = 0; this.target = null; this.retT = 0; this.dir = new V3(); this.jit = new V3(); this.jitT = 0;
     this.side = Math.random() < 0.5 ? 1 : -1; this.fireT = 0;
   }

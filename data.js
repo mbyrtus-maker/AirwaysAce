@@ -43,6 +43,16 @@ G.ROCKET_ORDER = ['he', 'flak', 'ap', 'choke', 'conc'];
 G.HP_W = 250; G.ROCKET_W = 70; G.ARMOR_W = 4; G.ARMOR_HP = 4; G.ARMOR_MAX = 50;
 G.ENGINE = [{id:0, name:'Low', mph:-20, w:-400}, {id:1, name:'Stock', mph:0, w:0}, {id:2, name:'High', mph:20, w:400}];
 G.NITRO_W = 300;
+/* difficulty: one place to ease every fight at once, tuned after damage-to-parts made the player's plane fragile */
+G.TUNE = {
+  taken:0.8,        // damage the player takes from anything hostile
+  wingTaken:0.85,   // and the player's wingmen
+  parts:0.6,        // the player's parts hold this share of the airframe (bandits 0.5)
+  leak:0.006,       // the player's oil leak, share of engine lost a second (bandits 0.01)
+  strain:0.62,      // stick load before the player's failing wing creaks (bandits 0.55)
+  tear:1.2,         // creaking a failing wing takes this long to tear it (bandits 0.9)
+  enemySkill:0.9    // bandit skill scale
+};
 /* where a torn wing breaks off (metres out from the centreline): outboard of the fuselage, or of the booms on twin-boom ships */
 G.WING_ROOT = {banshee:3.3, highwayman:3.0, thunderbuss:4.0, mantis:3.0, zephyr:2.2, whirligig:1.9, hornet:2.0, ironclad:1.8};
 G.TORP_W = 600;   // an air torpedo, each: the bombers carry them on a belly rack, on top of their rockets

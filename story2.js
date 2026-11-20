@@ -653,7 +653,7 @@ G.MISSIONS.c6m2 = EP({
     }
     if (this.phase !== 1 || this.ended) { this.hudDone(g); return; }
     this.waveT -= dt;
-    if (this.waveT <= 0 && this.waves < 6) { this.waveT = 30; this.waves++; const n = F.kitCodes ? 2 : 3, from = this.waves % 2 ? this.P.keep.clone().add(new V3(0, 300, 0)) : this.P.smoke.clone().add(new V3(200, 250, 0));
+    if (this.waveT <= 0 && this.waves < 5) { this.waveT = 38; this.waves++; const n = F.kitCodes ? 2 : 3, from = this.waves % 2 ? this.P.keep.clone().add(new V3(0, 300, 0)) : this.P.smoke.clone().add(new V3(200, 250, 0));
       this.hostiles(g, 'brethren', from, n, {skill:0.5, strafe:1, shipTarget:S}); G.HUD.radio(G.RADIO.short, `${n} more Brethren${F.kitCodes ? ' (the navy\'s jamming the rest)' : ''}!`); }
     if (F.bess === 'spared' && !this.bessIn && this.pt > 55) { this.bessIn = true;
       for (let i = 0; i < 3; i++) { const L = G.stockLoadout(i ? 'vandal' : 'mantis'); L.paint = [0x9e1b1b, 0x161616, 0xe8e0cc]; g.addPlane({loadout:L, team:0, name:i ? 'Bess\'s crew' : 'Bess Malone', callsign:i ? 'Red ' + (i + 1) : 'Red Bess', pos:P.pos.clone().add(new V3(300 + i*40, 200, -600)), q:P.q, speed:90, ai:{role:'fighter', skill:0.75}}); }

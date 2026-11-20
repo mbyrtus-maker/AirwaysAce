@@ -32,7 +32,7 @@ G.Plane = class {
     this.armor = this.L.arm.map(a => a*G.ARMOR_HP*(mods.includes('plate') ? 1.25 : 1)); this.armorMax = this.armor.slice();
     this.internal = this.st.internal*(o.internalMul || 1)*(mods.includes('spars') ? 1.3 : 1); this.internalMax = this.internal;
     // parts behind each armour face: [engine, tail, left wing, right wing]. Each holds half the airframe, so parts give out first.
-    { const pm = this.internalMax*0.5; this.parts = [pm/(mods.includes('spars') ? 1.3 : 1), pm, pm, pm]; this.partsMax = this.parts.slice(); }
+    { const pm = this.internalMax*(this.isPlayer && G.TUNE ? G.TUNE.parts : 0.5); this.parts = [pm/(mods.includes('spars') ? 1.3 : 1), pm, pm, pm]; this.partsMax = this.parts.slice(); }
     this.engPlate = mods.includes('engplate'); this.leak = false; this.seized = false; this.wingGone = -1; this.creak = 0; this.partWarn = [0, 0, 0, 0]; this.stut = 2; this.dip = 0; this.goneT = 0;
     this.guns = this.L.guns.map((s, i) => s.cal ? {i, cal:s.cal, def:drum > 1 ? Object.assign({}, G.GUNS[s.cal], {ammo:Math.round(G.GUNS[s.cal].ammo*drum)}) : G.GUNS[s.cal], ammo:G.AMMO[s.ammo] || G.AMMO.slug, rounds:Math.round(G.GUNS[s.cal].ammo*drum), cd:Math.random()*0.05, barrel:0} : null).filter(Boolean);
     const TM = G.TURRET_MOUNTS[this.L.chassis] || [];
@@ -302,6 +302,7 @@ G.Plane = class {
     if (!this.alive || (this.isPlayer && this.g.done)) return;
     if (this.invuln) { this.hitFlash = 0.15; if (this.g.onInvulnHit) this.g.onInvulnHit(this, src); return; }
     if (this.man && this.man.dodge && Math.random() < 0.5) return;   // a well-timed barrel roll makes you hard to hit
+    if (G.TUNE && src && src.team !== undefined && src.team !== this.team) dmg *= this.isPlayer ? G.TUNE.taken : this.crew ? G.TUNE.wingTaken : 1;
     const A = ammo.a*(o.armorMul || 1), I = ammo.i, Pm = ammo.p ?? 1, pen = o.pen ?? (ammo.id === 'ap' ? 0.25 : 0);
     const part = (f, d) => this.partHit(f, d, src);
     const hit = (f, d, first) => {
@@ -344,7 +345,7 @@ G.Plane = class {
   engineStep(dt, thr, e){
     if (!this.parts || this.engineDead) return thr;
     if (e < 0.5 && !this.leak) this.leak = true;
-    if (this.leak && this.parts[0] > 0) { this.parts[0] = Math.max(0, this.parts[0] - this.partsMax[0]*0.01*dt); this.partNews(0); e = this.parts[0]/this.partsMax[0]; }
+    if (this.leak && this.parts[0] > 0) { this.parts[0] = Math.max(0, this.parts[0] - this.partsMax[0]*(this.isPlayer && G.TUNE ? G.TUNE.leak : 0.01)*dt); this.partNews(0); e = this.parts[0]/this.partsMax[0]; }
     if (e <= 0) { this.engineDead = true; this.seized = true; this.partNews(0); return 0; }
     if (e < 0.35) thr = Math.min(thr, 0.8);
     if (e < 0.7) {
@@ -355,10 +356,11 @@ G.Plane = class {
   }
   /* a failing wing under load creaks, then goes */
   wingStrain(dt, load, pk){
-    if (load > 0.55) {
+    const T = this.isPlayer && G.TUNE ? G.TUNE : null;
+    if (load > (T ? T.strain : 0.55)) {
       const was = this.creak; this.creak += dt*(load - 0.35);
       if (was === 0 && this.isPlayer && this.g.audio && this.g.audio.creak) this.g.audio.creak();
-      if (this.creak > 0.9) this.tearWing(pk[2] < pk[3] ? 2 : 3);
+      if (this.creak > (T ? T.tear : 0.9)) this.tearWing(pk[2] < pk[3] ? 2 : 3);
     } else this.creak = Math.max(0, this.creak - dt*0.4);
   }
   tearWing(f){
