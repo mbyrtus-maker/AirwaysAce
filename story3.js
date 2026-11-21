@@ -187,6 +187,9 @@ class Train {
   }
   damage(d){ if (!this.alive) return; this.hp = Math.max(0, this.hp - d); if (!this.hp) { this.alive = false; for (const c of this.cars) this.g.fx.explosion(c.grp.position.clone().add(new V3(0, 3, 0)), 2); if (this.g.audio) this.g.audio.boom(this.pos, true); } }
   near(p, r){ return this.cars.some(c => c.grp.position.distanceTo(p) < r); }
+  // co-op: the host runs the train; guests are told where it is (net.js movers)
+  netState(){ return [Math.round(this.s*10)/10, this.alive ? 1 : 0, Math.round(this.hp), this.done ? 1 : 0]; }
+  netApply(a){ this.s = +a[0] || 0; this.done = !!a[3]; if (this.alive && !a[1]) this.damage(1e9); this.hp = +a[2] || 0; this.update(0); }
 }
 
 G.Train = Train;   // the El in Gantry City uses it too

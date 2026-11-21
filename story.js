@@ -508,7 +508,7 @@ G.MISSIONS.c2m2 = Object.assign(Object.create(base), {
     // Duke Galloway: a white-and-gold Gallant, racing the same clues
     const L = G.stockLoadout('gallant'); L.paint = [0xf1e9d6, 0xdba63e, 0x151312]; L.engine = 2; L.hp = 0;   // a stripped racer with the hot engine
     const pos = P.pos.clone().addScaledVector(P.right, -320).add(new V3(0, 40, -120));
-    this.dukeP = g.addPlane({loadout:L, team:1, name:'Ignatius "Duke" Galloway', callsign:'Duke Galloway', pos, q:P.q, speed:80, ai:{role:'fighter', skill:0.75}, internalMul:1.4});
+    this.dukeP = g.addPlane({loadout:L, team:1, name:'Ignatius "Duke" Galloway', callsign:'Duke Galloway', rival:true, pos, q:P.q, speed:80, ai:{role:'fighter', skill:0.75}, internalMul:1.4});
     this.dukeP.invuln = true;   // he's a rival, not a target: you have to out-fly him
     const pl = this.dukePilot = g.pilots[g.pilots.length - 1];
     // Duke flies the rings on each leg, then the clue; his clue count only advances on the clues themselves

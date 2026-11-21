@@ -69,6 +69,9 @@ class Convoy {
     if (this.alive && this.hp < 50 && Math.random() < dt*4) { const c = G.pick(this.cars).gr.position; this.g.fx.fire.emit(c.x, c.y + 3, c.z, 0, 3, 0, 2.4, 0.4, 0.3, 0.3, 0.3, 0.8, 0, 1, 1); }
   }
   damage(d){ if (!this.alive) return; this.hp = Math.max(0, this.hp - d); if (!this.hp) { this.alive = false; for (const c of this.cars) this.g.fx.explosion(c.gr.position.clone().add(new V3(0, 2, 0)), 1.6); } }
+  // co-op: the host drives the convoy; guests are told where it is (net.js movers)
+  netState(){ return [Math.round(this.s*10)/10, this.alive ? 1 : 0, Math.round(this.hp), this.done ? 1 : 0, this.stop ? 1 : 0]; }
+  netApply(a){ this.s = +a[0] || 0; this.done = !!a[3]; this.stop = !!a[4]; if (this.alive && !a[1]) this.damage(1e9); this.hp = +a[2] || 0; this.update(0); }
 }
 
 /* ---------- the shared start for every Rustwater episode ---------- */

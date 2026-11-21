@@ -248,7 +248,7 @@ view.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   const g = G.game; if (!g || g.paused) return;
   if (locked()) g.onMouse(e.movementX, e.movementY);
-  else { joy.x = (e.clientX/innerWidth - 0.5)*2; joy.y = (e.clientY/innerHeight - 0.5)*2; joy.on = true; }
+  else { joy.x = (e.clientX/innerWidth - 0.5)*2; joy.y = (e.clientY/innerHeight - 0.5)*2; joy.on = true; joy.t = performance.now(); }
 });
 document.addEventListener('pointerlockchange', () => { const g = G.game; if (g && !locked() && g.running && !g.paused && !g.done) UI.pause(true); });
 addEventListener('keydown', e => {
@@ -545,7 +545,8 @@ function frame(now){
   try {
     // without pointer lock the mouse works as a joystick: distance from centre turns the aim point
     if (G.pad) G.pad.poll(g, dt, now);
-    if (!locked() && joy.on && g.running && !g.paused && !(G.pad && G.pad.active)) { const dz = v => Math.abs(v) < 0.08 ? 0 : (v - Math.sign(v)*0.08)/0.92; g.onMouse(dz(joy.x)*900*dt, dz(joy.y)*700*dt); }
+    // the mouse-as-joystick only steers if the mouse was moved after the controller was last touched: a cursor left below centre while flying on the pad dived the plane once the pad went quiet
+    if (!locked() && joy.on && g.running && !g.paused && !(G.pad && (G.pad.active || (joy.t || 0) < G.pad.lastUsed))) { const dz = v => Math.abs(v) < 0.08 ? 0 : (v - Math.sign(v)*0.08)/0.92; g.onMouse(dz(joy.x)*900*dt, dz(joy.y)*700*dt); }
     g.update(dt); g.render();
   } catch (e) { console.error('Ace of the Airways frame error', e); if (!frame.warned) { frame.warned = true; G.HUD.toast('Something went wrong: ' + e.message); } }
 }

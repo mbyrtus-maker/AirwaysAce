@@ -53,7 +53,8 @@ G.Game = class {
   }
 
   /* ---- spawning ---- */
-  addPlane(o){ const p = new G.Plane(this, o); this.planes.push(p); if (o.ai) this.pilots.push(new G.Pilot(this, p, o.ai)); return p; }
+  addPlane(o){ const p = new G.Plane(this, o); if (o.rival) p.rival = true; this.planes.push(p);   // rival: racing you, not fighting you (Duke Galloway); the HUD marks them gold
+    if (o.ai) this.pilots.push(new G.Pilot(this, p, o.ai)); return p; }
   addShip(o){ const s = new G.Airship(this, o); this.ships.push(s); if (s.team !== 0 && G.squadOf(this)) G.toughen(s, 1.25); return s; }
 
   /* ---- input ---- */
