@@ -106,7 +106,7 @@ const Pad = G.pad = {
     if (used) this.lastUsed = now;
     this.active = now - this.lastUsed < 4000;
 
-    if (g && !g.done) {
+    if (g && !g.done && !g.inHangar) {
       if (press('pause')) { if (g.paused) G.UI.resume(); else G.UI.pause(true); }
       if (!g.paused) {
         let dropped = false;

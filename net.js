@@ -194,6 +194,7 @@ const Net = G.Net = {
         break; }
       case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
       case 'gh': if (g && G.game === g && !g.done) this.hostClaim(g, L, m); break;
+      case 'load': if (m.L && typeof m.L === 'object') { L.load = this.cleanLoad(m.L); if (g && L.proxy) { this.removeNetPlane(g, L.proxy); L.proxy = null; } } break;   // a guest left the hangar in another aeroplane: their next update brings the new stand-in
       case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
       case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
       case 'leftgame': this.vsGone(L.id); if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
@@ -540,7 +541,7 @@ const Net = G.Net = {
       g.mission = new Proxy(real, {get(t, k){
         if (k === 'update') return (gg, dt) => Net.guestOpen(gg, t, dt);
         if (k === 'playerDown') return () => Net.guestDown(g);
-        if (k === 'canRedock') return () => false;
+        if (k === 'canRedock') return () => true;   // open skies: guests can go aboard for the hangar too (the flight carries on)
         const v = t[k];
         if (typeof v === 'function') return skip[k] ? () => {} : v.bind(t);
         return v;

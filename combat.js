@@ -503,14 +503,15 @@ G.Combat = {
     if (m.job) { G.HUD.toast('Finish or abandon your job first'); return; }
     if (!slowOk) { G.HUD.toast('Too fast for the trapeze'); return; }
     if (!alignOk) { G.HUD.toast('Line up with the ship to catch the trapeze'); return; }
-    this.redocking = true; P.frozen = true; P.fire = P.fireRk = false; this.running = false; this.homeInfo = null;
+    const coop = m.open && ((this.netHost && G.Net && G.Net.links.length) || this.netGuest);   // co-op: the flight goes on for the others; you visit the hangar on the hook
+    this.redocking = true; P.frozen = true; P.fire = P.fireRk = false; if (!coop) this.running = false; else P.invuln = true; this.homeInfo = null;
     if (m.hang) { m.g = this; m.ship = s; }
     const hold = () => { s.worldPoint(tA.set(0, -34.5 - 9 - 1.6, -22), P.pos); P.q.copy(s.q); P.speed = s.speed; P.vel.copy(s.vel); P.sync(); };
     hold(); let ct = 0;
     this.cine = (dt, cam) => { ct += dt; hold(); s.worldPoint(tA.set(-38, -22, 10), tB); cam.position.lerp(tB, ct < 0.1 ? 1 : 0.04); cam.lookAt(tC.copy(P.pos).add(tA.set(0, 2, 0))); };
     G.HUD.toast('On the trapeze! Hoisting you aboard'); if (this.audio) this.audio.hitMe(true);
     G.HUD.radio(G.RADIO.short, G.pick(['Welcome home, sugar. Mind the paint on the way in.', 'Got you on the bar. Hauling you up.', 'Hook\'s on. Wipe your feet in my hangar.']));
-    setTimeout(() => { if (G.game === this) G.UI.redocked(this); }, 2600);
+    setTimeout(() => { if (G.game === this) (coop ? G.UI.flightHangar(this) : G.UI.redocked(this)); }, 2600);
   },
 
   /* ---------- Parachutes: shot-down pilots float home (mostly). The art is G.buildParachutist in models.js; o.kind 'cargo' hangs a stores crate instead ---------- */

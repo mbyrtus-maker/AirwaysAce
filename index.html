@@ -257,7 +257,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 <div class="screen" id="hangar" hidden><div class="wrap">
   <div class="mcol"><h2 class="deco">Hangar</h2><div class="card" id="hgStats"></div><div class="card"><canvas class="mprev" id="hgPrev"></canvas><span class="lbl">Chassis</span><ul id="hgChassis"></ul></div></div>
   <div class="mcol"><div id="hgBody"></div>
-    <div class="hg-foot"><button class="btn ghost sm" onclick="UI.hangarStock()">Stock</button><button class="btn ghost sm" onclick="UI.hangarSave() ? UI.menu() : null">Save &amp; back</button><button class="btn" id="hgLaunch" onclick="UI.hangarSave() && UI.fly()">Launch</button></div></div>
+    <div class="hg-foot"><button class="btn ghost sm" onclick="UI.hangarStock()">Stock</button><button class="btn ghost sm" id="hgBack" onclick="UI.hangarSave() ? UI.menu() : null">Save &amp; back</button><button class="btn" id="hgLaunch" onclick="G.game && G.game.inHangar ? UI.hangarLaunch() : UI.hangarSave() && UI.fly()">Launch</button></div></div>
 </div></div>
 
 <div class="screen" id="pause" hidden><div class="card"><div class="kicker">Paused</div><h2 class="deco" style="font-size:48px;margin:6px 0 12px">Holding pattern</h2>
@@ -312,7 +312,7 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="world.js"></script>
 <script src="models.js?v=1120chute"></script>
 <script src="planes.js?v=1120coop2"></script>
-<script src="combat.js?v=1120coop2"></script>
+<script src="combat.js?v=1120hangar"></script>
 <script src="ai.js?v=1119diff"></script>
 <script src="audio.js?v=1120coop2"></script>
 <script src="hud.js?v=1120script"></script>
@@ -324,10 +324,10 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="story2.js?v=1119diff"></script>
 <script src="story3.js?v=1120script"></script>
 <script src="story4.js?v=1120script"></script>
-<script src="net.js?v=1120smooth"></script>
-<script src="pad.js?v=1120dz21"></script>
+<script src="net.js?v=1120hangar"></script>
+<script src="pad.js?v=1120hangar"></script>
 <script src="keys.js?v=1120sight"></script>
-<script src="ui.js?v=1120script"></script>
+<script src="ui.js?v=1120hangar"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>

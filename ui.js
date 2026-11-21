@@ -68,7 +68,7 @@ const UI = G.UI = {
 
   /* ---------- hangar (weight budget) ---------- */
   hangar(){
-    UI.quit(); G.HUD.show(false); this.screen('hangar'); this.L = JSON.parse(JSON.stringify(G.save.load)); if (this.L.engine === 2 && !G.hasMod('hotrod')) this.L.engine = 1; if (this.L.nitro && !G.hasMod('nitro')) this.L.nitro = false; this.renderHangar(); G.music.play('sidewalk');
+    UI.quit(); G.HUD.show(false); this.screen('hangar'); $('hgBack').hidden = false; this.L = JSON.parse(JSON.stringify(G.save.load)); if (this.L.engine === 2 && !G.hasMod('hotrod')) this.L.engine = 1; if (this.L.nitro && !G.hasMod('nitro')) this.L.nitro = false; this.renderHangar(); G.music.play('sidewalk');
     preview.show($('hgPrev'), this.L);
   },
   renderHangar(){
@@ -135,6 +135,28 @@ const UI = G.UI = {
     UI.hangarNote = m.open ? `Back aboard over ${G.REGIONS[G.save.open.region].name}. This flight: $${(r ? r.shown : 0).toLocaleString()} earned, ${m.jobsDone} job${m.jobsDone === 1 ? '' : 's'}, ${Math.round(m.sc.session).toLocaleString()} stunt points. ${G.timeLabel()}.` : `Back aboard. ${m.title} called off.`;
     if (document.pointerLockElement) document.exitPointerLock();
     UI.hangar();
+  },
+  /* open-skies co-op: aboard the Margaret on the home trapeze, the flight carries on outside. Pick an aeroplane, then Launch drops you off the hook in it */
+  flightHangar(g){
+    if (document.pointerLockElement) document.exitPointerLock();
+    g.inHangar = true; for (const k in g.keys) g.keys[k] = false; G.HUD.show(false); this.screen('hangar');
+    this.L = JSON.parse(JSON.stringify(G.save.load)); if (this.L.engine === 2 && !G.hasMod('hotrod')) this.L.engine = 1; if (this.L.nitro && !G.hasMod('nitro')) this.L.nitro = false;
+    this.hangarNote = 'Aboard the Margaret, on the hook. The flight goes on outside: pick your aeroplane and Launch when you\'re ready.';
+    $('hgBack').hidden = true; this.renderHangar(); preview.show($('hgPrev'), this.L);
+  },
+  hangarLaunch(){
+    const g = G.game; if (!g || !g.inHangar || g.done) return;
+    if (!UI.hangarSave()) return;
+    g.inHangar = false; $('hgBack').hidden = false; this.screen(null); G.HUD.show(true);
+    const was = g.player, s = g.ships.find(x => x.team === 0 && x.alive && x.obj.userData.trapeze) || g.ships.find(x => x.team === 0 && x.alive);
+    const L = Object.assign({}, G.save.load, {mods:(G.save.mods || []).slice()}), pos = s ? s.worldPoint(new THREE.Vector3(0, -34.5 - 9 - 1.6, -22), new THREE.Vector3()) : was.pos.clone();
+    if (G.Net) G.Net.localSpawn = true; let np; try { np = g.addPlane({loadout:L, team:0, name:was.name, callsign:was.callsign, pos, q:s ? s.q.clone() : was.q.clone(), speed:62}); } finally { if (G.Net) G.Net.localSpawn = false; }
+    np.q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.28)); np.axes(); np.vel.copy(np.fwd).multiplyScalar(62); np.throttle = 0.9;
+    g.cine = null; g.redocking = false; g.homePrev = undefined;
+    g.swapPlayer(np, {keepOld:false, say:'Off the hook. Good hunting'}); np.grace = 3;
+    if (g.netHost && G.Net) G.Net.hostSwapped(g, np, was);
+    if (g.netGuest && G.Net && G.Net.host) G.Net.host.send({t:'load', L:G.save.load});
+    lock();
   },
   hangarSave(){ UI.hangarNote = null; const L = UI.L; if (G.loadWeight(L) > G.CHASSIS[L.chassis].max) return false; G.save.load = L; G.persist(); return true; },
 
@@ -246,7 +268,7 @@ view.addEventListener('mousedown', e => {
 addEventListener('mouseup', e => { const g = G.game; if (g) g.keys['Mouse' + e.button] = false; });
 view.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
-  const g = G.game; if (!g || g.paused) return;
+  const g = G.game; if (!g || g.paused || g.inHangar) return;
   if (locked()) g.onMouse(e.movementX, e.movementY);
   else { joy.x = (e.clientX/innerWidth - 0.5)*2; joy.y = (e.clientY/innerHeight - 0.5)*2; joy.on = true; joy.t = performance.now(); }
 });
@@ -255,8 +277,8 @@ addEventListener('keydown', e => {
   const g = G.game;
   if (e.code === 'KeyD' && e.ctrlKey && e.altKey) { e.preventDefault(); UI.inDev ? UI.closeDev() : UI.dev(); return; }
   if (UI.inDev) { if (e.code === 'Escape') UI.closeDev(); return; }
-  if (e.code === 'Escape') { if (UI.inContact) { UI.closeContact(); return; } if (g && !g.done) { if (g.paused) UI.resume(); else if (!locked()) UI.pause(true); } return; }
-  if (!g || g.paused) return;
+  if (e.code === 'Escape') { if (UI.inContact) { UI.closeContact(); return; } if (g && g.inHangar) return; if (g && !g.done) { if (g.paused) UI.resume(); else if (!locked()) UI.pause(true); } return; }
+  if (!g || g.paused || g.inHangar) return;
   if (e.target && e.target.tagName === 'INPUT') return;
   const code = G.keymap ? G.keymap.tr(e.code) : e.code;   // remapped keys arrive as the action's default key
   if (['Space', 'ArrowUp', 'ArrowDown', 'Tab'].includes(e.code) || ['Space', 'ArrowUp', 'ArrowDown'].includes(code)) e.preventDefault();
