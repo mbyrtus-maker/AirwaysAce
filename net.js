@@ -71,7 +71,7 @@ class JobPilot {
   }
 }
 // where each slot hangs or parks, in the ship's or runway's own frame (x across, y up, z forward)
-G.COOP_SLOTS = [[0, 0, 0], [13, 0, -10], [-13, 0, -10], [0, -5, -24]];
+G.COOP_SLOTS = [[0, 0, 0], [13, 0, 12], [-13, 0, 12], [0, -5, 26]];   // under the ship: guests hang ahead of the host
 G.coopSlot = () => { const g = G.game; return g && (g.netGuest || g.netHost) && G.Net ? G.Net.slot() : 0; };
 const Net = G.Net = {
   transport:PeerTransport, tseq:0,
@@ -170,6 +170,7 @@ const Net = G.Net = {
         if (L.proxy) { L.proxy.name = L.proxy.callsign = L.name; this.broadcast({t:'plname', nid:L.proxy.nid, n:L.name}, L); }
         break; }
       case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
+      case 'gh': if (g && G.game === g && !g.done) this.hostClaim(g, L, m); break;
       case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
       case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
       case 'leftgame': this.vsGone(L.id); if (L.proxy && g) { this.removeNetPlane(g, L.proxy); L.proxy = null; } this.dropSpawned(g, L); break;
@@ -218,7 +219,7 @@ const Net = G.Net = {
   },
   planeMsg(p){
     const L = p.L;
-    return {t:'pl', nid:p.nid, tid:p.tid || undefined, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace,
+    return {t:'pl', nid:p.nid, tid:p.tid || undefined, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace, cr:p.crew ? 1 : undefined,
       L:{chassis:L.chassis, paint:L.paint, guns:L.guns, turrets:L.turrets, rocket:L.rocket, hp:L.hp, arm:L.arm}, ...this.parkedTag(p)};
   },
   /* ---- changing aeroplanes in co-op (game.parkPlane / swapPlayer). The host owns every parked plane; guests see them
@@ -270,6 +271,30 @@ const Net = G.Net = {
     const sp = g.park(np, {yaw}); g.parkedSpots = g.parkedSpots.filter(s => s !== sp);
     g.swapPlayer(np, {keepOld:false});
   },
+  /* guest: one of my bullets hit a plane on my screen; tell the host (a few dozen a second at most) */
+  claimHit(p, dmg, facing, ammo, o){
+    if (!this.host) return; const g = p.g, now = g.t;
+    if (now - (this.claimT || 0) > 1) { this.claimT = now; this.claimN = 0; } if (++this.claimN > 60) return;
+    this.host.send({t:'gh', n:p.nid, d:r2(dmg), f:facing | 0, a:ammo && ammo.id || 'slug', o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen}});
+    if (g.audio && g.audio.hitThem) g.audio.hitThem(); G.HUD.hitMark();
+  },
+  /* host: a guest says they hit something. Believe it within reason: alive, an enemy, in gun range of their plane, a sane amount */
+  hostClaim(g, L, m){
+    const P = L.proxy, t = this.byNid(g, m.n | 0); if (!P || !P.alive || !t || !t.alive || t.team === 0 || t === P) return;
+    if (P.pos.distanceTo(t.pos) > 1400) return;
+    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 70) return;
+    const o = {}; if (m.o && typeof m.o === 'object') for (const k of ['armorMul', 'wingMul', 'pen']) if (typeof m.o[k] === 'number' && isFinite(m.o[k])) o[k] = Math.max(0, Math.min(4, m.o[k]));
+    this.claiming = true;   // the guest already showed the hit marker
+    try { t.damage(Math.max(0, Math.min(60, +m.d || 0)), Math.max(0, Math.min(3, m.f | 0)), G.AMMO[m.a] || G.AMMO.slug, P, o); } finally { this.claiming = false; }
+  },
+  /* host: run part of the frame with the smoke it makes copied for the guests. Mission scripts only run here, so
+     their coloured smoke (parade hoops, drop-zone pots) would otherwise never reach anyone else */
+  share(g, fn){
+    if (!this.links.length || !g.fx || !g.fx.smoke || (g.mission && g.mission.open)) return fn();
+    const sm = g.fx.smoke, emit = sm.emit, Q = g.netSmoke || (g.netSmoke = []);
+    sm.emit = function(...a){ if (Q.length < 90) Q.push(a.map(v => typeof v === 'number' ? Math.round(v*100)/100 : 0)); return emit.apply(this, a); };
+    try { return fn(); } finally { sm.emit = emit; }
+  },
   removeNetPlane(g, p){ p.alive = false; g.scene.remove(p.obj); g.planes = g.planes.filter(x => x !== p); g.pilots = g.pilots.filter(pl => pl.p !== p); },
   byNid(g, n){ return n ? g.planes.find(p => p.nid === n) || null : null; },
 
@@ -313,7 +338,9 @@ const Net = G.Net = {
     const X = (g.targets || []).map((t, i) => t.alive ? -1 : i).filter(i => i >= 0);
     // surface shipping: where each ship is on her lane, her way, her yaw and how badly she's hurt, so everyone sees the same ships
     const W = g.sea ? g.sea.ships.map((s, i) => [i, r2(s.s), r2(s.v), r4(s.yaw), r2(s.hp/s.hpMax), s.alive ? 1 : 0, s.gone ? 1 : 0]) : [];
-    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, W, B:g.netShots || [], K:g.netFlak || []}); g.netShots = []; g.netFlak = [];
+    // the mission's markers (gates, hoops, drop zones), so guests can find them too; story missions only (open skies runs its own on each machine)
+    const M = g.mission && !g.mission.open ? (g.markers || []).slice(0, 16).map(k => [r2(k.pos.x), r2(k.pos.y), r2(k.pos.z), String(k.label || '').slice(0, 60), k.col || '', (k.box ? 1 : 0) | (k.edgeOnly ? 2 : 0) | (k.noDist ? 4 : 0) | (k.hide ? 8 : 0)]) : undefined;
+    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, W, B:g.netShots || [], K:g.netFlak || [], M, F:g.netSmoke && g.netSmoke.length ? g.netSmoke : undefined}); g.netShots = []; g.netFlak = []; g.netSmoke = [];
   },
   hostEnd(g, r){
     if (!this.links.length) return;
@@ -329,7 +356,7 @@ const Net = G.Net = {
   },
 
   /* host-side event hooks (see the wrappers below) */
-  hostHit(src){ if (src && src.remote) src.remote.send({t:'hit'}); },
+  hostHit(src){ if (src && src.remote && !this.claiming) src.remote.send({t:'hit'}); },
   hostKill(plane, src){
     if (src && src.remote && plane.team !== 0) src.remote.send({t:'kill', name:plane.callsign || 'a bandit'});
     if (plane.remote) G.HUD.feed(`${plane.callsign} ${src ? 'was shot down' + (src.callsign ? ' by ' + src.callsign : '') : 'went down'}`);
@@ -395,6 +422,7 @@ const Net = G.Net = {
     if (!m || typeof m !== 'object') return;
     const g = this.g;
     switch (m.t) {
+      case 'plcrew': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p) p.netCrew = true; break; }
       case 'plname': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p) p.name = p.callsign = String(m.n || 'Pilot').slice(0, 18); break; }
       case 'roster': this.me = m.you; this.roster = Array.isArray(m.roster) ? m.roster.slice(0, 4) : []; this.render(); break;
       case 'full': this.status = 'That flight is full (four pilots).'; this.render(); break;
@@ -470,13 +498,17 @@ const Net = G.Net = {
     const L = G.stockLoadout(G.CHASSIS[m.L && m.L.chassis] ? m.L.chassis : 'vandal');
     try { if (m.L.paint) L.paint = m.L.paint.slice(0, 3).map(x => x | 0); if (Array.isArray(m.L.guns) && m.L.guns.length === L.guns.length) L.guns = m.L.guns.map(x => ({cal:x && G.GUNS[x.cal] ? x.cal : null, ammo:'slug'})); if (Array.isArray(m.L.turrets)) L.turrets = m.L.turrets.filter(t => t && G.GUNS[t.cal]).map(t => ({cal:t.cal, ammo:'slug'})); if (G.ROCKETS[m.L.rocket]) L.rocket = m.L.rocket; } catch (e) {}
     this.localSpawn = true; const p = g.addPlane({loadout:L, team:m.team === 0 ? 0 : 1, name:String(m.name || '').slice(0, 30), callsign:String(m.cs || m.name || '').slice(0, 30), pos:new V3(0, -9999, 0)}); this.localSpawn = false;
-    p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};
+    p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; if (m.cr) p.netCrew = true; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};   // netCrew: the host's wingmen; the sound skips them as it does on the host
     p.obj.visible = false;
     g.netPlanes.set(m.nid, p);
     if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
   },
   guestSnap(g, m){
     g.lastSnap = g.t; if (g.waitBanner) { g.waitBanner = false; G.HUD.banner(null); }
+    if (g.realMission && !g.realMission.open) {
+      if (Array.isArray(m.M)) g.markers = m.M.slice(0, 16).filter(k => Array.isArray(k) && k.length >= 6 && [k[0], k[1], k[2]].every(v => typeof v === 'number' && isFinite(v))).map(k => ({pos:new V3(k[0], k[1], k[2]), label:String(k[3] || '').slice(0, 60), col:/^#[0-9a-f]{3,8}$/i.test(k[4]) ? k[4] : undefined, box:!!(k[5] & 1), edgeOnly:!!(k[5] & 2), noDist:!!(k[5] & 4), hide:!!(k[5] & 8)}));
+      if (Array.isArray(m.F) && g.fx && g.fx.smoke) for (const a of m.F.slice(0, 90)) if (Array.isArray(a) && a.length >= 12 && a.length <= 15 && a.every(v => typeof v === 'number' && isFinite(v))) g.fx.smoke.emit(...a);
+    }
     const seen = new Set();
     for (const e of m.P || []) {
       const p = g.netPlanes.get(e[0]); if (!p) continue; seen.add(e[0]);

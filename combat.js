@@ -244,6 +244,7 @@ G.Combat = {
     const sp = 0.004 + (plane.isPlayer || plane.human ? 0 : 0.003);
     conv.x += (Math.random() - 0.5)*sp; conv.y += (Math.random() - 0.5)*sp; conv.z += (Math.random() - 0.5)*sp; conv.normalize();
     this.spawnRaw(plane, mz, conv, gn.def, gn.ammo, plane.vel);
+    if (this.netHost && plane.remote && plane.human) this.bullets[this.bullets.length - 1].noPlanes = true;   // a guest's stand-in: the guest reports their own hits on planes (net.js claimHit)
     if (plane.isPlayer) this.playerShots++;
     else if (this.audio) this.audio.shot(mz, gn.def.pitch);
   },
@@ -367,7 +368,7 @@ G.Combat = {
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i]; b.prev.copy(b.pos); b.pos.addScaledVector(b.vel, dt); b.vel.y -= 2.5*dt; b.life -= dt;
       let dead = b.life <= 0;
-      if (!dead) for (const p of planes) {
+      if (!dead && !b.noPlanes) for (const p of planes) {
         if (!p.alive || p.team === b.team) continue;
         if (Math.abs(p.pos.x - b.pos.x) > 60 || Math.abs(p.pos.z - b.pos.z) > 60) continue;
         segClosest(b.prev, b.pos, p.pos, tC);

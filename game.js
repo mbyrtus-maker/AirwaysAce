@@ -106,7 +106,7 @@ G.Game = class {
       const pos = P.pos.clone().addScaledVector(P.fwd, 10 - (c.back ? 40 : 0)).addScaledVector(P.right, c.side*45).add(new V3(0, c.back ? 12 : -10, 0));
       for (const s of this.ships) for (let i = 0; i < 20 && s.inside(pos, 30); i++) pos.addScaledVector(tA.copy(pos).sub(s.pos).setY(0).normalize(), 15).y -= 6;
       const p = this.addPlane({loadout:L, team:0, name:c.name, callsign:c.short, pos, q:P.q, speed:P.speed + 4, ai:{role:'fighter', skill:c.skill}, grace:5});
-      const pl = this.pilots[this.pilots.length - 1]; pl.wing = c; pl.order = 'cover'; pl.side = c.side; pl.slotBack = c.back || 28; p.crew = c;
+      const pl = this.pilots[this.pilots.length - 1]; pl.wing = c; pl.order = 'cover'; pl.side = c.side; pl.slotBack = c.back || 28; p.crew = c; if (this.netHost && G.Net && p.nid && G.Net.links.length) G.Net.broadcast({t:'plcrew', nid:p.nid});   // co-op: they were announced a moment ago, before they were crew
       this.wingmen.push(pl);
     }
     G.HUD.wing(this);
@@ -345,7 +345,7 @@ G.Game = class {
     dt = Math.min(dt, 0.05); this.t += dt;
     if (this.running) this.playerControl(dt);
     if (this.parkedSpots) this.swapTick(dt);
-    if (this.crates || this.dropZones) this.cratesTick(dt);
+    if (this.crates || this.dropZones) { if (this.netHost && G.Net.share) G.Net.share(this, () => this.cratesTick(dt)); else this.cratesTick(dt); }
     if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; }
     else if (this.done && this.player && this.player.alive && !this.player.frozen) {
       const P = this.player, gh = P.pos.y - Math.max(this.world.height(P.pos.x, P.pos.z), 0.4);
@@ -356,7 +356,7 @@ G.Game = class {
     for (const s of this.ships) s.update(dt);
     if (this.traffic) this.traffic.update(dt);
     this.updateProjectiles(dt); this.updateTorpedoes(dt); this.updateFlak(dt); this.updateRearm(dt); this.updateChutes(dt);
-    this.mission.update(this, dt);
+    if (this.netHost && G.Net.share) G.Net.share(this, () => this.mission.update(this, dt)); else this.mission.update(this, dt);   // co-op: what the mission script draws goes to the guests too
     if (this.netHost) G.Net.hostFrame(this, dt); else if (this.netGuest) G.Net.guestFrame(this, dt);
     this.snapPhoto = false;
     this.fx.update(dt);

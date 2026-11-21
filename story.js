@@ -614,8 +614,8 @@ function buildStrip(g){
 /* skip the trapeze: the player starts parked on a runway, engine idling */
 function startOnRunway(m, g, pos, yaw){
   const P = g.player; m.awaitDrop = false; g.cine = null; g.running = true; G.HUD.banner(null);
-  const o = G.COOP_SLOTS ? G.COOP_SLOTS[G.coopSlot()] : [0, 0, 0];   // co-op: side by side, staggered back
-  P.frozen = false; P.onGround = true; P.pos.copy(pos).add(new V3(o[0]*1.6, 0, o[2]*1.6).applyAxisAngle(new V3(0, 1, 0), yaw)); P.pos.y += P.ud.gear || 2; P.groundYaw = yaw; P.q.setFromAxisAngle(new V3(0, 1, 0), yaw); P.axes();
+  const o = G.COOP_SLOTS ? G.COOP_SLOTS[G.coopSlot()] : [0, 0, 0];   // co-op: side by side, staggered behind (forward would be in the way)
+  P.frozen = false; P.onGround = true; P.pos.copy(pos).add(new V3(o[0]*1.6, 0, -Math.abs(o[2])*1.6).applyAxisAngle(new V3(0, 1, 0), yaw)); P.pos.y += P.ud.gear || 2; P.groundYaw = yaw; P.q.setFromAxisAngle(new V3(0, 1, 0), yaw); P.axes();
   P.speed = 0; P.throttle = 0; g.aimYaw = yaw; g.aimPitch = -0.03; P.sync(); m.phase = 1; m.pt = 0; if (!m.noMusic) G.music.mission(g.world.time);
 }
 const flatsBoth = () => ({seed:1931, flats:[{x:CITY.x, z:CITY.z, r:CITY.r}, {x:STRIP.x, z:STRIP.z, r:STRIP.r}]});
