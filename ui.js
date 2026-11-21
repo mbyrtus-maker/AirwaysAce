@@ -5,8 +5,25 @@ const G = window.G, V3 = THREE.Vector3;
 const $ = id => document.getElementById(id), esc = s => G.esc(s);
 G.loadSave();
 
-const view = $('view');
-const renderer = new THREE.WebGLRenderer({canvas:view, antialias:true, powerPreference:'high-performance', logarithmicDepthBuffer:true});
+let view = $('view');
+/* WebGL: ask for the full works first, then step down; some machines (older Macs, dual-GPU laptops, locked-down browsers)
+   refuse the first request but take a plainer one. If none takes, explain instead of leaving a black screen. */
+const renderer = (() => {
+  const tries = [{antialias:true, powerPreference:'high-performance', logarithmicDepthBuffer:true},
+                 {antialias:false, powerPreference:'default', logarithmicDepthBuffer:true},
+                 {antialias:false, powerPreference:'default', logarithmicDepthBuffer:false, precision:'mediump'}];
+  for (let i = 0; i < tries.length; i++) {
+    try { const r = new THREE.WebGLRenderer(Object.assign({canvas:view}, tries[i])); if (i) console.warn('Ace of the Airways: running with plainer WebGL settings', tries[i]); return r; }
+    catch (e) { console.warn('WebGL attempt failed', tries[i], e); const c = view.cloneNode(false); view.replaceWith(c); view = c; }   // a fresh canvas for the next try
+  }
+  const mac = /Mac/.test(navigator.platform || navigator.userAgent), ff = /Firefox/.test(navigator.userAgent), chrome = /Chrome|Edg/.test(navigator.userAgent) && !ff, safari = /Safari/.test(navigator.userAgent) && !chrome && !ff;
+  if (window.bootFail) window.bootFail('No 3D in this browser', '<p>Ace of the Airways needs <b>WebGL</b>, and this browser has it switched off or can\'t start it.</p><ul style="padding-left:20px">' +
+    (safari || mac ? '<li><b>Mac:</b> if <b>Lockdown Mode</b> is on (System Settings → Privacy &amp; Security), it switches WebGL off in Safari. Turn it off for this site, or try Chrome or Firefox.</li>' : '') +
+    (chrome ? '<li><b>Chrome / Edge:</b> Settings → System → turn on <b>Use graphics acceleration when available</b>, then relaunch. <code>chrome://gpu</code> shows whether WebGL is working.</li>' : '') +
+    (ff ? '<li><b>Firefox:</b> Settings → General → Performance → allow <b>hardware acceleration</b>, then restart. In <code>about:config</code>, <b>webgl.disabled</b> must be false.</li>' : '') +
+    '<li>Update the browser and the computer\'s graphics drivers, then reload.</li><li>Check at <b>get.webgl.org</b>: if the cube there doesn\'t spin, the game can\'t run either.</li></ul>');
+  throw new Error('WebGL unavailable');
+})();
 G.renderer = renderer; renderer.setPixelRatio(Math.min(1.75, devicePixelRatio || 1)); renderer.setSize(innerWidth, innerHeight, false);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight, false); const g = G.game; if (g) { g.camera.aspect = innerWidth/innerHeight; g.camera.updateProjectionMatrix(); } });

@@ -285,6 +285,26 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 <div class="screen" id="controls" hidden><div class="card" id="padBody"></div></div>
 <div class="screen" id="loading" hidden>Warming up the engine…</div>
 
+<script>
+/* if the game can't start, say so instead of leaving a black screen (and show the error, so it can be reported) */
+window.bootFail = function(title, html){
+  if (document.getElementById('bootFail')) return;
+  var d = document.createElement('div'); d.id = 'bootFail';
+  d.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#0f1520;color:#e9dcbd;font:16px/1.55 Georgia,serif;padding:24px;overflow:auto';
+  d.innerHTML = '<div style="max-width:640px"><h2 style="font:700 30px \'Barlow Condensed\',Arial Narrow,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#f2c14e;margin:0 0 12px">' + title + '</h2>' + html + '</div>';
+  (document.body || document.documentElement).appendChild(d);
+};
+window.bootErrors = [];
+window.addEventListener('error', function(e){ window.bootErrors.push((e.message || 'Script error') + (e.filename ? ' (' + e.filename.split('/').pop().split('?')[0] + ':' + e.lineno + ')' : '')); });
+window.addEventListener('load', function(){ setTimeout(function(){
+  if (window.G && window.G.UI) return;
+  var errs = window.bootErrors.slice(0, 4).map(function(s){ return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); });
+  window.bootFail('The hangar doors are stuck', '<p>Ace of the Airways didn\'t start in this browser.</p>' +
+    (errs.length ? '<p style="font:13px/1.5 monospace;color:#ff9a7a;background:#1a2230;padding:10px 12px;border-radius:4px">' + errs.join('<br>') + '</p><p>If you can, send that message to whoever sent you the link.</p>' : '') +
+    (!window.THREE ? '<p>The 3D engine didn\'t load. Check your connection, and that an ad or script blocker isn\'t stopping <b>cdnjs.cloudflare.com</b>.</p>' : '') +
+    '<p>It runs best in an up-to-date Chrome, Firefox, Edge or Safari on a desktop or laptop.</p>');
+}, 1500); });
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="window.Peer=undefined"></script>
 <script src="data.js?v=1120sight"></script>
@@ -307,7 +327,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 <script src="net.js?v=1120borrow"></script>
 <script src="pad.js?v=1120padsight"></script>
 <script src="keys.js?v=1120sight"></script>
-<script src="ui.js?v=1120tests"></script>
+<script src="ui.js?v=1120boot"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>
