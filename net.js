@@ -188,6 +188,11 @@ const Net = G.Net = {
         this.status = `${this.links.length + 1} pilots on the line.`; this.sendRoster();
         if (g && G.game === g && !g.done) this.sendStart(g, L);
         break;
+      case 'rejoin':   // a guest who left the flight wants back in: a fresh start for them, in their (maybe new) aeroplane
+        if (typeof m.name === 'string') L.name = m.name.slice(0, 18); L.load = this.cleanLoad(m.load);
+        if (g && L.proxy) { this.removeNetPlane(g, L.proxy); L.proxy = null; } if (g) this.dropSpawned(g, L);
+        if (g && G.game === g && !g.done) this.sendStart(g, L); else L.send({t:'hud', k:'feed', text:'No flight running right now. The host will launch the next one.'});
+        break;
       case 'rename': {   // a guest changed their callsign: the list, and their stand-in if they're flying
         L.name = String(m.name || 'Pilot').slice(0, 18); this.sendRoster();
         if (L.proxy) { L.proxy.name = L.proxy.callsign = L.name; this.broadcast({t:'plname', nid:L.proxy.nid, n:L.name}, L); }
@@ -371,6 +376,8 @@ const Net = G.Net = {
   flagPlane(p){ if (!p.nid || !this.links.length) return; this.broadcast({t:'plflag', nid:p.nid, dl:p.duel ? (p.jobOwner ? p.jobOwner.id : 'host') : undefined}); },
   /* is this somebody else's duel ace? (true: hands off) */
   notMine(p){ if (!p || !p.duel) return false; if (this.role === 'host') return !!p.jobOwner; if (this.role === 'guest') return !!p.duelOwner && p.duelOwner !== this.me; return false; },
+  /* guest, off the flight (went home, debrief, hangar): ask the host to put us back into the one that's running */
+  rejoin(){ if (this.role !== 'guest' || !this.host) return false; this.host.send({t:'rejoin', name:G.save.callsign || 'Ace', load:myLoad()}); this.status = 'Asking to rejoin the flight…'; return true; },
   removeNetPlane(g, p){ p.alive = false; g.scene.remove(p.obj); g.planes = g.planes.filter(x => x !== p); g.pilots = g.pilots.filter(pl => pl.p !== p); },
   byNid(g, n){ return n ? g.planes.find(p => p.nid === n) || null : null; },
 

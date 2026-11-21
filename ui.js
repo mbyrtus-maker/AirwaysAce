@@ -162,7 +162,7 @@ const UI = G.UI = {
 
   /* ---------- flying ---------- */
   fly(){
-    if (G.Net && G.Net.role === 'guest') { G.HUD.toast('The host launches the flight'); return; }
+    if (G.Net && G.Net.role === 'guest') { if (G.Net.rejoin && G.Net.rejoin()) return; G.HUD.toast('The host launches the flight'); if ($('hangar') && !$('hangar').hidden) { UI.hangarNote = 'The host launches the flight. You\'ll go up with them.'; UI.renderHangar(); } return; }   // a guest can't start one: ask to be put back into the host's
     if (!UI.saveCall()) { $('mCall').focus(); $('mCall').classList.add('need'); setTimeout(() => $('mCall').classList.remove('need'), 900); return; }
     G.audio.init(); G.music.stop(1.2); UI.quit(); this.screen('loading');
     setTimeout(() => {
@@ -470,7 +470,28 @@ Object.assign(UI, {
   buy(kind, id, price){ if (UI.O.buy(kind, id, price)) { if (G.audio) G.audio.ding(); UI.renderContact(); } },
   closeContact(){ if (!UI.inContact) return; UI.inContact = false; UI.ctTab = null; UI.hello = null; this.screen(null); const O = UI.O; UI.O = null; O.leave(); lock(); },
   abandonJob(){ const g = G.game; if (g && g.mission.job) g.mission.abandon(); UI.resume(); },
-  returnHome(){ const g = G.game; if (!g) return; this.pause(false); g.mission.finish(); }
+  /* open skies: straight to the main menu. This flight's earnings are banked first, as going home would */
+  quitOpen(){
+    const g = G.game; if (!g) return UI.menu(); const m = g.mission;
+    if (m.open && !m.ended && typeof m.bank === 'function') { m.ended = true; try { m.bank(); } catch (e) {} G.save.kills += g.kills; G.persist(); }
+    UI.menu();
+  },
+  returnHome(){
+    const g = G.game; if (!g) return; this.pause(false);
+    if (g.mission.open && ((g.netHost && G.Net && G.Net.links.length) || g.netGuest)) return UI.goAboard(g);   // co-op: going aboard doesn't end the flight for the others
+    g.mission.finish();
+  },
+  /* open-skies co-op: hoisted aboard the Margaret from wherever you are (the pause menu's Back to the Margaret). You hang on her hook,
+     safe, while the flight goes on, and the hangar opens; Launch drops you back into the same flight */
+  goAboard(g){
+    if (g.mission.job && g.mission.abandon) g.mission.abandon();
+    const P = g.player, s = g.ships.find(x => x.team === 0 && x.alive && x.obj.userData.trapeze) || g.ships.find(x => x.team === 0 && x.alive);
+    if (!s || !P || !P.alive) { G.HUD.toast('The Margaret can\'t take you aboard right now'); return; }
+    g.redocking = true; P.frozen = true; P.invuln = true; P.fire = P.fireRk = false; P.onGround = false;
+    const tmp = new THREE.Vector3(), hold = () => { s.worldPoint(tmp.set(0, -34.5 - 9 - 1.6, -22), P.pos); P.q.copy(s.q); P.speed = s.speed; P.vel.copy(s.vel); P.sync(); };
+    hold(); g.cine = (dt, cam) => { hold(); cam.position.copy(s.worldPoint(tmp.set(-38, -22, 10), new THREE.Vector3())); cam.lookAt(P.pos); };
+    UI.flightHangar(g);
+  },
 });
 
 /* Contact portraits: original flat illustrations from a few traits (skin, hair, hat, glasses, moustache). */

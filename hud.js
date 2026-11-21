@@ -213,9 +213,14 @@ const H = G.HUD = {
     // mission markers: course gates, clues, photo targets
     for (const m of g.markers || []) {
       if (m.hide) continue; this.proj(m.pos, pt); const on = pt.z < 1 && pt.x > 0 && pt.x < W && pt.y > 0 && pt.y < Hh, d = m.pos.distanceTo(P.pos);
+      if (on && !m.edgeOnly && m.course) {   // the course target: pulsing double ring and a pointer above it
+        const pr = Math.max(11, Math.min(36, 4800/Math.max(1, d)))*(1 + Math.sin(g.t*6)*0.12), col = m.col; c.strokeStyle = col; c.fillStyle = col;
+        c.lineWidth = 3; c.beginPath(); c.arc(pt.x, pt.y, pr, 0, 7); c.stroke(); c.lineWidth = 1.5; c.globalAlpha = 0.6; c.beginPath(); c.arc(pt.x, pt.y, pr + 7, 0, 7); c.stroke(); c.globalAlpha = 1;
+        const ty = pt.y - pr - 12 - Math.abs(Math.sin(g.t*4))*5; c.beginPath(); c.moveTo(pt.x, ty + 9); c.lineTo(pt.x - 8, ty - 3); c.lineTo(pt.x + 8, ty - 3); c.closePath(); c.fill();
+        c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(`${m.label}${m.noDist ? '' : '  ' + Math.round(d*YD) + ' yd'}`, pt.x, ty - 8); continue; }
       if (on && !m.edgeOnly) { c.strokeStyle = m.col || '#f2c14e'; c.lineWidth = 2; c.beginPath(); if (m.box) c.rect(pt.x - 14, pt.y - 14, 28, 28); else c.arc(pt.x, pt.y, Math.max(8, Math.min(30, 4000/Math.max(1, d))), 0, 7); c.stroke();
         c.fillStyle = c.strokeStyle; c.font = '700 12px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(`${m.label}${m.noDist ? '' : '  ' + Math.round(d*YD) + ' yd'}`, pt.x, pt.y - 20); }
-      else if (!on) this.edge(c, pt, m.col || '#f2c14e');
+      else if (!on) { if (m.course) this.edge(c, pt, m.col, 1.9, `${m.label} ${Math.round(d*YD)} yd`); else this.edge(c, pt, m.col || '#f2c14e'); }
     }
     // aeroplanes standing ready to be taken (game.parkPlane): marked within a couple of miles, brighter when you're close enough to climb in
     for (const s of g.parkedSpots || []) {
@@ -290,11 +295,12 @@ const H = G.HUD = {
     c.fillStyle = '#f2c14e'; c.beginPath(); c.moveTo(cx, y + 15); c.lineTo(cx - 6, y + 24); c.lineTo(cx + 6, y + 24); c.closePath(); c.fill();
     c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillStyle = '#f3d9a4'; c.fillText(`${String(Math.round(hd) % 360).padStart(3, '0')}° ${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(hd/45) % 8]}`, cx, y + 38);
   },
-  edge(c, pt, col){
+  edge(c, pt, col, k = 1, txt){   // k: arrow size (the course target's is bigger); txt: what and how far, beside the arrow
     const W = innerWidth, Hh = innerHeight, cx = W/2, cy = Hh/2;
     let dx = pt.x - cx, dy = pt.y - cy; if (pt.z > 1) { dx = -dx; dy = -dy; }
     const a = Math.atan2(dy, dx), r = Math.min(W, Hh)*0.42, x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r;
-    c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = col; c.globalAlpha = 0.85; c.beginPath(); c.moveTo(9, 0); c.lineTo(-5, -6); c.lineTo(-5, 6); c.closePath(); c.fill(); c.restore();
+    c.save(); c.translate(x, y); c.rotate(a); c.fillStyle = col; c.globalAlpha = 0.85; c.beginPath(); c.moveTo(9*k, 0); c.lineTo(-5*k, -6*k); c.lineTo(-5*k, 6*k); c.closePath(); c.fill(); c.restore();
+    if (txt) { c.save(); c.fillStyle = col; c.font = '700 12px "Barlow Condensed", sans-serif'; c.textAlign = 'center'; c.fillText(txt, x - Math.cos(a)*30, y - Math.sin(a)*30 + 4); c.restore(); }
   }
 };
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c])); }

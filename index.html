@@ -264,7 +264,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
   <div class="controls"><kbd>Mouse</kbd><span>Aim</span><kbd>Left / right click</kbd><span>Guns / rockets</span><kbd>W / S</kbd><span>Throttle</span><kbd>C</kbd><span>View</span></div>
   <div class="settings" style="margin:14px 0 4px;max-width:420px"><label for="pVol">Effects</label><input id="pVol" type="range" min="0" max="1" step="0.05"><label for="pAmb">Ambient</label><input id="pAmb" type="range" min="0" max="1" step="0.05"><label for="pMus">Music</label><input id="pMus" type="range" min="0" max="1" step="0.05"></div>
   <div class="row" id="pStd"><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" onclick="UI.restart()">Restart</button><button class="btn ghost" onclick="G.pad.open('pause')">Controls</button><button class="btn ghost" onclick="UI.menu()">Quit to menu</button></div>
-  <div class="row" id="pOpen" hidden><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" id="pAbandon" onclick="UI.abandonJob()">Abandon job</button><button class="btn ghost" onclick="UI.returnHome()">Back to the Margaret</button><button class="btn ghost" onclick="G.pad.open('pause')">Controls</button></div></div></div>
+  <div class="row" id="pOpen" hidden><button class="btn" onclick="UI.resume()">Resume</button><button class="btn ghost" id="pAbandon" onclick="UI.abandonJob()">Abandon job</button><button class="btn ghost" onclick="UI.returnHome()">Back to the Margaret</button><button class="btn ghost" onclick="G.pad.open('pause')">Controls</button><button class="btn ghost" onclick="UI.quitOpen()">Quit to menu</button></div></div></div>
 
 <div class="screen" id="debrief" hidden><div class="card"><div id="dBody"></div>
   <div class="row" id="dTest"><button class="btn" onclick="UI.fly()">Fly again</button><button class="btn ghost" onclick="UI.hangar()">Hangar</button><button class="btn ghost" onclick="UI.menu()">Menu</button></div>
@@ -315,19 +315,19 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="combat.js?v=1120hangar"></script>
 <script src="ai.js?v=1119diff"></script>
 <script src="audio.js?v=1120coop2"></script>
-<script src="hud.js?v=1120duel"></script>
+<script src="hud.js?v=1120course"></script>
 <script src="game.js?v=1120script"></script>
 <script src="traffic.js"></script>
 <script src="story.js?v=1120script"></script>
-<script src="open.js?v=1120duel"></script>
+<script src="open.js?v=1120course"></script>
 <script src="rust.js?v=1119dmg"></script>
 <script src="story2.js?v=1119diff"></script>
 <script src="story3.js?v=1120script"></script>
 <script src="story4.js?v=1120script"></script>
-<script src="net.js?v=1120duel"></script>
+<script src="net.js?v=1120course"></script>
 <script src="pad.js?v=1120hangar"></script>
 <script src="keys.js?v=1120sight"></script>
-<script src="ui.js?v=1120hangar"></script>
+<script src="ui.js?v=1120course"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>

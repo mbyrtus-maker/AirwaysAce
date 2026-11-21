@@ -737,6 +737,26 @@ function buildCave(C){
     g.add(mesh(new THREE.IcosahedronGeometry(st.r*0.35, 0), 0x3f6a32, st.x, st.h + 2, st.z)); }
   return g;
 }
+/* The course target: where a race, time trial, stunt show or hoop errand wants you next. Its own colour (magenta: nothing else
+   in the game uses it), a pulsing HUD marker with a big edge arrow, a tall magenta pillar standing on it, and a glowing halo
+   round the ring itself. One beacon per flight, moved to whatever is next; hidden at the start of every frame unless a job asks. */
+const COURSE = '#ff4fd8', COURSE_DIM = 'rgba(255,79,216,.5)', BEAM = 420;
+function courseMark(O, pos, label, o = {}){
+  const g = O.g; g.markers.push({pos, label, col:COURSE, course:true, noDist:!!o.noDist});
+  let B = O.cBeacon;
+  if (!B || B.parent !== g.scene) {
+    B = O.cBeacon = new THREE.Group();
+    const add = m => { m.renderOrder = 5; B.add(m); return m; };
+    const pil = add(new THREE.Mesh(new THREE.CylinderGeometry(1.6, 4.5, BEAM, 12, 1, true), new THREE.MeshBasicMaterial({color:0xff4fd8, transparent:true, opacity:0.4, depthWrite:false, side:THREE.DoubleSide, fog:false})));
+    const core = add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.2, BEAM, 8, 1, true), new THREE.MeshBasicMaterial({color:0xff2fcf, transparent:true, opacity:0.8, depthWrite:false, fog:false})));
+    const halo = add(new THREE.Mesh(new THREE.TorusGeometry(1, 0.075, 8, 48), new THREE.MeshBasicMaterial({color:0xff4fd8, transparent:true, opacity:0.9, depthWrite:false, fog:false})));
+    B.userData = {pil, core, halo}; g.scene.add(B);
+  }
+  const U = B.userData, base = o.R ? o.R + 3 : 0; B.visible = true; B.position.copy(pos);
+  U.pil.position.y = U.core.position.y = base + BEAM/2;   // the beam stands on top of the ring, so it never blocks the way through
+  U.pil.material.opacity = 0.38 + Math.sin(g.t*4)*0.08;   // plain (not additive) blending: additive washes out to white against a bright sky
+  if (o.R) { U.halo.visible = true; U.halo.scale.setScalar((o.R + 2.4)*(1 + Math.sin(g.t*6)*0.05)); U.halo.rotation.set(0, o.n ? Math.atan2(o.n.x, o.n.z) : 0, 0); } else U.halo.visible = false;
+}
 function ringMesh(R, kind){
   const g = new THREE.Group(), col = kind === 'start' ? 0xf2c14e : 0xe0583a;
   if (kind === 'boost') { g.add(G.buildBoostRing(R - 0.7)); return g; }   // the boost ring is its own hoop now: same opening the plain torus had
@@ -983,6 +1003,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (this.R.city) K.towerCrash(g);
     this.towerHit(g); this.caveHit(g); this.tunnelHit(g); this.cavernHit(g);
     if (this.rtick) this.rtick(g, dt);
+    if (this.cBeacon) this.cBeacon.visible = false;   // a job shows it again below if it has a course target
     if (this.phase !== 1 || this.ended || !P.alive) { this.hudSides(g); return; }
     g.markers = [];
     for (const s of this.sites) { s.cool = Math.max(0, s.cool - dt); if (!s.armed && P.pos.distanceTo(s.apron || s.point) > 120) s.armed = true; }
@@ -1596,7 +1617,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
       const d = P.pos.distanceTo(T.pos);
       if (T.def.race) {
         if (this.job) continue;
-        if (d < 2500) g.markers.push({pos:T.start, label:`${T.def.name.toUpperCase()} · TIME TRIAL`, col:'#f2c14e', noDist:d > 1500});
+        if (d < 2500) g.markers.push({pos:T.start, label:`${T.def.name.toUpperCase()} · TIME TRIAL`, col:COURSE, course:true, noDist:d > 1500});
         const rel = tA.copy(P.pos).sub(T.start), along = rel.z, lat = Math.hypot(rel.x, rel.y);
         if (T.prev !== undefined && Math.sign(along) !== Math.sign(T.prev) && lat < 18) { T.prev = undefined; this.startTrial(T); continue; }
         T.prev = along; continue;
@@ -1767,7 +1788,7 @@ ENG.race = (O, def) => {
       if (r.boost) for (const x of J.rivals) if (x.p.alive && through(r, x.p, 12)) x.p.nitro = 4;
     }
     if (!J.started) {
-      const r0 = rings[seq[0]]; g.markers.push({pos:r0.pos, label:`${def.title.toUpperCase()} · START`, col:'#f2c14e'});
+      const r0 = rings[seq[0]]; courseMark(O, r0.pos, `${def.title.toUpperCase()} · START`, {R:r0.R, n:r0.n});
       if (crossed.has(r0)) J.begin();
       return;
     }
@@ -1783,8 +1804,8 @@ ENG.race = (O, def) => {
                  : {win:false, note:J.rivals.length ? `Finished ${['', '1st', '2nd', '3rd', '4th'][place]}` : `Too slow: ${fmt(t)}`, say:J.rivals.length ? 'Second place pays nothing out here, flyer.' : 'The clock beat you. Try again.'};
     }
     const nx = pts[seq[J.k]], after = seq[J.k + 1] !== undefined ? pts[seq[J.k + 1]] : null;
-    g.markers.push({pos:nx, label:J.k === seq.length - 1 ? 'FINISH' : rings[seq[J.k]].boost ? 'NEXT · BOOST' : 'NEXT', col:'#9ef0a0'});
-    if (after) g.markers.push({pos:after, label:'', col:'rgba(158,240,160,.45)', noDist:true});
+    const rn = rings[seq[J.k]]; courseMark(O, nx, J.k === seq.length - 1 ? 'FINISH' : rn.boost ? 'NEXT · BOOST' : 'NEXT', {R:rn.R, n:rn.n});
+    if (after) g.markers.push({pos:after, label:'THEN', col:COURSE_DIM, noDist:true});   // the one after, faint, to plan your line
     if (J.t > bronze*2.2) return def.treasure ? O.trialDone(def, false, null, J.t) : {win:false, note:'Out of time', say:'We\'ll be here all night. Race called off.'};
   };
   J.objective = () => J.started ? `${def.title} · ring ${Math.min(J.k, seq.length)}/${seq.length - 1} · ${fmt(J.t)}${J.rivals.length ? ` · ${['', '1st', '2nd', '3rd', '4th'][J.place()]}` : ` · gold ${fmt(gold)}`}`
@@ -1827,9 +1848,10 @@ ENG.stunt = (O, def) => {
     J.t += dt;
     for (const G0 of gates) {
       if (through(G0, P, 2) && P.pos.y > G0.y + 1 && P.pos.y < G0.y + 33 && g.t - G0.t > 6) { G0.t = g.t; O.award(500, 'PYLON GATE'); if (g.audio) g.audio.ding(); }
-      if (P.pos.distanceTo(G0.pos) < 1500) g.markers.push({pos:G0.pos, label:'PYLON', col:'#f2c14e', noDist:true});
+      if (P.pos.distanceTo(G0.pos) < 1500) g.markers.push({pos:G0.pos, label:'PYLON', col:g.t - G0.t > 6 ? COURSE : COURSE_DIM, course:g.t - G0.t > 6, noDist:true});   // faint while it's still cooling down
     }
-    g.markers.push({pos:c.clone().setY(c.y + 60), label:inZone() ? 'SHOW BOX · the crowd can see you' : 'SHOW BOX', col:inZone() ? '#9ef0a0' : '#f2c14e', edgeOnly:inZone()});
+    if (inZone()) g.markers.push({pos:c.clone().setY(c.y + 60), label:'SHOW BOX · the crowd can see you', col:'#9ef0a0', edgeOnly:true});
+    else courseMark(O, c.clone().setY(c.y + 60), 'SHOW BOX');
     if (J.score >= def.target) { const medal = J.t < def.time*0.45 ? 'gold' : J.t < def.time*0.7 ? 'silver' : 'bronze'; return {win:true, medal, say:`${Math.round(J.score).toLocaleString()} points! They\'re on their feet!`}; }
     if (J.t > def.time) return {win:false, note:`${Math.round(J.score).toLocaleString()} of ${def.target.toLocaleString()} points`, say:'The crowd\'s gone home for supper.'};
   };
@@ -1926,7 +1948,7 @@ ENG.errand = (O, def) => {
         for (let i = 0; i < l.n; i++) { const a = i/l.n*Math.PI*2, x = c.x + Math.sin(a)*l.r, z = c.z + Math.cos(a)*l.r, n = new V3(Math.cos(a), 0, -Math.sin(a)).negate(); const p = new V3(x, groundMax(O, x, z) + l.agl, z); const m = ringMesh(16, 'start'); m.position.copy(p); m.rotation.y = Math.atan2(n.x, n.z); g.scene.add(m); J.hoops.push({pos:p, n, R:16, prev:new Map(), m}); }
         J.hk = 0;
       }
-      const h = J.hoops[J.hk]; g.markers.push({pos:h.pos, label:`HOOP ${J.hk + 1}/${J.hoops.length}`, col:'#9ef0a0'});
+      const h = J.hoops[J.hk]; courseMark(O, h.pos, `HOOP ${J.hk + 1}/${J.hoops.length}`, {R:h.R || 16, n:h.n});
       if (through(h, P, 3)) { J.hk++; if (g.audio) g.audio.ding(); if (J.hk >= J.hoops.length) done(); }
     }
     if (!legs[J.i]) return J.win();
