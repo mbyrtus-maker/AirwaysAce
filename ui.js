@@ -444,8 +444,9 @@ Object.assign(UI, {
     if (UI.ctTab === 'board') {
       const B = O.board(UI.site), open = B.filter(j => !j.lock || j.lock === 'After dark'), list = B.map(jobHtml).join('') || '<p class="note">The board is bare.</p>';
       $('ctBody').innerHTML = `<div class="kicker">${esc(UI.site.name)} · ${esc(G.timeLabel())}</div><h3 class="deco" style="font-size:30px;margin:4px 0">The Job Board</h3>
-        <p class="note">Notices pinned up by everyone flying work in ${esc(O.R.name)}. Take one here and fly straight to it; the pay is the same as asking in person. ${open.length} open.</p>
-        ${O.job ? `<p class="note">You're on a job: <b>${esc(O.job.def.title)}</b>.</p>` : ''}<div class="board">${list}</div>
+        <p class="note">Notices pinned up by everyone flying work in ${esc(O.R.name)}, and who sells what. Take a job here and fly straight to it; the pay is the same as asking in person. ${open.length} open.</p>
+        ${O.job ? `<p class="note">You're on a job: <b>${esc(O.job.def.title)}</b>.</p>` : ''}<h4>Work around ${esc(O.R.name)}</h4><div class="board">${list}</div>
+        <h4 style="margin-top:16px">Where to buy · bank $${S.cash.toLocaleString()}</h4>${UI.whereToBuy(O)}
         <div class="row"><button class="btn ghost" onclick="UI.ctTab=null;UI.renderContact()">Back to ${esc(C.name.split(' ')[0].replace(/"/g, ''))}</button><button class="btn" onclick="UI.closeContact()">${UI.site.kind === 'hook' ? 'Drop off the hook' : 'Back to the plane'}</button></div>`;
       return;
     }
@@ -455,6 +456,29 @@ Object.assign(UI, {
       <div class="ct-cols"><div>${C.club ? UI.barHtml(info) : ''}${C.local ? `<h4>Gossip</h4><p class="rumor">“${esc(info.gossip)}”</p>${O.patched ? '<p class="note">The town mechanic patched your plane and refilled your guns. No charge.</p>' : ''}` : `<h4>Work</h4>${O.job ? `<p class="note">You're on a job: <b>${esc(O.job.def.title)}</b>.</p>` : ''}${jobs}`}</div>
         <div><h4>For sale · bank $${S.cash.toLocaleString()}</h4>${shop}<h4 style="margin-top:14px">Word around here</h4>${rum}</div></div>
       <div class="row"><button class="btn ghost" onclick="UI.ctTab='board';UI.renderContact()">Job board</button><button class="btn" onclick="UI.closeContact()">${UI.site.kind === 'hook' ? 'Drop off the hook' : 'Back to the plane'}</button></div>`;
+  },
+  /* the board's shop directory: every aeroplane and upgrade for sale in the region, where, and for how much. Buy here if this is the place; otherwise mark it and fly there */
+  whereToBuy(O){
+    const all = O.shops(); if (!all.length) return '<p class="note">Nobody in these parts sells aeroplanes or parts.</p>';
+    const here = UI.site && UI.site.id, S = G.save;
+    const row = it => `<div class="shop"><b>${esc(it.name)}</b>${it.owned ? '<em class="note" style="margin:0">Owned</em>'
+        : it.at.id === here ? `<button class="btn sm" ${S.cash < it.price ? 'disabled' : ''} onclick="UI.buy('${it.kind}','${it.id}',${it.price})">$${it.price.toLocaleString()}</button>`
+        : `<button class="btn sm ghost" onclick="UI.O.markSite('${it.at.id}');UI.renderContact()">$${it.price.toLocaleString()} · mark it</button>`}
+      <span>${it.at.id === here ? '<b>Sold here.</b> ' : `At ${esc(it.at.name)}, from ${esc(it.C.name.replace(/".*" /, ''))}. `}${esc(it.desc)}</span></div>`;
+    const soldHere = new Set(all.filter(it => it.at.id === here).map(it => it.kind + ':' + it.id)), list = all.filter(it => it.at.id === here || !soldHere.has(it.kind + ':' + it.id));   // sold where you stand: no need to list it elsewhere too
+    const planes = list.filter(it => it.kind === 'chassis'), mods = list.filter(it => it.kind === 'mod');
+    const mark = O.wp ? `<p class="note">Marked on your map: <b>${esc(O.wp.label)}</b>. <a href="#" onclick="UI.O.wp=null;UI.renderContact();return false">Clear</a></p>` : '';
+    // further afield: what other regions sell that you can't get here (and don't own yet), and where, for the chart table
+    const hereIds = new Set(all.map(it => it.kind + ':' + it.id)), far = [];
+    for (const R of Object.values(G.REGIONS)) { if (R.id === O.R.id) continue;
+      for (const s of R.sites || []) { const C = s.contact && G.CONTACTS[s.contact]; if (!C || !C.shop) continue;
+        for (const it of C.shop) { const kind = it.mod ? 'mod' : 'chassis', id = it.mod || it.chassis, key = kind + ':' + id;
+          if (hereIds.has(key) || (kind === 'mod' ? G.hasMod(id) : S.owned.includes(id)) || far.some(f => f.key === key)) continue;
+          const name = kind === 'mod' ? G.MODS[id].name : G.CHASSIS[id].name, price = it.price || (kind === 'mod' ? G.MODS[id].price : 0);
+          far.push({key, kind, name, price, where:`${s.name}, ${R.name}`}); } } }
+    far.sort((a, b) => a.kind === b.kind ? a.price - b.price : a.kind === 'chassis' ? -1 : 1);
+    const afar = far.length ? `<h4 style="font-size:13px;margin-top:8px">Further afield <em style="font-style:normal;color:var(--dim);letter-spacing:0;text-transform:none">set course on the chart table</em></h4>${far.map(f => `<div class="shop"><b>${esc(f.name)}</b><em class="note" style="margin:0">$${f.price.toLocaleString()}</em><span>${f.kind === 'chassis' ? 'Aeroplane' : 'Upgrade'} · ${esc(f.where)}</span></div>`).join('')}` : '';
+    return `${mark}${planes.length ? `<h4 style="font-size:13px;margin-top:8px">Aeroplanes</h4>${planes.map(row).join('')}` : ''}${mods.length ? `<h4 style="font-size:13px;margin-top:8px">Upgrades</h4>${mods.map(row).join('')}` : ''}${afar}`;
   },
   rewardText(rw){ const o = []; if (rw.livery) o.push(`${G.LIVERIES[rw.livery].name} paint`); if (rw.chassis) o.push(`a ${G.CHASSIS[rw.chassis].name}`); if (rw.mod) o.push(G.MODS[rw.mod].name); return o.join(' and '); },
   fmtT(t){ const m = Math.floor(t/60), s = t - m*60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; },

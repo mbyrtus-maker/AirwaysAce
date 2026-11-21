@@ -1004,8 +1004,10 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.towerHit(g); this.caveHit(g); this.tunnelHit(g); this.cavernHit(g);
     if (this.rtick) this.rtick(g, dt);
     if (this.cBeacon) this.cBeacon.visible = false;   // a job shows it again below if it has a course target
+    if (this.wp && P && P.pos.distanceTo(this.wp.pos) < 420) { G.HUD.toast(`You're at ${this.wp.label}`); this.wp = null; }   // arrived at the marked place (checked before the landing screen can skip the rest)
     if (this.phase !== 1 || this.ended || !P.alive) { this.hudSides(g); return; }
     g.markers = [];
+    if (this.wp) g.markers.push({pos:this.wp.pos, label:this.wp.label.toUpperCase(), col:'#f2c14e', box:true});   // a place marked on the job board
     for (const s of this.sites) { s.cool = Math.max(0, s.cool - dt); if (!s.armed && P.pos.distanceTo(s.apron || s.point) > 120) s.armed = true; }
     // the job drives most of the markers and the objective line
     let obj = null;
@@ -1564,6 +1566,15 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     return this.R.sites.filter(s => s.contact && !G.CONTACTS[s.contact].local && (!site || s.contact !== site.contact))
       .flatMap(s => this.offer(s).jobs.map(j => Object.assign(j, {at:s, C:G.CONTACTS[s.contact]})));
   },
+  /* every shop in the region: what each place sells, for the job board's "Where to buy" */
+  shops(){
+    const out = [];
+    for (const s of this.R.sites) { if (!s.contact) continue; const C = G.CONTACTS[s.contact]; if (!C || !C.shop || !C.shop.length) continue;
+      for (const it of this.offer(s).shop) if (it.kind === 'mod' || it.kind === 'chassis') out.push(Object.assign({at:s, C}, it)); }
+    return out.sort((a, b) => a.kind === b.kind ? a.price - b.price : a.kind === 'chassis' ? -1 : 1);
+  },
+  /* a gold marker that leads you to a place picked on the board; cleared when you get there */
+  markSite(id){ const s = this.R.sites.find(x => x.id === id), p = this.P[id]; if (!s || !p) return; this.wp = {id, pos:p.clone().setY(p.y + 40), label:s.name}; G.HUD.toast(`Marked: ${s.name}`); },
   accept(id){ const d = JOB(id); if (!d || this.job || (d.needs && this.g.player.L.chassis !== d.needs)) return; this.pending = d; },
   acceptDuel(cid){ const a = G.aceFor(cid); if (!a || this.job) return; this.pending = {id:'duel_' + a.id, contact:cid, type:'duel', title:`Duel: ${a.name}`, pay:a.purse, ace:a, go:a.line}; },
   grant(rw){
