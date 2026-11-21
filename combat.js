@@ -137,7 +137,12 @@ G.Airship = class {
   /* ---- movement and guns ---- */
   update(dt){
     if (this.alive && this.g.netGuest) {   // co-op guest: the host flies the ships
-      if (this.net) { const k = 1 - Math.exp(-dt*6); this.pos.lerp(this.net.p, k); this.q.slerp(this.net.q, k); }
+      if (this.net) {
+        const k = 1 - Math.exp(-dt*6), was = tA.copy(this.pos); this.pos.lerp(this.net.p, k); this.q.slerp(this.net.q, k);
+        // heading and velocity aren't sent; work them out, or docking here checks against the ship's starting heading
+        const f = tB.set(0, 0, 1).applyQuaternion(this.q); this.heading = Math.atan2(f.x, f.z);
+        if (dt > 0) { this.vel.copy(this.pos).sub(was).divideScalar(dt); this.speed = this.vel.length(); }
+      }
       this.sync(); return;
     }
     if (!this.alive) {
