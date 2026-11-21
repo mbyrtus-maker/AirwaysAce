@@ -1964,6 +1964,7 @@ ENG.duel = (O, def) => {
   const at = P.pos.clone().addScaledVector(toMid, 2000);
   const ace = g.addPlane({loadout:L, team:1, name:A.name, callsign:A.name, pos:at, q:new Q().setFromUnitVectors(Z, toMid.clone().negate()), speed:78, ai:{role:'fighter', skill:A.skill}, internalMul:1.3});
   ace.ace = true; ace.duel = true; ace.bountyJob = true; g.pilots[g.pilots.length - 1].target = P;
+  if (g.netHost && G.Net && G.Net.flagPlane) G.Net.flagPlane(ace);   // co-op: everyone learns this ace is the host's to fight
   G.HUD.banner('DUEL', A.name); setTimeout(() => G.HUD.banner(null), 2400);
   const J = {t:0, ace, music:true};
   J.update = dt => {

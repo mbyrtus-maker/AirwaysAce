@@ -298,7 +298,7 @@ const Net = G.Net = {
   },
   /* guest: one of my bullets hit a plane on my screen; tell the host (a few dozen a second at most) */
   claimHit(p, dmg, facing, ammo, o){
-    if (!this.host || p.rival) return; const g = p.g, now = g.t;   // a rival can't be shot down: no hit marker either
+    if (!this.host || p.rival || this.notMine(p)) return; const g = p.g, now = g.t;   // a rival can't be shot down: no hit marker either
     if (now - (this.claimT || 0) > 1) { this.claimT = now; this.claimN = 0; } if (++this.claimN > 200) return;   // several fast guns on a big target can land well over 60 a second
     this.host.send({t:'gh', n:p.nid, d:r2(dmg), f:facing | 0, a:ammo && ammo.id || 'slug', o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen}});
     if (g.audio && g.audio.hitThem) g.audio.hitThem(); G.HUD.hitMark();
@@ -367,6 +367,10 @@ const Net = G.Net = {
       } catch (er) {}
     }
   },
+  /* host: a duel is one-on-one. Tell everyone whose ace this is: the others see it greyed out and can't hit it */
+  flagPlane(p){ if (!p.nid || !this.links.length) return; this.broadcast({t:'plflag', nid:p.nid, dl:p.duel ? (p.jobOwner ? p.jobOwner.id : 'host') : undefined}); },
+  /* is this somebody else's duel ace? (true: hands off) */
+  notMine(p){ if (!p || !p.duel) return false; if (this.role === 'host') return !!p.jobOwner; if (this.role === 'guest') return !!p.duelOwner && p.duelOwner !== this.me; return false; },
   removeNetPlane(g, p){ p.alive = false; g.scene.remove(p.obj); g.planes = g.planes.filter(x => x !== p); g.pilots = g.pilots.filter(pl => pl.p !== p); },
   byNid(g, n){ return n ? g.planes.find(p => p.nid === n) || null : null; },
 
@@ -453,7 +457,7 @@ const Net = G.Net = {
     this.spawnTid = String(m.tid || '').slice(0, 16);
     let p; try { p = g.addPlane({loadout:L2, team:1, name:String(o.name || 'Bandit').slice(0, 40), callsign:String(o.callsign || o.name || 'Bandit').slice(0, 40), pos, q, speed:num(o.speed, 80), ai, internalMul:Math.max(0.5, Math.min(2, num(o.internalMul, 1))), grace:num(o.grace, 0)}); } catch (e) {}
     this.spawnTid = null; if (!p) return;
-    const f = m.f || {}; p.invuln = !!f.invuln; p.ace = !!f.ace; p.duel = !!f.duel; p.bountyJob = true; p.jobOwner = L; set.add(p);
+    const f = m.f || {}; p.invuln = !!f.invuln; p.ace = !!f.ace; p.duel = !!f.duel; p.bountyJob = true; p.jobOwner = L; set.add(p); if (p.duel) this.flagPlane(p);
     const pl = g.pilots.find(x => x.p === p), P = m.pl || {};
     if (pl) {
       if (Array.isArray(P.route)) { pl.route = P.route.slice(0, 80).map(w => ({x:num(w.x, 0), z:num(w.z, 0), y:w.y === undefined ? undefined : num(w.y, 100), r:num(w.r, 26)})); pl.wp = 0; }
@@ -501,6 +505,7 @@ const Net = G.Net = {
     if (!m || typeof m !== 'object') return;
     const g = this.g;
     switch (m.t) {
+      case 'plflag': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p && typeof m.dl === 'string') { p.duel = true; p.duelOwner = m.dl.slice(0, 12); } break; }
       case 'plcrew': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p) p.netCrew = true; break; }
       case 'plname': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p) p.name = p.callsign = String(m.n || 'Pilot').slice(0, 18); break; }
       case 'roster': this.me = m.you; this.roster = Array.isArray(m.roster) ? m.roster.slice(0, 4) : []; this.render(); break;

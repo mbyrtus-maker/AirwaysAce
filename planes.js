@@ -300,6 +300,7 @@ G.Plane = class {
   damage(dmg, facing, ammo, src, o = {}){
     if (this.g.netGuest && !o.net) { if (src && src === this.g.player && this.puppet && this.nid && G.Net.claimHit) G.Net.claimHit(this, dmg, facing, ammo, o); return; }   // co-op: the host decides hits, but a guest's own bullets are judged where the guest saw them
     if (this.remote && this.g.netHost) return G.Net.forwardDamage(this, dmg, facing, ammo, src, o);
+    if (this.duel && this.g.netHost && src && src.team === 0) { const own = this.jobOwner ? this.jobOwner.proxy : this.g.player; if (src !== own) return; }   // co-op: a duel is one-on-one, the other pilot can't join in
     if (this.isPlayer && G.dev && G.dev.god) return;
     if (!this.alive || (this.isPlayer && this.g.done)) return;
     if (this.invuln) { this.hitFlash = 0.15; if (this.g.onInvulnHit) this.g.onInvulnHit(this, src); return; }

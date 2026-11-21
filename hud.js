@@ -164,7 +164,7 @@ const H = G.HUD = {
       this.proj(p.pos, pt);
       const on = pt.z < 1 && pt.x > 0 && pt.x < W && pt.y > 0 && pt.y < Hh;
       const hm = g.helpMark && g.helpMark.q === p && g.helpMark.until > g.t && g.helpMark.by.p.alive ? g.helpMark : null;
-      const col = p.team === 0 ? '#8fe3a8' : p.police ? (G.policeHostile ? '#ff6b57' : '#7ab8ff') : hm ? (g.t*4 % 1 < 0.6 ? '#ffb347' : '#ff6b57') : p.ace || p.rival ? '#f2c14e' : '#ff6b57';
+      const col = p.team === 0 ? '#8fe3a8' : p.police ? (G.policeHostile ? '#ff6b57' : '#7ab8ff') : hm ? (g.t*4 % 1 < 0.6 ? '#ffb347' : '#ff6b57') : G.Net && G.Net.notMine && G.Net.notMine(p) ? '#9aa3ad' : p.ace || p.rival ? '#f2c14e' : '#ff6b57';   // grey: another pilot's duel
       if (on) {
         const s = Math.max(10, Math.min(46, 2600/dist));
         c.strokeStyle = col; c.lineWidth = 1.6; c.beginPath();
@@ -176,7 +176,7 @@ const H = G.HUD = {
         if (dist < 900) { const f = Math.max(0, p.internal/p.internalMax); c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(pt.x - 18, pt.y + s*0.7 + 4, 36, 4); c.fillStyle = col; c.fillRect(pt.x - 18, pt.y + s*0.7 + 4, 36*f, 4); }
       } else this.edge(c, pt, col);
       const ang = tA.copy(p.pos).sub(P.pos).normalize().angleTo(g.view === 'cockpit' ? P.fwd : g.aimDir);
-      if (p.team !== 0 && !p.invuln && !p.rival && !(p.police && !G.policeHostile) && dist < 1000 && ang < bestA) { bestA = ang; best = p; }
+      if (p.team !== 0 && !p.invuln && !p.rival && !(G.Net && G.Net.notMine && G.Net.notMine(p)) && !(p.police && !G.policeHostile) && dist < 1000 && ang < bestA) { bestA = ang; best = p; }
     }
     for (const s of g.ships) {
       if (!s.alive || s.hidden) continue; this.proj(s.pos, pt);
