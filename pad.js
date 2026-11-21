@@ -81,6 +81,7 @@ const Pad = G.pad = {
       if (press('pause')) { if (g.paused) G.UI.resume(); else G.UI.pause(true); }
       if (!g.paused) {
         let dropped = false;
+        if (g.mission.awaitDrop && g.padPrompt !== p.id) { g.padPrompt = p.id; const b = document.querySelector('#hBanner span'); if (b) b.textContent = `Click, Space, or press ${this.btnName(M.fire)} to drop from the trapeze`; }
         if (g.mission.awaitDrop && (press('nitro') || press('fire'))) { G.audio.init(); g.mission.drop(); dropped = true; }
         // held controls are read by playerControl below
         this.hold = {fire:btn('fire'), rk:btn('rockets'), up:btn('thrUp'), down:btn('thrDown')};

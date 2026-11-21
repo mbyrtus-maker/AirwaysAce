@@ -70,6 +70,9 @@ class JobPilot {
     if (wp && Math.hypot(wp.x - p.pos.x, wp.z - p.pos.z) < (wp.r || 200)) { this.wp++; if (this.onWaypoint) this.onWaypoint(this.wp); }
   }
 }
+// where each slot hangs or parks, in the ship's or runway's own frame (x across, y up, z forward)
+G.COOP_SLOTS = [[0, 0, 0], [13, 0, -10], [-13, 0, -10], [0, -5, -24]];
+G.coopSlot = () => { const g = G.game; return g && (g.netGuest || g.netHost) && G.Net ? G.Net.slot() : 0; };
 const Net = G.Net = {
   transport:PeerTransport, tseq:0,
   role:null,          // null | 'host' | 'guest'
@@ -83,6 +86,7 @@ const Net = G.Net = {
 
   /* ======================= lobby ======================= */
   hostGame(code){
+    this.takeCall();
     this.leave(); this.role = 'host'; this.code = code || code4(); this.status = 'Opening the line…'; this.links = []; this.render();
     this.server = this.transport.host(this.code, {
       onReady:() => { this.status = 'Waiting for pilots. Give them the code.'; this.render(); },
@@ -90,7 +94,18 @@ const Net = G.Net = {
       onError:e => { if (e === 'taken' && !code) { this.hostGame(); return; } this.status = 'Line trouble: ' + e; this.render(); }
     });
   },
+  /* the callsign box changed: tell the others (a guest says hello again, the host re-sends the roster) */
+  callsignChanged(){
+    clearTimeout(this.csT);
+    this.csT = setTimeout(() => {
+      if (this.role === 'guest' && this.host) this.host.send({t:'rename', name:G.save.callsign || 'Ace'});
+      else if (this.role === 'host') { this.sendRoster(); this.render(); }
+      const g = G.game; if (g && g.player && (g.netGuest || g.netHost)) { g.player.name = g.player.callsign = G.save.callsign || 'Ace'; if (g.netHost && g.player.nid) this.broadcast({t:'plname', nid:g.player.nid, n:g.player.name}); }
+    }, 400);
+  },
+  takeCall(){ const el = typeof document !== 'undefined' && document.getElementById('mCall'), v = el && el.value.trim().slice(0, 18); if (v && v !== G.save.callsign) { G.save.callsign = v; G.persist(); } },
   joinGame(code){
+    this.takeCall();
     code = String(code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
     if (code.length !== 4) { this.status = 'A game code is four letters.'; this.render(); return; }
     this.leave(); this.role = 'guest'; this.code = code; this.status = 'Calling ' + code + '…'; this.render();
@@ -150,6 +165,10 @@ const Net = G.Net = {
         this.status = `${this.links.length + 1} pilots on the line.`; this.sendRoster();
         if (g && G.game === g && !g.done) this.sendStart(g, L);
         break;
+      case 'rename': {   // a guest changed their callsign: the list, and their stand-in if they're flying
+        L.name = String(m.name || 'Pilot').slice(0, 18); this.sendRoster();
+        if (L.proxy) { L.proxy.name = L.proxy.callsign = L.name; this.broadcast({t:'plname', nid:L.proxy.nid, n:L.name}, L); }
+        break; }
       case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
       case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
       case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
@@ -194,7 +213,7 @@ const Net = G.Net = {
   },
   tagPlane(g, p){
     if (p.nid) return;
-    p.nid = ++this.seq; if (this.spawnTid) p.tid = this.spawnTid;
+    p.nid = ++this.seq; if (this.spawnTid) p.tid = this.spawnTid; if (this.nextOwner && !p.remote) p.remote = this.nextOwner;
     if (this.role === 'host' && this.links.length) this.broadcast(this.planeMsg(p));
   },
   planeMsg(p){
@@ -259,7 +278,8 @@ const Net = G.Net = {
     if (!Array.isArray(m.p) || m.p.length < 10 || m.p.some(x => typeof x !== 'number' || !isFinite(x))) return;
     let p = L.proxy;
     if (!p && m.a) {
-      p = g.addPlane({loadout:L.load || G.stockLoadout('gallant'), team:0, name:L.name, callsign:L.name, pos:new V3(m.p[0], m.p[1], m.p[2]), speed:m.s || 60});
+      this.nextOwner = L;   // tagPlane announces it inside addPlane, so the owner must be known before, or the guest sees its own double
+      try { p = g.addPlane({loadout:L.load || G.stockLoadout('gallant'), team:0, name:L.name, callsign:L.name, pos:new V3(m.p[0], m.p[1], m.p[2]), speed:m.s || 60}); } finally { this.nextOwner = null; }
       p.remote = L; p.human = true; L.proxy = p; p.net = {p:new V3(), q:new Q(), v:new V3(), at:g.t};
       G.HUD.feed(`${L.name} is in the air`);
     }
@@ -375,6 +395,7 @@ const Net = G.Net = {
     if (!m || typeof m !== 'object') return;
     const g = this.g;
     switch (m.t) {
+      case 'plname': { const g = G.game, p = g && g.netPlanes && g.netPlanes.get(m.nid | 0); if (p) p.name = p.callsign = String(m.n || 'Pilot').slice(0, 18); break; }
       case 'roster': this.me = m.you; this.roster = Array.isArray(m.roster) ? m.roster.slice(0, 4) : []; this.render(); break;
       case 'full': this.status = 'That flight is full (four pilots).'; this.render(); break;
       case 'start': this.guestStart(m); break;
@@ -658,6 +679,8 @@ const vsJob = id => (G.JOBS || []).find(j => j.id === id);
 const MEDALS = {gold:1, silver:1, bronze:1};
 Object.assign(Net, {
   vs:null, vseq:0,
+  /* launch slot: host 0, guests 1-3 in join order, so nobody starts inside anybody else */
+  slot(){ if (this.role !== 'guest') return 0; const i = this.roster.findIndex(r => r.id === this.me); return i > 0 ? Math.min(i, 3) : 1; },
   myPid(){ return this.role === 'host' ? 'host' : this.me; },
   pilotName(pid){
     if (pid === this.myPid()) return G.save.callsign || 'Ace';

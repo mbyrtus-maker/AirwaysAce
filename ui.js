@@ -281,6 +281,8 @@ $('mSens').addEventListener('input', e => { G.save.mouseSens = +e.target.value; 
 $('mInv').addEventListener('change', e => { G.save.invert = e.target.checked; G.persist(); });
 $('mAssist').addEventListener('change', e => { G.save.aimAssist = e.target.checked; G.persist(); });
 $('mCall').addEventListener('keydown', e => { if (e.key === 'Enter') UI.fly(); });
+// keep the callsign as it's typed: a co-op guest never presses Fly, so this is the only place theirs gets saved and sent
+$('mCall').addEventListener('input', () => { const v = $('mCall').value.trim().slice(0, 18); if (!v) return; G.save.callsign = v; G.persist(); if (G.Net && G.Net.callsignChanged) G.Net.callsignChanged(); });
 
 /* ---------- open skies: the chart table ---------- */
 Object.assign(UI, {

@@ -482,7 +482,8 @@ G.MISSIONS.ambush = {
   canRedock(){ return !this.story; },
   hang(){
     const P = this.g.player, s = this.ship;
-    tA.set(0, -34.5 - 9 - 1.6, -22); s.worldPoint(tA, P.pos);
+    const o = G.COOP_SLOTS ? G.COOP_SLOTS[G.coopSlot()] : [0, 0, 0];   // co-op: each pilot on their own spot under the ship
+    tA.set(o[0], -34.5 - 9 - 1.6 + o[1], -22 + o[2]); s.worldPoint(tA, P.pos);
     P.q.copy(s.q); P.speed = s.speed; P.vel.copy(s.vel); P.sync();
   },
   drop(){
