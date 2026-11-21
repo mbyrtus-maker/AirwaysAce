@@ -6,7 +6,7 @@
      Left stick    pitch and roll (stick back = climb)       Right stick   swing the aim point / look
      R2            guns                                      L2            rockets
      R1 / L1       throttle up / down                        Cross (A)     nitro; drops you off the trapeze
-     Circle (B)    barrel roll (toward the left stick)       Triangle (Y)  Immelmann
+     Circle (B)    barrel roll (toward the left stick)       Triangle (Y)  Immelmann; with the stick to a side, snap turn
      Square (X)    Split-S                                   L3            flaps
      R3            hold to look back, tap for chase / cockpit   Create / View   landing gear
      D-pad         wingmen: up attack, right cover, left zeppelin, down form; down twice quickly sends them home
@@ -30,7 +30,8 @@ const ACTIONS = [
   {id:'thrDown', label:'Throttle down / brake',         def:B.l1},
   {id:'nitro',   label:'Nitro (and drop off the trapeze)', def:B.cross},
   {id:'roll',    label:'Barrel roll (toward the left stick)', def:B.circle},
-  {id:'immel',   label:'Immelmann',                     def:B.triangle},
+  {id:'immel',   label:'Immelmann (stick to a side: snap turn that way)', def:B.triangle},
+  {id:'snap',    label:'Snap turn (toward the left stick)', def:-1},
   {id:'splits',  label:'Split-S',                       def:B.square},
   {id:'flaps',   label:'Flaps',                         def:B.l3},
   {id:'gear',    label:'Landing gear',                  def:B.create},
@@ -79,6 +80,7 @@ const Pad = G.pad = {
     for (let i = 0; i < ax.length; i++) {
       const v = +ax[i] || 0, c = this.calm[i] || (this.calm[i] = {lo:v, hi:v, t:T, first:v});
       if (v < c.lo) c.lo = v; if (v > c.hi) c.hi = v;
+      if (!c.moved && Math.abs(v) > 0.45 && (p.mapping === 'standard' || Math.abs(v) < 0.9)) c.moved = true;   // pushed well over: in use, even if it was already there at the first reading
       if (c.hi - c.lo > (early ? 0.03 : 0.012)) { c.lo = c.hi = v; c.t = T; if (Math.abs(v - (R0[i] ?? c.first)) > 0.08) c.moved = true; continue; }   // it moved: start the stillness clock again
       const still = T - c.t;
       if (early && still > 700) {
@@ -123,7 +125,9 @@ const Pad = G.pad = {
         if (g.running && !g.sight) {
           if (press('nitro') && !dropped) tap('ShiftLeft');
           if (press('roll')) g.stunt(this.lx < -0.25 ? 'rollL' : 'rollR');
-          if (press('immel')) g.stunt('immel');
+          // Triangle with the left stick held to a side turns hard that way (the snap turn, the keyboard's rudder double-tap); centred, it's the Immelmann
+          if (press('immel')) g.stunt(this.lx < -0.5 ? 'snapL' : this.lx > 0.5 ? 'snapR' : 'immel');
+          if (press('snap')) g.stunt(this.lx < -0.25 ? 'snapL' : 'snapR');
           if (press('splits')) g.stunt('splits');
         }
         if (g.swapNear && press('fire')) tap('KeyY');   // stopped beside a parked aeroplane: the trigger climbs you across
@@ -202,7 +206,7 @@ const Pad = G.pad = {
       <div class="pad-grid">${ACTIONS.map(a => {
         const cap = this.capturing === a.id;
         return `<div class="pad-row${cap ? ' cap' : ''}"><span>${esc(a.label)}</span><b>${cap ? 'Press a button…' : esc(this.btnName(M[a.id]))}</b>
-          <button class="btn ghost sm" onclick="G.pad.${cap ? 'listen(null)' : `listen('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button>${a.id === 'home' || a.id === 'view' || a.id === 'photo' ? `<button class="btn ghost sm" onclick="G.pad.clear('${a.id}')" title="Unbind">✕</button>` : ''}</div>`;
+          <button class="btn ghost sm" onclick="G.pad.${cap ? 'listen(null)' : `listen('${a.id}')`}">${cap ? 'Cancel' : 'Change'}</button>${a.id === 'home' || a.id === 'view' || a.id === 'photo' || a.id === 'snap' || a.id === 'sight' ? `<button class="btn ghost sm" onclick="G.pad.clear('${a.id}')" title="Unbind">✕</button>` : ''}</div>`;
       }).join('')}</div>
       <div class="pad-opts">
         <label><span>Aim speed (right stick)</span><input type="range" min="0.4" max="2" step="0.05" value="${S.padSens || 1}" oninput="G.save.padSens = +this.value; G.persist()"></label>
