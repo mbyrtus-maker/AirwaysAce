@@ -554,7 +554,7 @@ Object.assign(UI, {
     $('devBody').innerHTML = `<h2>Developer table</h2><div class="note">Ctrl+Alt+D or Esc to close. Bank $${S.cash.toLocaleString()} · ${G.save.owned.length} chassis · ${(S.mods || []).length} mods · ${(S.liveries || []).length} liveries</div>
       <div class="dg">
         <section><h4>Cheats</h4><div class="bt">${b('God mode', 'G.dev.god=!G.dev.god', G.dev.god)}${b('Infinite ammo', 'G.dev.ammo=!G.dev.ammo', G.dev.ammo)}${b('No wingmen', 'G.dev.solo=!G.dev.solo', G.dev.solo)}
-          ${b('+$10,000', 'G.save.cash+=10000')}${b('+$100,000', 'G.save.cash+=100000')}${b('Unlock everything', 'UI.devUnlock()')}
+          ${b('Auto resolution' + (G.dynRes && G.dynRes.scale ? ` (${G.dynRes.scale.toFixed(2)}×${G.dynRes.fps ? ', ' + Math.round(G.dynRes.fps) + ' fps' : ''})` : ''), 'G.save.dynRes=G.save.dynRes===false', G.save.dynRes !== false)}${b('+$10,000', 'G.save.cash+=10000')}${b('+$100,000', 'G.save.cash+=100000')}${b('Unlock everything', 'UI.devUnlock()')}
           ${b('All treasure found', "for(const R of Object.values(G.REGIONS))for(const t of R.treasures)G.save.open.found[t.id]={t:Date.now()}")}${b('Reset treasure', 'G.save.open.found={}')}
           ${b('Reset job records', 'G.save.open.jobs={}')}${b('+25,000 stunt total', "G.save.open.stuntTotal+=25000")}${b('Wipe save', "if(confirm('Wipe the whole save?')){G.resetSave();UI.closeDev();UI.menu()}")}</div></section>
         <section><h4>Fly any craft <em style="font-style:normal;color:var(--dim);letter-spacing:0;text-transform:none">stock loadout</em></h4><div class="bt">${ch}</div>
@@ -579,11 +579,39 @@ Object.assign(UI, {
 });
 window.UI = UI;
 
+/* ---------- automatic resolution ----------
+   Older and integrated graphics (a 2014 Intel Iris Pro, say) can't fill a Retina screen at full resolution. This watches the real
+   frame rate in 1.5 s windows and, below about 42 fps, draws at a lower resolution, a step at a time; once there's room again
+   (57+ fps for three windows running) it steps back up, never past the normal cap. A level that dropped straight back after a
+   raise isn't tried again for a minute, so it doesn't flicker between two sizes. Pauses, hidden tabs and one-off stalls don't count. */
+const dynRes = G.dynRes = {
+  top:() => Math.min(1.75, devicePixelRatio || 1), floor:() => Math.max(0.5, Math.min(1, devicePixelRatio || 1)*0.55),
+  scale:null, t0:0, n:0, settleUntil:0, good:0, ceil:Infinity, ceilUntil:0, lastRaise:0, prev:0,
+  set(s, now, why){ s = Math.max(this.floor(), Math.min(this.top(), s)); if (Math.abs(s - this.scale) < 0.01) return; this.prev = this.scale; this.scale = s; renderer.setPixelRatio(s); renderer.setSize(innerWidth, innerHeight, false); this.settleUntil = now + 1500; this.t0 = now; this.n = 0; this.why = why; },
+  tick(now, ms, g){
+    if (this.scale == null) { this.scale = renderer.getPixelRatio(); this.t0 = now; }
+    if (this.scale > this.top()) this.set(this.top(), now, 'screen');   // moved to a different screen
+    if (G.save.dynRes === false) { if (this.scale < this.top()) this.set(this.top(), now, 'off'); return; }
+    if (!g || g.paused || g.inHangar || !g.running || document.hidden || ms > 250 || now < this.settleUntil) { this.t0 = now; this.n = 0; return; }
+    this.n++; const span = now - this.t0; if (span < 1500) return;
+    const fps = this.n*1000/span; this.fps = fps; this.t0 = now; this.n = 0;
+    if (fps < 42) {
+      this.good = 0;
+      if (now - this.lastRaise < 6000 && this.prev < this.scale) { this.ceil = this.scale; this.ceilUntil = now + 60000; }   // that raise was too much: stay under it a while
+      this.set(this.scale*(fps < 28 ? 0.75 : 0.85), now, 'slow');
+    } else if (fps >= 57 && this.scale < this.top()) {
+      if (++this.good < 3) return; this.good = 0;
+      const cap = now < this.ceilUntil ? this.ceil - 0.01 : Infinity, next = Math.min(this.scale*1.12, cap);
+      if (next > this.scale + 0.01) { this.lastRaise = now; this.set(next, now, 'room'); }
+    } else this.good = 0;
+  }
+};
+
 /* ---------- frame loop ---------- */
 let last = performance.now();
 function frame(now){
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  const rawMs = now - last, dt = Math.min(0.05, rawMs/1000); last = now;
   const g = G.game; if (!g) return;
   try {
     // without pointer lock the mouse works as a joystick: distance from centre turns the aim point
@@ -591,6 +619,7 @@ function frame(now){
     // the mouse-as-joystick only steers if the mouse was moved after the controller was last touched: a cursor left below centre while flying on the pad dived the plane once the pad went quiet
     if (!locked() && joy.on && g.running && !g.paused && !(G.pad && (G.pad.active || (joy.t || 0) < G.pad.lastUsed))) { const dz = v => Math.abs(v) < 0.08 ? 0 : (v - Math.sign(v)*0.08)/0.92; g.onMouse(dz(joy.x)*900*dt, dz(joy.y)*700*dt); }
     g.update(dt); g.render();
+    dynRes.tick(now, rawMs, g);
   } catch (e) { console.error('Ace of the Airways frame error', e); if (!frame.warned) { frame.warned = true; G.HUD.toast('Something went wrong: ' + e.message); } }
 }
 requestAnimationFrame(frame);
