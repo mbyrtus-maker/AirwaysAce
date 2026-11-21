@@ -891,7 +891,7 @@ function streetTick(c, g, dt){
 /* ---------- the El: an elevated railway up the east bank and over the river at the El crossing ---------- */
 function buildEl(c, g){
   const w = g.world, zEl = 3500, F = bridgeFrame(zEl), ctrl = [];
-  for (let z = -3900; z <= 3150; z += 350) ctrl.push(new V3(bankX(z, 1, z > -400 && z < 700 ? 104 : 80), 0, z));   // further back by the Iron Footbridge, clear of its approach and stair towers
+  for (let z = -3900; z <= 3150; z += 350) ctrl.push(new V3(bankX(z, 1, 215), 0, z));   // 215 m back from the water: past the foot of every bridge's approach ramp (at 80 m it ran through the Liberty Span's approach and over the ends of the others)
   ctrl.push(new V3(F.c.x + F.ax*(F.L/2 + 120), 0, F.c.z + F.az*(F.L/2 + 120)), new V3(F.c.x - F.ax*(F.L/2 + 120), 0, F.c.z - F.az*(F.L/2 + 120)), new V3(bankX(3900, -1, 160), 0, 3900), new V3(bankX(4250, -1, 260), 0, 4250));
   const cp = [ctrl[0], ...ctrl, ctrl[ctrl.length - 1]], dense = [];
   for (let i = 1; i < cp.length - 2; i++) for (let k2 = 0; k2 < 30; k2++) { const t = k2/30, t2 = t*t, t3 = t2*t, p0 = cp[i - 1], p1 = cp[i], p2 = cp[i + 1], p3 = cp[i + 2], f = (a, b, c2, d) => 0.5*((2*b) + (-a + c2)*t + (2*a - 5*b + 4*c2 - d)*t2 + (-a + 3*b - 3*c2 + d)*t3); dense.push(new V3(f(p0.x, p1.x, p2.x, p3.x), 0, f(p0.z, p1.z, p2.z, p3.z))); }

@@ -643,6 +643,7 @@ G.MISSIONS.c2m3 = Object.assign(Object.create(base), {
     G.HUD.radio('Hollis', 'Throttle up with W, steer with the mouse, and pull up past rotation speed. Easy does it, she\'s the only one there is.');
   },
   through(r, P){ const rel = tA.copy(P.pos).sub(r.pos), along = rel.dot(r.n), lat = rel.addScaledVector(r.n, -along).length(), hit = r.prev !== undefined && r.prev < 0 && along >= 0 && lat < r.R; r.prev = along; return hit; },
+  through2(r, P){ const rel = tA.copy(P.pos).sub(r.pos), along = rel.dot(r.n), lat = rel.addScaledVector(r.n, -along).length(), hit = r.prev !== undefined && Math.sign(r.prev) !== Math.sign(along) && lat < r.R + 2.5; r.prev = along; return hit; },   // either way through, with a little slack
   update(g, dt){
     this.pt += dt; const P = g.player; if (this.phase !== 1 || this.ended || !P.alive) { G.HUD.sides(this.sideState(g)); return; }
     g.markers = [];
@@ -653,12 +654,16 @@ G.MISSIONS.c2m3 = Object.assign(Object.create(base), {
       if (P.pos.y*3.28 >= 2000) { this.climbOk = this.climbT <= 75; this.stage = 'mileA'; if (g.audio) g.audio.ding(); G.HUD.radio('Hollis', this.climbOk ? `2,000 feet in ${Math.round(this.climbT)} seconds! She climbs like a homesick angel.` : `2,000 feet. ${Math.round(this.climbT)} seconds. Slower than I hoped, but she's carrying test gear.`); G.HUD.radio(G.RADIO.short, 'Now the measured mile. Through the first hoop, flat out, through the second.'); }
     }
     if (this.stage === 'mileA' || this.stage === 'mileB') {
-      const r = this.mile[this.stage === 'mileA' ? 0 : 1];
-      g.markers.push({pos:r.pos, label:this.stage === 'mileA' ? 'MEASURED MILE · START' : 'FINISH', col:'#9ef0a0'});
-      G.HUD.objective(this.stage === 'mileA' ? 'Trial 2: the measured mile. Fly through the start hoop at full throttle' : `Trial 2: flat out to the finish hoop · ${Math.round(P.speed/G.MPH)} mph`);
-      if (this.through(r, P)) {
+      // either end will do: the first hoop you fly through (whichever way) starts the clock, the other one stops it.
+      // (It used to take one hoop, one way round, and coming at the mile from the far side after the climb counted nothing)
+      const live = this.stage === 'mileA' ? this.mile : [this.mile[1 - this.mileFrom]];
+      for (const r of live) g.markers.push({pos:r.pos, label:this.stage === 'mileA' ? 'MEASURED MILE · START' : 'FINISH', col:'#ff4fd8', course:true});
+      G.HUD.objective(this.stage === 'mileA' ? 'Trial 2: the measured mile. Fly through either hoop at full throttle, then on through the other' : `Trial 2: flat out to the finish hoop · ${Math.round(P.speed/G.MPH)} mph`);
+      const hitI = this.mile.findIndex(r => this.through2(r, P));
+      const r = hitI >= 0 && live.includes(this.mile[hitI]) ? this.mile[hitI] : null;
+      if (r) {
         if (g.audio) g.audio.ding();
-        if (this.stage === 'mileA') { this.stage = 'mileB'; this.mileA = this.pt; }
+        if (this.stage === 'mileA') { this.stage = 'mileB'; this.mileA = this.pt; this.mileFrom = hitI; }
         else { const t = this.pt - this.mileA; this.mileMph = Math.round(1600/t/G.MPH); const best = G.save.times.mile || 0; if (this.mileMph > best) { G.save.times.mile = this.mileMph; G.persist(); }
           this.stage = 'stunts'; G.HUD.radio('Hollis', `${this.mileMph} miles an hour over the mile!${this.mileMph >= 250 ? ' That\'s a record! Unofficial, but a record!' : ' Not bad. A dive into the start hoop would help.'}`);
           setTimeout(() => G.HUD.radio(G.RADIO.short, 'Last card: an Immelmann (R), a Split-S (Z), a barrel roll (double-tap A or D), and a snap turn (double-tap Q or E). Any order.'), 3000); }

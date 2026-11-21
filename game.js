@@ -1,5 +1,7 @@
 (function(){
 'use strict';
+const tEnd = new THREE.Vector3();   // the after-the-mission autopilot's heading
+const DEF_KEYS = new WeakMap();      // each mission's own keys as first seen: its definition, before any try has written to it
 /* The game: scene, mouse-aim input, cameras, and the first test mission. */
 const G = window.G, V3 = THREE.Vector3, Q = THREE.Quaternion;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -46,6 +48,9 @@ G.Game = class {
     this.keys = {}; this.aimYaw = 0; this.aimPitch = -0.12; this.aimDir = new V3();
     this.camPos = new V3(); this.camLook = new V3();
     G.game = this;
+    // missions are single objects reused from one try to the next. Whatever a try left on one (a "first wave launched" flag, a counter)
+    // would carry into the retry: Skull Rock's first wave never came back. Story missions are wiped back to their definition first
+    if (!mission.open) { const keep = DEF_KEYS.get(mission) || (DEF_KEYS.set(mission, new Set(Object.keys(mission))), DEF_KEYS.get(mission)); for (const k of Object.keys(mission)) if (!keep.has(k)) delete mission[k]; }
     mission.setup(this);
     if (G.setNightWindows) G.setNightWindows(this.world.time);
     if (G.weatherFor) G.weatherFor(this);
@@ -345,6 +350,9 @@ G.Game = class {
     if (this.paused) return;
     dt = Math.min(dt, 0.05); this.t += dt;
     if (this.running) this.playerControl(dt);
+    else if (this.done && this.player && this.player.alive && !this.player.onGround && !this.player.frozen) {   // the mission's over: fly on level and climbing gently until the debrief, instead of straight into whatever's ahead
+      const P = this.player, f = P.fwd; tEnd.set(f.x, 0, f.z); if (tEnd.lengthSq() < 1e-4) tEnd.set(0, 0, 1); tEnd.normalize(); tEnd.y = 0.12; P.steer(tEnd.normalize()); P.throttle = Math.max(P.throttle, 0.6); P.fire = P.fireRk = false;
+    }
     if (this.parkedSpots) this.swapTick(dt);
     if (this.crates || this.dropZones) { if (this.netHost && G.Net.share) G.Net.share(this, () => this.cratesTick(dt)); else this.cratesTick(dt); }
     if (G.dev && G.dev.ammo && this.player && this.player.alive) { const P = this.player; for (const gn of P.guns) gn.rounds = gn.def.ammo; P.rockets = P.L.hp*3; if (P.L.nitro || P.st.rocket) P.nitroLeft = P.st.rocket ? 6 : 3; }

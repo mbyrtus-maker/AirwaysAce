@@ -832,7 +832,7 @@ function comet(paint){
   // the cockpit, far aft: a tall bubble so the pilot sees over the barrel, faired straight into the fin
   canopy(k, [[-1.45, 0.2, 0.86, 0.96], [-2.2, 0.33, 0.6, 1.52], [-3.0, 0.27, 0.5, 1.56]], STEEL());
   k.add(glassCan([[-3.0, 0.29, 0.45, 1.58], [-4.3, 0.07, 0.2, 1.3]]), mT);
-  seatAndPilot(g, k, 0, 1.33, -2.6);
+  seatAndPilot(g, k, 0, 0.98, -2.6);   // down in the bubble: the seat rests on the cockpit floor, the head well under the glass (it floated at 1.33)
   const tf = t => [0.3 + 1.5*t, 1.6 - 0.4*t, 0.13, -4.0 - 0.2*t, 0];
   k.add(pan(tf, 0, 0.7), mP, UP(0, 0.3)); k.add(pan(tf, 0.7, 1), mT, UP(0, 0.3)); k.add(tipOf(tf, 0.2, 0.5), mT, UP(0, 0.3));
   { const tail = []; for (const [y, w] of [[0.1, 0.07], [0, 0.09], [-0.1, 0.07]]) for (const v of poly([[-0.1, y - w/2], [0.5 - Math.abs(y), y*1.6], [-0.1, y + w/2]])) tail.push(v);   // a comet on the fin
@@ -849,7 +849,7 @@ function comet(paint){
   hookMast(k, -1.0, 1.15);
   k.build(g);
   addProp(g, props, new V3(0, 0, 3.75), 2, 2.9, 0.3, DARK(), mT, mS, [[0.34,-0.04],[0.3,0.2],[0.05,0.6]]);
-  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(2.6, -0.92, 1.4), new V3(-2.6, -0.92, 1.4)], radius:4.8, cockpit:new V3(0, 1.39, -2.5), exhaust:new V3(0, -0.5, 2.2), gear:2.1};
+  g.userData = {prop:props[0], props, muzzles:mz, rails:[new V3(2.6, -0.92, 1.4), new V3(-2.6, -0.92, 1.4)], radius:4.8, cockpit:new V3(0, 1.08, -2.5), exhaust:new V3(0, -0.5, 2.2), gear:2.1};
   return g;
 }
 

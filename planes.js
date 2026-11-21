@@ -408,6 +408,7 @@ G.Plane = class {
     for (const [k, sx] of [[2, 1], [3, -1]]) if (pk[k] < 0.6 || this.wingGone === k) { const wp = tB.set(sx*(this.wingGone === k ? 1.6 : 3.5), -0.3, 0.6).applyQuaternion(this.q).add(this.pos), d = 1 - pk[k]; fx.smoke.emit(wp.x, wp.y, wp.z, 0, 1, 0, 1.2 + d*2, 0.9, 0.55, 0.55, 0.55, 0.2 + d*0.35, 4, 0.8, 1); }
   }
   destroy(src, how){
+    if (this.isPlayer && this.g.done && this.alive) return;   // the mission's over: nothing can bring you down on the way to the debrief
     if (!this.alive) return; this.alive = false;
     this.g.fx.explosion(this.pos, 1.4); this.g.fx.burner(this.pos, 4);
     this.obj.visible = false;

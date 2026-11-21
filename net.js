@@ -310,9 +310,11 @@ const Net = G.Net = {
   },
   /* host: a guest says they hit something. Believe it within reason: alive, an enemy, in gun range of their plane, a sane amount */
   hostClaim(g, L, m){
-    const P = L.proxy, t = this.byNid(g, m.n | 0); if (!P || !P.alive || !t || !t.alive || t.team === 0 || t === P) return;
-    if (P.pos.distanceTo(t.pos) > 1400) return;
-    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 240) { L.claimsCut = (L.claimsCut || 0) + 1; return; }
+    const P = L.proxy, t = this.byNid(g, m.n | 0), S = L.claims || (L.claims = {ok:0, noPlane:0, noTarget:0, range:0, rate:0});   // tally: G.Net.links[0].claims in the console
+    if (!P || !P.alive) { S.noPlane++; return; } if (!t || !t.alive || t.team === 0 || t === P) { S.noTarget++; return; }
+    if (P.pos.distanceTo(t.pos) > 1400) { S.range++; return; }
+    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 240) { S.rate++; return; }
+    S.ok++;
     const o = {}; if (m.o && typeof m.o === 'object') for (const k of ['armorMul', 'wingMul', 'pen']) if (typeof m.o[k] === 'number' && isFinite(m.o[k])) o[k] = Math.max(0, Math.min(4, m.o[k]));
     this.claiming = true;   // the guest already showed the hit marker
     try { t.damage(Math.max(0, Math.min(60, +m.d || 0)), Math.max(0, Math.min(3, m.f | 0)), G.AMMO[m.a] || G.AMMO.slug, P, o); } finally { this.claiming = false; }
