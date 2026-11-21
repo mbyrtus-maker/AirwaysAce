@@ -21,13 +21,12 @@ const UI = G.UI = {
     G.music.play(G.save.story && /end$/.test(G.save.story.node) && (G.save.mission || 'story') === 'story' ? 'home' : 'sidewalk');
     const S = G.save; if (!S.story) S.story = G.newStory(); if (S.story.node === 'c1end') { S.story.node = 'c2m1'; G.persist(); }
     if (S.story.node === 'c2end') { S.story.node = S.story.log.some(l => l.node === 'c2m2') ? 'c2m3' : 'c2m2'; G.persist(); }
-    const storyNode = S.story.node, inStory = (S.mission || 'story') === 'story';
     if (S.mission === 'open') S.mission = 'story';
+    if (S.mission && S.mission !== 'story' && G.MISSIONS[S.mission] && !G.MISSIONS[S.mission].story) S.mission = 'story';   // test flights live in the developer table now (Ctrl+Alt+D); the menu goes back to the story
+    const storyNode = S.story.node, inStory = (S.mission || 'story') === 'story';
     const M = inStory ? (G.MISSIONS[storyNode] || null) : (G.MISSIONS[S.mission] || G.MISSIONS.ambush);
-    const tests = Object.values(G.MISSIONS).filter(m => !m.story && !m.open);
     $('mList').innerHTML = `<button class="${inStory ? 'on' : ''}" onclick="UI.pickMission('story')"><span>${esc(/end$/.test(storyNode) ? 'The story so far' : G.chapterOf(storyNode))}</span><b>${/end$/.test(storyNode) ? 'To be continued' : 'Episode ' + G.STORY[storyNode].n + ': ' + esc(G.MISSIONS[storyNode].title)}</b></button>` +
-      `<button class="${S.mission === 'open' ? 'on' : ''}" onclick="UI.chart()"><span>Open skies · ${esc(G.REGIONS[S.open.region].name)}</span><b>Chart table</b></button>` +
-      tests.map((m, i) => `<button class="${!inStory && m === M ? 'on' : ''}" onclick="UI.pickMission('${m.id}')"><span>Test flight ${i + 1}</span><b>${esc(m.title)}</b></button>`).join('');
+      `<button class="${S.mission === 'open' ? 'on' : ''}" onclick="UI.chart()"><span>Open skies · ${esc(G.REGIONS[S.open.region].name)}</span><b>Chart table</b></button>`;
     if (inStory && /end$/.test(storyNode)) {
       $('mBrief').innerHTML = `<div class="b-top"><span class="tag">The Lucky Thirteen</span><span>The End</span></div><h3>The End</h3><p class="recap">${esc(G.storyRecap())}</p>
         <ul>${S.story.log.map(l => `<li>${esc(l.title)} · <b>${{perfect:'Perfect', success:'Success', fail:'Failure'}[l.kind]}</b></li>`).join('')}</ul><div class="row"><button class="btn ghost sm" onclick="UI.restartChapter()">Start over from Chapter 1</button></div>`;
@@ -479,7 +478,8 @@ Object.assign(UI, {
   renderDev(){
     const S = G.save, O = S.open, g = G.game, M = g && g.mission, b = (label, js, on) => `<button class="d ${on ? 'on' : ''}" onclick="UI.devDo(()=>{${js}})">${esc(label)}</button>`;
     const ch = Object.values(G.CHASSIS).map(c => b(c.name + (S.load.chassis === c.id ? ' ✓' : ''), `UI.devPlane('${c.id}')`, S.load.chassis === c.id)).join('');
-    const missions = Object.values(G.MISSIONS).filter(m => !m.open).map(m => {
+    const tests = Object.values(G.MISSIONS).filter(m => !m.story && !m.open).map(m => b(m.title, `UI.devFly('${m.id}')`)).join('');
+    const missions = Object.values(G.MISSIONS).filter(m => !m.open && m.story).map(m => {
       const st = G.STORY && G.STORY[m.id], tag = st ? `${G.chapterOf(m.id).split(':')[0]} · ep ${st.n}` : 'Test flight';
       return `<b>${esc(m.title)}</b><button class="d" onclick="UI.devFly('${m.id}')">Fly</button>${st ? `<button class="d" onclick="UI.devDo(()=>{G.save.story.node='${m.id}';G.save.mission='story'})">Set story</button>` : '<span></span>'}<span style="grid-column:1/-1;margin-top:-3px">${esc(tag)} · ${esc(m.place || '')}</span>`;
     }).join('');
@@ -498,7 +498,8 @@ Object.assign(UI, {
         <section><h4>Fly any craft <em style="font-style:normal;color:var(--dim);letter-spacing:0;text-transform:none">stock loadout</em></h4><div class="bt">${ch}</div>
           <h4 style="margin-top:12px">Open skies</h4><div class="bt">${regs}</div><div class="bt" style="margin-top:6px">${times}</div>
           <div class="bt" style="margin-top:6px"><button class="d" onclick="UI.devFly('open')">Fly open skies here</button><button class="d" onclick="UI.closeDev();UI.chart()">Chart table</button></div></section>
-        <section><h4>Any mission</h4><div class="ml">${missions}</div></section>
+        <section><h4>Test flights</h4><div class="bt">${tests}</div></section>
+        <section><h4>Any story mission</h4><div class="ml">${missions}</div></section>
         ${flight}
       </div>`;
   },
