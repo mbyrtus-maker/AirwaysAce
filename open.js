@@ -1661,6 +1661,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
   onSeaShipDown(g, ship){ if (this.job && this.job.onSeaShipDown) this.job.onSeaShipDown(ship); },
   onInvulnHit(){},
   playerDown(g){
+    if (g.netHost && G.Net && G.Net.links.length && !this.ended) return G.Net.respawn(g);   // co-op: the flight goes on for everyone; you're back in the air near the Margaret
     if (this.ended) return; this.ended = true; this.sc.chain = 0;
     if (this.job) { const j = this.job; this.job = null; if (j.cleanup) j.cleanup(); }
     G.HUD.radio(G.RADIO.short, `${g.player.callsign}! We see a chute. Hang on, we\'re coming round.`);

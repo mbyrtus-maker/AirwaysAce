@@ -26,7 +26,7 @@ const wrapConn = c => {
   let fn = null, fast = null;
   return {
     send(o){ if (c.open) try { c.send(o); } catch (e) {} },
-    sendFast(o){ if (fast && fast.open) { try { if (JSON.stringify(o).length < 12000) { fast.send(o); return; } } catch (e) {} } this.send(o); },   // big ones would be split, which the fast channel can't do
+    sendFast(o, size){ if (fast && fast.open) { try { if ((size ?? JSON.stringify(o).length) < 12000) { fast.send(o); return; } } catch (e) {} } this.send(o); },   // size: already measured by the caller   // big ones would be split, which the fast channel can't do
     setFast(f){ fast = f; f.on('data', d => fn && fn(d)); f.on('close', () => { if (fast === f) fast = null; }); },
     onMessage(h){ fn = h; c.on('data', h); },
     onClose(h){ c.on('close', h); c.on('error', h); },
@@ -177,7 +177,7 @@ const Net = G.Net = {
     this.render();
   },
   broadcast(m, except){ for (const L of this.links) if (L !== except) L.send(m); },
-  broadcastFast(m){ for (const L of this.links) (L.sendFast ? L.sendFast(m) : L.send(m)); },
+  broadcastFast(m){ if (!this.links.length) return; let n; try { n = JSON.stringify(m).length; } catch (e) { n = 1e9; } for (const L of this.links) (L.sendFast ? L.sendFast(m, n) : L.send(m)); },   // measured once for everyone
 
   hostMsg(L, m){
     if (!m || typeof m !== 'object') return;
@@ -255,13 +255,14 @@ const Net = G.Net = {
   },
   parkedLabel(p, sp){ return String(sp.mine ? `${G.save.callsign || 'Ace'}'s ${(G.CHASSIS[p.L.chassis] || {name:'aeroplane'}).name}` : sp.label).slice(0, 60); },   // "your Gallant" here is the host's Gallant to everyone else
   parkedChanged(g, p, spot){ if (p.nid && this.links.length && this.g === g) this.broadcast({t:'plmeta', nid:p.nid, pk:this.parkedLabel(p, spot), ho:spot.hostOnly ? 1 : 0}); },
-  hostSwapped(g, now, was){ if (now.nid && this.links.length && this.g === g) this.broadcast({t:'plmeta', nid:now.nid, pk:null}); },
+  hostSwapped(g, now, was){ if (now.nid && this.links.length && this.g === g) this.broadcast({t:'plmeta', nid:now.nid, pk:null, ow:'host'}); },   // ow: it's the host's own plane now
   markParked(g, p, label, ho){
     p.parked = true; g.parkedSpots = (g.parkedSpots || []).filter(s => s.plane !== p);
     g.parkedSpots.push({plane:p, label:String(label).slice(0, 60), reach:Math.max(45, ((p.ud && p.ud.radius) || 8)*3.5), keepOld:true, hostOnly:!!ho, nid:p.nid, taken:false});
   },
   guestMeta(g, m){
     const p = g.netPlanes.get(m.nid | 0); if (!p) return;
+    if (m.ow === 'host') p.remote = {id:'host'};
     if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
     else { p.parked = false; g.parkedSpots = (g.parkedSpots || []).filter(s => s.plane !== p); }
   },
@@ -297,7 +298,7 @@ const Net = G.Net = {
   /* guest: one of my bullets hit a plane on my screen; tell the host (a few dozen a second at most) */
   claimHit(p, dmg, facing, ammo, o){
     if (!this.host || p.rival) return; const g = p.g, now = g.t;   // a rival can't be shot down: no hit marker either
-    if (now - (this.claimT || 0) > 1) { this.claimT = now; this.claimN = 0; } if (++this.claimN > 60) return;
+    if (now - (this.claimT || 0) > 1) { this.claimT = now; this.claimN = 0; } if (++this.claimN > 200) return;   // several fast guns on a big target can land well over 60 a second
     this.host.send({t:'gh', n:p.nid, d:r2(dmg), f:facing | 0, a:ammo && ammo.id || 'slug', o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen}});
     if (g.audio && g.audio.hitThem) g.audio.hitThem(); G.HUD.hitMark();
   },
@@ -305,7 +306,7 @@ const Net = G.Net = {
   hostClaim(g, L, m){
     const P = L.proxy, t = this.byNid(g, m.n | 0); if (!P || !P.alive || !t || !t.alive || t.team === 0 || t === P) return;
     if (P.pos.distanceTo(t.pos) > 1400) return;
-    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 70) return;
+    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 240) { L.claimsCut = (L.claimsCut || 0) + 1; return; }
     const o = {}; if (m.o && typeof m.o === 'object') for (const k of ['armorMul', 'wingMul', 'pen']) if (typeof m.o[k] === 'number' && isFinite(m.o[k])) o[k] = Math.max(0, Math.min(4, m.o[k]));
     this.claiming = true;   // the guest already showed the hit marker
     try { t.damage(Math.max(0, Math.min(60, +m.d || 0)), Math.max(0, Math.min(3, m.f | 0)), G.AMMO[m.a] || G.AMMO.slug, P, o); } finally { this.claiming = false; }
@@ -373,6 +374,7 @@ const Net = G.Net = {
     if (typeof m.k === 'number') { if (m.k <= (L.stK || 0) && m.k > (L.stK || 0) - 1e5) return; L.stK = m.k; }   // the fast channel can deliver out of order: drop the stale
     if (!Array.isArray(m.p) || m.p.length < 10 || m.p.some(x => typeof x !== 'number' || !isFinite(x))) return;
     let p = L.proxy;
+    if (p && !p.alive && m.a) { this.removeNetPlane(g, p); L.proxy = p = null; }   // they were shot down and are flying again (open-skies respawn)
     if (!p && m.a) {
       this.nextOwner = L;   // tagPlane announces it inside addPlane, so the owner must be known before, or the guest sees its own double
       try { p = g.addPlane({loadout:L.load || G.stockLoadout('gallant'), team:0, name:L.name, callsign:L.name, pos:new V3(m.p[0], m.p[1], m.p[2]), speed:m.s || 60}); } finally { this.nextOwner = null; }
@@ -380,6 +382,7 @@ const Net = G.Net = {
       G.HUD.feed(`${L.name} is in the air`);
     }
     if (!p || !p.alive) return;
+    if (typeof m.T === 'number' && isFinite(m.T)) G.netSample(g, p.net, L.clk || (L.clk = {}), m.T, ...m.p.slice(0, 10));
     const n = p.net; n.p.set(m.p[0], m.p[1], m.p[2]); n.q.set(m.p[3], m.p[4], m.p[5], m.p[6]).normalize(); n.v.set(m.p[7], m.p[8], m.p[9]); n.at = g.t;
     p.speed = +m.s || 0; p.fire = !!(m.f & 2); p.fireRk = !!(m.f & 4); p.gearUp = (m.g ?? 1) > 0.5; p.flaps = !!(m.f & 8); if (m.pt) p.setParts(m.pt);
   },
@@ -598,7 +601,7 @@ const Net = G.Net = {
     for (const e of m.P || []) {
       const p = g.netPlanes.get(e[0]); if (!p) continue; seen.add(e[0]);
       const n = p.net, first = n.at < 0;
-      n.p.set(e[1], e[2], e[3]); n.q.set(e[4], e[5], e[6], e[7]).normalize(); n.v.set(e[8], e[9], e[10]); n.at = g.t;
+      n.p.set(e[1], e[2], e[3]); n.q.set(e[4], e[5], e[6], e[7]).normalize(); if (typeof m.T === 'number') G.netSample(g, n, g.netClk || (g.netClk = {}), m.T, e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9], e[10]); n.v.set(e[8], e[9], e[10]); n.at = g.t;
       const f = e[11];
       if (first) { p.pos.copy(n.p); p.q.copy(n.q); p.obj.visible = !!(f & 1) && !(f & 8); }
       p.fire = !!(f & 2); p.fireRk = !!(f & 4); p.gearUp = e[12] > 0.5; p.speed = e[13]; p.onGround = !!(f & 16); if (typeof e[14] === 'number' && p.internalMax) p.internal = Math.max(0, e[14])*p.internalMax; if (p !== g.player && p.setParts) p.setParts(e[15]);
@@ -650,6 +653,7 @@ const Net = G.Net = {
   guestDown(g, src){
     if (g.downSent) return; g.downSent = true;
     if (this.host) this.host.send({t:'dead', by:src && src.nid || 0, how:'shot'});
+    if (g.realMission && g.realMission.open) return this.respawn(g);   // open skies: back in the air in a moment, like the host
     G.HUD.banner('Shot down', `Watching ${g.hostName}. You'll be back for the next sortie.`);
     // ride along behind the host until the sortie ends
     g.cine = (dt, cam) => {
@@ -657,6 +661,29 @@ const Net = G.Net = {
       if (!H) return;
       tA.copy(H.pos).addScaledVector(H.fwd, -26).add(new V3(0, 7, 0)); cam.position.lerp(tA, 1 - Math.exp(-dt*3)); cam.lookAt(H.pos);
     };
+  },
+  /* open-skies co-op: shot down or crashed, you're not out. Any job you were on is lost, the repair bill is paid,
+     and after a few seconds you're back in the air beside the Margaret in a fresh copy of your aeroplane. */
+  respawn(g){
+    if (g.respawnT) return; const M = g.realMission || g.mission, was = g.player;
+    if (M.job) { const j = M.job; M.job = null; try { if (j.cleanup) j.cleanup(); } catch (e) {} g.markers = []; }
+    if (M.sc) M.sc.chain = 0;
+    const bill = Math.min(400, G.save.cash || 0); G.save.cash -= bill; G.persist();
+    G.HUD.banner('Shot down', `Back in the air in a few seconds · repairs $${bill}`);
+    G.HUD.radio(G.RADIO.short, `${was ? was.callsign : 'Ace'}! We see a chute. Hold on, we're bringing up a spare.`);
+    g.respawnT = setTimeout(() => {
+      g.respawnT = null; if (G.game !== g || g.done) return;
+      const ship = g.ships.find(s => s.team === 0 && s.alive && s.obj.userData.trapeze) || g.ships.find(s => s.team === 0 && s.alive);
+      const o = G.COOP_SLOTS[G.coopSlot()] || [0, 0, 0], L = Object.assign({}, was ? was.L : G.save.load, {mods:(G.save.mods || []).slice()});
+      const pos = ship ? ship.worldPoint(new V3(o[0]*2, -70 + o[1], -90 - Math.abs(o[2])), new V3()) : (was ? was.pos.clone().setY(Math.max(was.pos.y, 600)) : new V3(0, 700, 0));
+      const q = ship ? ship.q.clone() : new Q();
+      this.localSpawn = true; let np; try { np = g.addPlane({loadout:L, team:0, name:was ? was.name : G.save.callsign, callsign:was ? was.callsign : G.save.callsign, pos, q, speed:62}); } finally { this.localSpawn = false; }
+      np.vel.copy(new V3(0, 0, 1).applyQuaternion(q)).multiplyScalar(62); np.throttle = 0.9;
+      g.cine = null; G.HUD.banner(null); g.downSent = false;
+      g.swapPlayer(np, {keepOld:false, say:'Back in the air. Try to bring this one home'}); np.grace = 4;
+      if (g.netHost) this.hostSwapped(g, np, was);   // tell the guests this one is the host's
+      if (M.ended) M.ended = false;
+    }, 5000);
   },
   guestEnd(g, m){
     if (g.done) return; g.done = true; g.running = false;
@@ -679,7 +706,7 @@ const Net = G.Net = {
     const hasAmmo = P.guns.some(gn => gn.rounds > 0);
     const f = (P.alive ? 1 : 0) | (P.fire && hasAmmo ? 2 : 0) | (P.fireRk && P.rockets > 0 ? 4 : 0) | (P.flaps ? 8 : 0);
     if (P.frozen) return;   // still on the trapeze: the host doesn't see us yet
-    (this.host.sendFast || this.host.send).call(this.host, {t:'st', k:(this.stK = (this.stK || 0) + 1), p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0, pt:P.partCode()});
+    (this.host.sendFast || this.host.send).call(this.host, {t:'st', k:(this.stK = (this.stK || 0) + 1), T:r2(g.t), p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0, pt:P.partCode()});
   },
   sendOrder(o){ if (this.host) { this.host.send({t:'order', o}); G.HUD.toast('Wingmen: ' + G.ORDER_NAMES[o]); } },
 
@@ -772,9 +799,27 @@ for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['fee
 }
 
 /* puppets: planes whose state comes over the wire (guests' stand-ins on the host, everyone else's planes on a guest) */
+/* Smoothing: a puppet is drawn a tenth of a second in the past, between the two real updates either side of that moment,
+   so updates that arrive unevenly no longer jerk it about. Past the newest update it coasts on its velocity for at most
+   a quarter second. Each sender has its own clock (n.clk): how far its game time runs ahead of ours, tracked on the
+   quickest arrivals so a late packet doesn't drag it. */
+const LAG = 0.1, tP = new V3(), qP = new Q();
+G.netSample = (g, n, clk, T, x, y, z, qx, qy, qz, qw, vx, vy, vz) => {
+  const s = T - g.t; if (clk.off !== undefined && Math.abs(s - clk.off) > 2) { clk.off = undefined; n.buf = []; }   // their clock jumped (a new flight): start over
+  clk.off = clk.off === undefined ? s : s > clk.off ? clk.off + (s - clk.off)*0.3 : clk.off + (s - clk.off)*0.02;
+  const B = n.buf || (n.buf = []); if (B.length && T <= B[B.length - 1].t) return;
+  B.push({t:T, p:new V3(x, y, z), q:new Q(qx, qy, qz, qw).normalize(), v:new V3(vx, vy, vz)}); if (B.length > 10) B.shift(); n.clk = clk;
+};
 G.Plane.prototype.remoteUpdate = function(dt){
   const n = this.net, g = this.g;
-  if (n && n.at >= 0) {
+  if (n && n.buf && n.buf.length && n.clk) {
+    const B = n.buf, rt = g.t + n.clk.off - LAG; let a = B[0], b = null;
+    for (let i = B.length - 1; i >= 0; i--) if (B[i].t <= rt) { a = B[i]; b = B[i + 1] || null; break; }
+    if (b) { const f = Math.max(0, Math.min(1, (rt - a.t)/Math.max(1e-3, b.t - a.t))); tP.lerpVectors(a.p, b.p, f); qP.copy(a.q).slerp(b.q, f); this.vel.lerpVectors(a.v, b.v, f); }
+    else { const e = Math.max(0, Math.min(0.25, rt - a.t)); tP.copy(a.p).addScaledVector(a.v, e); qP.copy(a.q); this.vel.copy(a.v); }
+    if (this.pos.distanceToSquared(tP) > 250*250) this.pos.copy(tP); else this.pos.lerp(tP, 1 - Math.exp(-dt*30));
+    this.q.slerp(qP, 1 - Math.exp(-dt*30));
+  } else if (n && n.at >= 0) {
     const age = Math.min(0.4, g.t - n.at), k = 1 - Math.exp(-dt*12);
     tA.copy(n.p).addScaledVector(n.v, age);
     if (this.pos.distanceToSquared(tA) > 250*250) this.pos.copy(tA); else this.pos.lerp(tA, k);
