@@ -2,10 +2,12 @@
 'use strict';
 /* Recorded audio only. Engine and gun loops trim the MP3 padding so they loop without a click. */
 const G = window.G;
+/* connect a chain of audio nodes without leaning on connect() returning its target (older Safari returns nothing) */
+const link = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
 const A = G.audio = {
   ctx:null, buf:{}, last:{}, muted:false,
   init(){
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.ctx.resume(); return; }   // Safari also has 'interrupted'
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try {
       const c = this.ctx = new AC();
@@ -18,7 +20,7 @@ const A = G.audio = {
       this.engHP = c.createBiquadFilter(); this.engHP.type = 'highpass'; this.engHP.frequency.value = 55;
       this.engComp = c.createDynamicsCompressor ? c.createDynamicsCompressor() : c.createGain();
       if (this.engComp.threshold) { this.engComp.threshold.value = -20; this.engComp.knee.value = 12; this.engComp.ratio.value = 3; this.engComp.attack.value = 0.02; this.engComp.release.value = 0.25; }
-      this.engHP.connect(this.engLP).connect(this.engComp).connect(this.sfxBus); this.engBus = this.engHP;
+      link(this.engHP, this.engLP, this.engComp, this.sfxBus); this.engBus = this.engHP;
       for (const k in G.SFX) {
         const bin = atob(G.SFX[k]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
         const ok = b => { if (!this.buf[k]) { this.buf[k] = b; this.edges(k, b); if (k === 'engine' || k === 'engine2') this.startEngines(); } };
@@ -59,7 +61,7 @@ const A = G.audio = {
   loop(k, gain = 0){
     const c = this.ctx, b = this.buf[k]; if (!c || !b) return null;
     const src = c.createBufferSource(), g = c.createGain(), tr = this.trim[k]; src.buffer = b; src.loop = true;
-    src.loopStart = tr.s; src.loopEnd = tr.e; g.gain.value = gain; src.connect(g).connect(this.sfxBus); src.start(0, tr.s);
+    src.loopStart = tr.s; src.loopEnd = tr.e; g.gain.value = gain; link(src, g, this.sfxBus); src.start(0, tr.s);
     return {src, g};
   },
   /* which engine recording a plane sounds with: the inline-engined fighters get the V12, the rest the radial */
@@ -80,10 +82,10 @@ const A = G.audio = {
      the speeds from the engine's rpm, the blades lagging a touch behind a throttle change */
   beat(L, depth){
     const c = this.ctx; if (!c || !L || L.mod || !c.createOscillator) return L;
-    const m = c.createGain(); m.gain.value = 1 - depth; L.src.disconnect(); L.src.connect(m).connect(L.g);
+    const m = c.createGain(); m.gain.value = 1 - depth; L.src.disconnect(); link(L.src, m, L.g);
     const o1 = c.createOscillator(), d1 = c.createGain(), o2 = c.createOscillator(), d2 = c.createGain();
     o1.type = 'sine'; o2.type = 'triangle'; o1.frequency.value = 90; o2.frequency.value = 30; d1.gain.value = depth*0.65; d2.gain.value = depth*0.35;
-    o1.connect(d1).connect(m.gain); o2.connect(d2).connect(m.gain); o1.start(); o2.start();
+    link(o1, d1, m.gain); link(o2, d2, m.gain); o1.start(); o2.start();
     L.mod = {o1, o2}; return L;
   },
   tune(L, rpm, t){ if (!L || !L.mod) return; L.mod.o2.frequency.setTargetAtTime(rpm/60, t, 0.35); L.mod.o1.frequency.setTargetAtTime(rpm/60*3, t, 0.35); },
@@ -96,14 +98,14 @@ const A = G.audio = {
       // the airship: the twin-engine recording slowed right down and muffled into a soft, low thrum
       this.shipEng = this.loop('engine2', 0);
       if (this.shipEng) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.5;
-        this.shipEng.g.disconnect(); this.shipEng.g.connect(lp).connect(this.sfxBus); this.shipEng.src.playbackRate.value = 0.36; }
+        this.shipEng.g.disconnect(); link(this.shipEng.g, lp, this.sfxBus); this.shipEng.src.playbackRate.value = 0.36; }
     }
   },
   thr(k, gap){ const n = performance.now(); if (n - (this.last[k] || 0) < gap) return true; this.last[k] = n; return false; },
   one(k, gain = 1, rate = 1, offset = 0, dest = null){
     const c = this.ctx, b = this.buf[k]; if (!c || !b || gain < 0.01) return;
     const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain;
-    s.connect(g).connect(dest || this.sfxBus); s.start(0, (this.trim[k] ? this.trim[k].s : 0) + offset);
+    link(s, g, dest || this.sfxBus); s.start(0, (this.trim[k] ? this.trim[k].s : 0) + offset);
   },
   /* damage to parts */
   cough(k){ this.one('hitshort', 0.16 + 0.24*k, 0.33 + Math.random()*0.06); },
@@ -204,7 +206,7 @@ const A = G.audio = {
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; lp.Q.value = 0.5;
     const ws = c.createWaveShaper(), N = 1024, cv = new Float32Array(N); for (let i = 0; i < N; i++) { const x = i/(N - 1)*2 - 1; cv[i] = Math.tanh(x*1.15)/Math.tanh(1.15); } ws.curve = cv; ws.oversample = '4x';   // a gentle drive: enough overtones to carry, not enough to fizz
     const out = c.createGain(); out.gain.value = 0.85;
-    eq.connect(ws).connect(lp).connect(out).connect(this.sfxBus); return (this._heavy = eq);
+    link(eq, ws, lp, out, this.sfxBus); return (this._heavy = eq);
   },
   calPitch(def){ return {'30':1.12, '40':1.05, '50':1.0, '60':0.74, '70':0.5}[def.id] || def.pitch || 1; },   // the light guns near the recording's own pitch; the .60 and .70 well down
   playerShot(def){ if (!this.ctx || this.thr('ps' + def.id, 900/def.rps)) return; const p = this.calPitch(def), heavy = Math.max(0, Math.min(1, (0.9 - p)/0.4)), r = 0.97 + Math.random()*0.06;
@@ -228,6 +230,21 @@ const TRACKS = {sidewalk:'music/sidewalk-hustle.mp3', swingin:'music/swingin-nig
   indigo:'music/indigo-hour.mp3', latenight:'music/after-a-long-night-out.mp3', swingbaby:'music/swing-baby-swing.mp3', foottap:'music/foot-tappers-club.mp3', indiana:'music/indiana-moon.mp3'};
 /* mission music: upbeat swing by day and at dusk, smooth jazz at night; alternates so back-to-back flights differ */
 const SETS = {day:['swingbaby', 'foottap'], evening:['swingbaby', 'foottap'], night:['indigo', 'latenight'], club:['indiana', 'indigo', 'latenight']}, nextIx = {club:-1};   // the clubs open with the singer
+const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+/* every click, tap or key: wake the sound if the browser has paused it (Safari pauses it, and calls that 'interrupted').
+   If it still won't run after you've clicked, say so once, with the setting to change. */
+A.unlock = function(){
+  if (!this.ctx) this.init();
+  const c = this.ctx; if (!c || (G.game && G.game.paused)) return;   // paused on purpose: the pause screen's own Resume wakes it
+  if (c.state !== 'running' && c.state !== 'closed') { const p = c.resume(); if (p && p.catch) p.catch(() => {}); }
+  if (!this.primed) { this.primed = true; try { const b = c.createBuffer(1, 1, 22050), s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch (e) {} }
+  clearTimeout(this.checkT);
+  this.checkT = setTimeout(() => {
+    if (this.warned || !this.ctx || this.ctx.state === 'running' || (G.game && G.game.paused)) return;
+    this.warned = true; const msg = 'Sound is blocked. In Safari: Safari menu → Settings for This Website → Auto-Play → Allow All Auto-Play, then reload.';
+    if (G.HUD && G.HUD.toast && G.game) G.HUD.toast(msg); else console.warn(msg);
+  }, 700);
+};
 G.music = {
   urls:{}, cur:null, want:null, el:null, fadeT:null,
   vol(){ return G.save && G.save.music !== undefined ? G.save.music : 0.45; },
@@ -260,6 +277,15 @@ G.music = {
     this.fadeT = setInterval(() => { i++; el.volume = Math.max(0, Math.min(1, from + (to - from)*i/n)); if (i >= n) { clearInterval(this.fadeT); this.fading = false; if (done) done(); } }, 33);
   },
   /* browsers only start audio after a click: retry the wanted track on the first one */
-  kick(){ if (this.want && (this.blocked || !this.el || this.el.paused)) { this.blocked = false; const k = this.want; this.cur = null; this.play(k); } }
+  /* Safari counts play() only inside the click itself, so the retry has to start the element right here, not after a fetch */
+  kick(){
+    if (!this.want || (this.el && !this.el.paused && !this.blocked)) return;
+    const k = this.want, u = this.urls[k];
+    if (!this.el) { this.el = new Audio(); this.el.loop = true; }
+    this.blocked = false;
+    if (u) { if (this.el.src !== u) this.el.src = u; this.cur = k; this.el.volume = this.vol()*(G.audio.muted ? 0 : 1); const p = this.el.play(); if (p && p.catch) p.catch(() => { this.blocked = true; }); return; }
+    // not fetched yet: unlock the element with a moment of silence now, then fetch and play into it
+    this.el.src = SILENCE; const p = this.el.play(); if (p && p.catch) p.catch(() => {}); this.cur = null; this.play(k);
+  }
 };
 })();

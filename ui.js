@@ -276,7 +276,7 @@ $('mAmb').addEventListener('input', e => G.audio.setAmbient(+e.target.value));
 // the same three sliders on the pause screen, kept in step with the menu's
 for (const [p, m, set] of [['pVol', 'mVol', v => G.audio.setVolume(v)], ['pAmb', 'mAmb', v => G.audio.setAmbient(v)], ['pMus', 'mMus', v => G.music.setVolume(v)]])
   $(p).addEventListener('input', e => { set(+e.target.value); $(m).value = e.target.value; });
-addEventListener('pointerdown', () => G.music.kick(), true); addEventListener('keydown', () => G.music.kick(), true);
+for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, () => { G.music.kick(); G.audio.unlock(); }, true);   // Safari: sound starts and wakes only on a click, tap or key
 $('mSens').addEventListener('input', e => { G.save.mouseSens = +e.target.value; G.persist(); });
 $('mInv').addEventListener('change', e => { G.save.invert = e.target.checked; G.persist(); });
 $('mAssist').addEventListener('change', e => { G.save.aimAssist = e.target.checked; G.persist(); });
