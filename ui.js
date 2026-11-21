@@ -436,7 +436,7 @@ Object.assign(UI, {
   },
   renderContact(){
     const O = UI.O, info = O.offer(UI.site), C = info.C, S = G.save;
-    const kind = {race:'Race', stunt:'Stunt show', errand:'Delivery', bounty:'Bounty'};
+    const kind = {race:'Race', stunt:'Stunt show', errand:'Delivery', bounty:'Bounty', photo:'Photography'};
     const jobHtml = ({def, rec, lock, C:from, at}) => `<div class="job ${lock ? 'locked' : ''}"><div class="jt"><b>${esc(def.title)}</b>${from ? `<span class="ty">for ${esc(from.name.replace(/".*" /, ''))} · ${esc(at.name)}</span>` : ''}<span class="ty">${def.night ? 'Night · ' : ''}${kind[def.type]}${def.type === 'errand' && def.legs.some(l => l.how === 'drop') ? ' · airdrop' : ''}${def.lights ? ' · smuggling' : ''}</span></div>
       <p>${esc(def.blurb)}</p><div class="jf"><span>Pays <b>$${def.pay.toLocaleString()}</b>${def.reward && !rec.done ? ` + ${esc(UI.rewardText(def.reward))}` : ''}${rec.done ? ` · done ×${rec.done}` : ''}${rec.medal ? ` · <span class="medal ${rec.medal}">${rec.medal.toUpperCase()}</span>` : ''}${rec.best !== undefined && def.type === 'race' ? ` · best ${UI.fmtT(rec.best)}` : ''}</span>
       ${lock ? `<span>${esc(lock)}</span>` : `<button class="btn sm" onclick="UI.takeJob('${def.id}')">Take the job</button>`}</div></div>`;

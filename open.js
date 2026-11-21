@@ -360,7 +360,38 @@ G.JOBS = [
    legs:[{how:'deck', ship:'prize', load:5, verb:'cracking the purser\'s safe', say:'Got it: Captain Sorrow\'s own chart, every cache from here to the Teeth. And the prize crew is awake. Go!'},
          {how:'hook', site:'gallows', say:'Lucien is copying it already. He says you were never here, and neither was he.'}],
    blurb:'Last week Captain Sorrow took the packet Star of Maravilla as a prize, and he likes her so well that he has moved his chart into her purser\'s safe: every cache the Brethren ever buried. She is steaming round the island between his two galleons, the Black Tide and the Widow\'s Kiss, and she still has her landing stage. Put down on it, lift the chart, and bring it to the Gallows by skyhook. The galleons will open fire the moment you leave her deck, and their fighters will follow.',
-   go:'His prize crew is drunk on her wine cellar. You have until they find the brandy.'}
+   go:'His prize crew is drunk on her wine cellar. You have until they find the brandy.'},
+  // ---- photography: a region's sights on film, one job per region ----
+  {id:'odile_cards', contact:'odile', type:'photo', title:'Postcards from Halcyon', pay:3200, time:600,
+   blurb:'The café sells postcards to the tourists off the boat, and mine are dreadful. Six new pictures, chéri: the lighthouse, the viaduct, the windmill, my strip, the Crag and the Aero Works. Any order, but before the light goes.',
+   go:'Put each one in your gunsight and press the shutter. Not too close, not too far.', done:'Magnifique. I\'ll have them printed by Sunday.',
+   shots:[{at:'light', label:'the lighthouse', y:30}, {at:'viaduct', label:'the old viaduct', y:25}, {at:'mill', label:'the windmill', y:15}, {at:'stremy', label:'Saint-Remy airstrip', y:10, range:1400},
+          {at:'crag', label:'Halcyon Crag', y:30, range:1600, min:200}, {at:'aeroworks', label:'the Aero Works', y:70, range:1300}]},
+  {id:'pratt_brochure', contact:'pratt', type:'photo', title:'Come to Silver Spur!', pay:3400, time:600,
+   blurb:'Settlers won\'t come west for a word on a poster. They need pictures. Get me the Coronado trestle, the Lucky Strike, Sentinel Butte, the deep canyon, our fair town and the Dust Devil field. Make it look like Eden.',
+   go:'Six pictures. Leave out the rattlesnakes.', done:'Eden! Pure Eden! The presses roll tonight.',
+   shots:[{at:'trestle', label:'the Coronado trestle', y:25}, {at:'mine', label:'the Lucky Strike mine', y:15}, {at:'butte', label:'Sentinel Butte', y:60, range:1800, min:250}, {at:'canyon', label:'the deep canyon', y:10, range:1500},
+          {at:'silverspur', label:'Silver Spur', y:20, range:1300}, {at:'dustdevil', label:'Dust Devil Field', y:10, range:1400}]},
+  {id:'baroness_brochure', contact:'baroness', type:'photo', title:'The Lodge brochure', pay:3600, time:600,
+   blurb:'Our guests come for the views, darling, so the brochure must have them. The Lodge itself, the observatory, the gorge bridge, Lake Weiss, the frozen falls and the summit. Fly carefully; the photographer is the expensive part.',
+   go:'Six views. Mind the summit, the air up there bites.', done:'Exquisite. We shall double the rates.',
+   shots:[{at:'lodge', label:'Glacier Lodge', y:20, range:1300}, {at:'observatory', label:'the Kesselberg observatory', y:15}, {at:'gorge', label:'the gorge bridge', y:20}, {at:'lake', label:'Lake Weiss', y:5, range:1800, min:250},
+          {at:'falls', label:'the frozen falls', y:20}, {at:'summit', label:'the Frostback summit', y:20, range:1600, min:200}]},
+  {id:'rosa_wish', contact:'rosa', type:'photo', title:'Wish you were here', pay:3400, time:600,
+   blurb:'Tourists, sugar. They drink like fish and tip like sailors. I want a brochure: the Maravilla light, the Esperanza wreck, Blackwater Cove, the tallest key, Puerto and the old fort. Pretty pictures. No navy in them.',
+   go:'Six pictures, any order. Smile for the camera.', done:'Gorgeous. They\'ll be lining up at the bar by Friday.',
+   shots:[{at:'klight', label:'the Maravilla light', y:30}, {at:'hulk', label:'the wreck of the Esperanza', y:5}, {at:'kcove', label:'Blackwater Cove', y:5, range:1300}, {at:'kpeak', label:'the tallest key', y:20, range:1400},
+          {at:'puerto', label:'Puerto', y:10, range:1300}, {at:'fort', label:'Fort Maravilla', y:20, range:1200}]},
+  {id:'lucien_devil', contact:'lucien', type:'photo', title:'The Devil\'s postcards', pay:4200, time:600,
+   blurb:'There are rich fools who pay to be frightened, mon ami. Give me Mount Cranium, the Burning Eye, Brimstone Keep, the Teeth, the galleon wreck and my own Gallows, and I shall sell them the Devil\'s own holiday.',
+   go:'The Keep has guns. The volcano has worse. Smile.', done:'Wonderful. Terrifying. Exactly the thing.',
+   shots:[{at:'cranium', label:'Mount Cranium', y:40, range:2600, min:400}, {at:'burning', label:'the Burning Eye', y:10, range:1800, min:250}, {at:'keep', label:'Brimstone Keep', y:30, range:1300},
+          {at:'teeth', label:'the Teeth', y:15, range:1300}, {at:'galleon', label:'the galleon wreck', y:5}, {at:'gallows', label:'the Gallows', y:20, range:1200}]},
+  {id:'della_supplement', contact:'della', type:'photo', title:'The Courier\'s city supplement', pay:4000, time:600,
+   blurb:'Sunday supplement, "Rustwater From the Air". I need the Liberty Span, the dam, the steelworks, the WGCX tower, the prison and the light. My photographer won\'t go up in anything with wings. You will.',
+   go:'Six pictures. The prison guards wave guns at aeroplanes, so don\'t linger.', done:'Front page, Sunday. You\'re going to be famous, flyer.',
+   shots:[{at:'liberty', label:'the Liberty Span', y:30, range:1300}, {at:'dam', label:'the Rustwater Dam', y:20, range:1400}, {at:'steelworks', label:'the steelworks', y:30, range:1500, min:200},
+          {at:'wgcx', label:'the WGCX tower', y:80, range:1300}, {at:'prison', label:'Gantry Island prison', y:20, range:1200}, {at:'rlight', label:'the Rustwater light', y:30}]},
 ];
 const JOB = id => G.JOBS.find(j => j.id === id);
 /* ship jobs need an autogyro: nobody mentions them until you own one */
@@ -1004,6 +1035,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.towerHit(g); this.caveHit(g); this.tunnelHit(g); this.cavernHit(g);
     if (this.rtick) this.rtick(g, dt);
     if (this.cBeacon) this.cBeacon.visible = false;   // a job shows it again below if it has a course target
+    if (this.orphans && this.orphans.length) this.orphans = this.orphans.filter(o => { if (o.pl.raceDone || g.t > o.until || !o.p.alive) { this.removePlane(o.p); return false; } return true; });   // released race rivals (see ENG.race cleanup)
     if (this.wp && P && P.pos.distanceTo(this.wp.pos) < 420) { G.HUD.toast(`You're at ${this.wp.label}`); this.wp = null; }   // arrived at the marked place (checked before the landing screen can skip the rest)
     if (this.phase !== 1 || this.ended || !P.alive) { this.hudSides(g); return; }
     g.markers = [];
@@ -1592,7 +1624,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     this.job = eng(this, def, site); this.job.def = def; this.job.t0 = g.t;
     // treasure hunts keep the treasure tune; every other job gets day swing or night jazz
     this.job.music = true; if (def.type === 'errand' && def.legs.some(l => l.riddle)) G.music.play('caravan'); else G.music.mission(this.time);
-    G.HUD.banner(def.title, {race:'Race', stunt:'Stunt show', errand:def.cargo || 'Delivery', bounty:'Bounty'}[def.type]); setTimeout(() => G.HUD.banner(null), 2600);
+    G.HUD.banner(def.title, {race:'Race', stunt:'Stunt show', errand:def.cargo || 'Delivery', bounty:'Bounty', photo:'Photography'}[def.type]); setTimeout(() => G.HUD.banner(null), 2600);
     if (def.go) G.HUD.radio(G.CONTACTS[def.contact].name.replace(/".*" /, '').split(' ').slice(-1)[0], def.go);
   },
   finishJob(res){
@@ -1822,7 +1854,13 @@ ENG.race = (O, def) => {
   J.objective = () => J.started ? `${def.title} · ring ${Math.min(J.k, seq.length)}/${seq.length - 1} · ${fmt(J.t)}${J.rivals.length ? ` · ${['', '1st', '2nd', '3rd', '4th'][J.place()]}` : ` · gold ${fmt(gold)}`}`
                                 : `${def.title}: fly through the start ring to begin`;
   J.sides = () => [{text:`Gold ${fmt(gold)} · silver ${fmt(silver)} · bronze ${fmt(bronze)}`, st:'live', val:J.started ? fmt(J.t) : ''}];
-  J.cleanup = () => { for (const r of rings) g.scene.remove(r.m); for (const r of J.rivals) O.removePlane(r.p); };
+  J.cleanup = () => {
+    for (const r of rings) g.scene.remove(r.m);
+    // co-op: the rivals are in everyone's race, so if the pilot who took the job is shot down (or quits) they fly the course out
+    // for the others instead of vanishing mid-race; they leave once they finish, or after three minutes
+    const coop = g.netHost || g.netGuest;
+    for (const r of J.rivals) { if (coop && J.started && r.p.alive && !r.pl.raceDone) (O.orphans || (O.orphans = [])).push({p:r.p, pl:r.pl, until:g.t + 180}); else O.removePlane(r.p); }
+  };
   return J;
 };
 OPEN.trialDone = function(def, win, medal, t){
@@ -1869,6 +1907,43 @@ ENG.stunt = (O, def) => {
   J.objective = () => `${def.title}: ${Math.round(J.score).toLocaleString()} / ${def.target.toLocaleString()} points in the show box · ${clock(def.time - J.t)}${inZone() ? '' : ' · get back in front of the crowd'}`;
   J.sides = () => [{text:'Stay inside the show box, under 1,100 ft', st:inZone() ? 'ok' : 'live', val:''}];
   J.cleanup = () => { for (const G0 of gates) g.scene.remove(G0.m); };
+  return J;
+};
+
+/* ---------- PHOTO: a region's sights on film, any order. Get within range, put it in the gunsight, press the camera ----------
+   Each shot is {at, label, y, range, min}: at = a landmark, place or [x, z]; y = how high above the ground to aim (the middle
+   of a tower, say); range/min = how far is too far, how close is too close for a good picture. */
+ENG.photo = (O, def) => {
+  const g = O.g, P = g.player, shots = def.shots.map(s => { const p = pointOf(O, s.at); return p ? Object.assign({pos:p.setY(p.y + (s.y ?? 20)), got:false}, s) : null; }).filter(Boolean);
+  const J = {t:0, shots, hintT:0};
+  const key = () => G.keymap ? G.keymap.label(G.keymap.key('KeyP')) : 'P';
+  J.update = dt => {
+    J.t += dt; J.hintT -= dt;
+    const left = shots.filter(s => !s.got);
+    // the nearest sight still to shoot gets the beacon; the rest are faint markers so you can plan the route
+    let near = null, nd = 1e9; for (const s of left) { const d = s.pos.distanceTo(P.pos); if (d < nd) { nd = d; near = s; } }
+    for (const s of left) if (s !== near) g.markers.push({pos:s.pos, label:s.label.toUpperCase(), col:COURSE_DIM, noDist:false});
+    if (near) courseMark(O, near.pos, `PHOTO · ${near.label.toUpperCase()}`);
+    // what's in the gunsight, and is it a good picture from here?
+    let framed = null, why = '';
+    for (const s of left) {
+      const d = s.pos.distanceTo(P.pos), ang = tA.copy(s.pos).sub(P.pos).normalize().angleTo(P.fwd);
+      if (ang > 0.16) continue;
+      if (d > (s.range || 1000)) { why = why || `Too far from ${s.label} for a good picture`; continue; }
+      if (d < (s.min || 120)) { why = why || `Too close to ${s.label}: back off a little`; continue; }
+      framed = s; break;
+    }
+    if (framed && J.hintT <= 0) { J.hintT = 4; G.HUD.toast(`${framed.label} in frame · press ${key()} to photograph`); }
+    if (g.snapPhoto) {
+      if (framed) { framed.got = true; if (g.audio) g.audio.ding(); const n = shots.filter(s => s.got).length; G.HUD.toast(`Got ${framed.label} · ${n} of ${shots.length}`); O.award(250, 'PHOTO'); }
+      else G.HUD.toast(why || 'Nothing in frame: put a sight in the gunsight');
+    }
+    if (!left.length || shots.every(s => s.got)) { const medal = J.t < def.time*0.45 ? 'gold' : J.t < def.time*0.7 ? 'silver' : 'bronze'; return {win:true, medal, say:def.done || 'A full roll. These\'ll do nicely.'}; }
+    if (J.t > def.time) return {win:false, note:`${shots.filter(s => s.got).length} of ${shots.length} photographs`, say:'Light\'s gone. Bring what you\'ve got and we\'ll try again another day.'};
+  };
+  J.objective = () => `${def.title}: ${shots.filter(s => s.got).length} of ${shots.length} photographs · ${clock(def.time - J.t)} · put a sight in the gunsight and press ${key()}`;
+  J.sides = () => shots.map(s => ({text:s.label, st:s.got ? 'ok' : 'live', val:s.got ? 'on film' : ''}));
+  J.cleanup = () => {};
   return J;
 };
 
