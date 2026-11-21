@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('fs'), vm = require('vm'), path = require('path');
-require(path.join(__dirname, 'three-mock.js'));
+require('./three-mock.js');
 global.window = global; global.innerWidth = 1600; global.innerHeight = 900; global.devicePixelRatio = 1;
 const els = {}; global.document = {getElementById:id => els[id] || (els[id] = Fake()), createElement:() => Fake(), addEventListener(){}, exitPointerLock(){}, pointerLockElement:null, querySelector:() => null, body:Fake()};
 global.addEventListener = () => {}; global.requestAnimationFrame = () => 0;
@@ -8,7 +8,7 @@ const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v)
 global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
 global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
 const dir = process.argv[2];
-const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'story2', 'net', 'pad', 'keys', 'ui', 'weather'];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'rust', 'story2', 'story3', 'story4', 'net', 'pad', 'keys', 'ui', 'weather', 'ach'];
 for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
 const G = global.G, V3 = THREE.Vector3;
 let errs = 0; const fail = (where, e) => { errs++; console.log('ERROR in', where, '\n ', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n  ') : e); };
@@ -43,6 +43,7 @@ for (const rid of regions) for (const hour of [11, 22]) {
           let tgt = null;
           if (def.type === 'race') { const pts = J.len; const ring = g.markers.find(m => /NEXT|START|FINISH/.test(m.label)); if (ring) tgt = ring.pos; }
           else if (def.type === 'bounty') { tgt = O.P[def.at]; for (const p of g.planes) if (p.team === 1 && p.alive && J.up) p.destroy(P, 'shot'); for (const s of g.ships) if (s !== O.ship && s.alive) { s.alive = false; g.onShipDown(s); } }
+          else if (def.type === 'photo') { const sh = J.shots.find(x => !x.got); if (!sh) { step(g, 2); continue; } P.onGround = false; P.pos.copy(sh.pos).add(new V3(Math.min(500, (sh.range || 1000)*0.6), 60, 0)); P.q.setFromUnitVectors(new V3(0, 0, 1), sh.pos.clone().sub(P.pos).normalize()); P.axes(); P.speed = 50; P.vel.copy(P.fwd).multiplyScalar(50); g.snapPhoto = true; J.update(1/60); g.snapPhoto = false; step(g, 1); continue; }
           else if (def.type === 'stunt') { const c = O.P[def.at]; P.onGround = false; P.pos.set(c.x, c.y + 80, c.z); P.speed = 70; O.award(3000, 'TEST'); step(g, 2); continue; }
           else { const l = def.legs[J.i]; if (!l) { step(g, 2); continue; }
             const site = l.site && O.sites.find(s => s.id === l.site);
@@ -76,7 +77,7 @@ const later = (fn, ms = 120) => new Promise(r => setTimeout(() => { try { fn(); 
   await later(() => { const g = G.game; if (!g || g.mission.id !== 'c2m2') throw new Error('devFly c2m2 failed'); g.mission.drop(); step(g, 60); G.UI.dev(); G.UI.devWin(false); console.log('dev flows ok'); });
 })();
 // story regression
-for (const id of ['ambush', 'nightjar', 'c1m1', 'c2m1', 'c2m3', 'c3m1', 'c3m3', 'c4m1', 'c4m2', 'c4m3', 'c5m1', 'c5m2', 'c5m3', 'c6m1', 'c6m2', 'c6m3']) { try { const g = new G.Game(R, G.MISSIONS[id]); g.mission.drop && g.mission.awaitDrop && g.mission.drop(); step(g, 200); } catch (e) { fail('story ' + id, e); } }
+for (const id of ['ambush', 'nightjar', 'c1m1', 'c2m1', 'c2m3', 'c3m1', 'c3m3', 'c4m1', 'c4m2', 'c4m3', 'c5m1', 'c5m2', 'c5m3', 'c6m1', 'c6m2', 'c6m3', 'c7m1', 'c7m2', 'c7m3', 'c8m1', 'c8m2', 'c8m3', 'c9m1', 'c9m2', 'c9m3', 'c10m1', 'c10m2', 'c10m3', 'c11m1', 'c11m2', 'c11m3', 'c12m1', 'c12m2', 'c12m3']) { try { const g = new G.Game(R, G.MISSIONS[id]); g.mission.drop && g.mission.awaitDrop && g.mission.drop(); step(g, 200); } catch (e) { fail('story ' + id, e); } }
 console.log(errs ? `\n${errs} error(s)` : '\nno errors');
 setTimeout(() => { console.log(errs ? `${errs} error(s) total` : 'all clear'); process.exit(errs ? 1 : 0); }, 4000);
 process.on('uncaughtException', e => { fail('async', e); });
