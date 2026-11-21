@@ -12,30 +12,50 @@
 (() => {
 const V3 = THREE.Vector3, Q = THREE.Quaternion;
 const PREFIX = 'ace-airways-v1-';
-const SNAP_HZ = 15, STATE_HZ = 20;
+const SNAP_HZ = 30, STATE_HZ = 30;
 const r2 = v => Math.round(v*100)/100, r4 = v => Math.round(v*10000)/10000;
 const tA = new V3(), qA = new Q();
 
 /* ---------- transports ---------- */
-const wrapConn = c => ({
-  send(o){ if (c.open) try { c.send(o); } catch (e) {} },
-  onMessage(fn){ c.on('data', fn); },
-  onClose(fn){ c.on('close', fn); c.on('error', fn); },
-  close(){ try { c.close(); } catch (e) {} }
-});
+/* Each link is two channels: the reliable one for everything that must arrive (spawns, kills, hits), and an
+   unreliable one for where everyone is, many times a second. On the reliable one a single lost packet holds back
+   everything behind it, which showed as guns and planes lagging; a lost position update costs nothing, the next replaces it. */
+const wrapConn = c => {
+  let fn = null, fast = null;
+  return {
+    send(o){ if (c.open) try { c.send(o); } catch (e) {} },
+    sendFast(o){ if (fast && fast.open) { try { if (JSON.stringify(o).length < 12000) { fast.send(o); return; } } catch (e) {} } this.send(o); },   // big ones would be split, which the fast channel can't do
+    setFast(f){ fast = f; f.on('data', d => fn && fn(d)); f.on('close', () => { if (fast === f) fast = null; }); },
+    onMessage(h){ fn = h; c.on('data', h); },
+    onClose(h){ c.on('close', h); c.on('error', h); },
+    close(){ try { c.close(); } catch (e) {} try { fast && fast.close(); } catch (e) {} }
+  };
+};
 const PeerTransport = {
   ok(){ return typeof window.Peer === 'function'; },
   host(code, h){
     const peer = new window.Peer(PREFIX + code, {debug:0});
     peer.on('open', () => h.onReady && h.onReady());
-    peer.on('connection', c => c.on('open', () => h.onConn(wrapConn(c))));
+    const links = new Map(), early = new Map();
+    peer.on('connection', c => c.on('open', () => {
+      if (c.metadata && c.metadata.fast) { const L = links.get(c.peer); if (L) L.setFast(c); else early.set(c.peer, c); return; }
+      const L = wrapConn(c); links.set(c.peer, L); c.on('close', () => { if (links.get(c.peer) === L) links.delete(c.peer); });
+      if (early.has(c.peer)) { L.setFast(early.get(c.peer)); early.delete(c.peer); }
+      h.onConn(L);
+    }));
     peer.on('error', e => h.onError(e.type === 'unavailable-id' ? 'taken' : (e.message || e.type)));
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });   // lost the matchmaker; the games already linked carry on
     return {close(){ try { peer.destroy(); } catch (e) {} }};
   },
   join(code, h){
     const peer = new window.Peer(undefined, {debug:0});
-    peer.on('open', () => { const c = peer.connect(PREFIX + code, {reliable:true, serialization:'json'}); c.on('open', () => h.onOpen(wrapConn(c))); });
+    peer.on('open', () => {
+      const c = peer.connect(PREFIX + code, {reliable:true, serialization:'json'});
+      c.on('open', () => {
+        const L = wrapConn(c); h.onOpen(L);
+        try { const f = peer.connect(PREFIX + code, {reliable:false, serialization:'json', metadata:{fast:true}}); f.on('open', () => L.setFast(f)); } catch (e) {}
+      });
+    });
     peer.on('error', e => h.onError(e.type === 'peer-unavailable' ? 'No game with that code. Check it with the host.' : (e.message || e.type)));
     return {close(){ try { peer.destroy(); } catch (e) {} }};
   }
@@ -155,6 +175,7 @@ const Net = G.Net = {
     this.render();
   },
   broadcast(m, except){ for (const L of this.links) if (L !== except) L.send(m); },
+  broadcastFast(m){ for (const L of this.links) (L.sendFast ? L.sendFast(m) : L.send(m)); },
 
   hostMsg(L, m){
     if (!m || typeof m !== 'object') return;
@@ -300,6 +321,7 @@ const Net = G.Net = {
 
   /* a guest's plane state arrives: move (or make) their stand-in */
   guestState(g, L, m){
+    if (typeof m.k === 'number') { if (m.k <= (L.stK || 0) && m.k > (L.stK || 0) - 1e5) return; L.stK = m.k; }   // the fast channel can deliver out of order: drop the stale
     if (!Array.isArray(m.p) || m.p.length < 10 || m.p.some(x => typeof x !== 'number' || !isFinite(x))) return;
     let p = L.proxy;
     if (!p && m.a) {
@@ -340,7 +362,7 @@ const Net = G.Net = {
     const W = g.sea ? g.sea.ships.map((s, i) => [i, r2(s.s), r2(s.v), r4(s.yaw), r2(s.hp/s.hpMax), s.alive ? 1 : 0, s.gone ? 1 : 0]) : [];
     // the mission's markers (gates, hoops, drop zones), so guests can find them too; story missions only (open skies runs its own on each machine)
     const M = g.mission && !g.mission.open ? (g.markers || []).slice(0, 16).map(k => [r2(k.pos.x), r2(k.pos.y), r2(k.pos.z), String(k.label || '').slice(0, 60), k.col || '', (k.box ? 1 : 0) | (k.edgeOnly ? 2 : 0) | (k.noDist ? 4 : 0) | (k.hide ? 8 : 0)]) : undefined;
-    this.broadcast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, W, B:g.netShots || [], K:g.netFlak || [], M, F:g.netSmoke && g.netSmoke.length ? g.netSmoke : undefined}); g.netShots = []; g.netFlak = []; g.netSmoke = [];
+    this.broadcastFast({t:'snap', T:r2(g.t), run:g.running ? 1 : 0, P, S, X, W, B:g.netShots || [], K:g.netFlak || [], M, F:g.netSmoke && g.netSmoke.length ? g.netSmoke : undefined}); g.netShots = []; g.netFlak = []; g.netSmoke = [];
   },
   hostEnd(g, r){
     if (!this.links.length) return;
@@ -504,6 +526,7 @@ const Net = G.Net = {
     if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
   },
   guestSnap(g, m){
+    if (typeof m.T === 'number') { if (g.snapT0 != null && m.T < g.snapT0) return; g.snapT0 = m.T; }   // stale: arrived after a newer one
     g.lastSnap = g.t; if (g.waitBanner) { g.waitBanner = false; G.HUD.banner(null); }
     if (g.realMission && !g.realMission.open) {
       if (Array.isArray(m.M)) g.markers = m.M.slice(0, 16).filter(k => Array.isArray(k) && k.length >= 6 && [k[0], k[1], k[2]].every(v => typeof v === 'number' && isFinite(v))).map(k => ({pos:new V3(k[0], k[1], k[2]), label:String(k[3] || '').slice(0, 60), col:/^#[0-9a-f]{3,8}$/i.test(k[4]) ? k[4] : undefined, box:!!(k[5] & 1), edgeOnly:!!(k[5] & 2), noDist:!!(k[5] & 4), hide:!!(k[5] & 8)}));
@@ -592,7 +615,7 @@ const Net = G.Net = {
     const hasAmmo = P.guns.some(gn => gn.rounds > 0);
     const f = (P.alive ? 1 : 0) | (P.fire && hasAmmo ? 2 : 0) | (P.fireRk && P.rockets > 0 ? 4 : 0) | (P.flaps ? 8 : 0);
     if (P.frozen) return;   // still on the trapeze: the host doesn't see us yet
-    this.host.send({t:'st', p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0, pt:P.partCode()});
+    (this.host.sendFast || this.host.send).call(this.host, {t:'st', k:(this.stK = (this.stK || 0) + 1), p:[r2(P.pos.x), r2(P.pos.y), r2(P.pos.z), r4(P.q.x), r4(P.q.y), r4(P.q.z), r4(P.q.w), r2(P.vel.x), r2(P.vel.y), r2(P.vel.z)], s:r2(P.speed), f, g:r2(P.gearT || 0), a:P.alive ? 1 : 0, pt:P.partCode()});
   },
   sendOrder(o){ if (this.host) { this.host.send({t:'order', o}); G.HUD.toast('Wingmen: ' + G.ORDER_NAMES[o]); } },
 

@@ -65,6 +65,31 @@ const Pad = G.pad = {
     for (const p of list) if (p && p.connected) { this.index = p.index; this.name = p.id; return p; }
     this.index = -1; return null;
   },
+  /* read both sticks: rest point per axis, then the round deadzone */
+  sticks(p, now){
+    const ax = p.axes || [], swap = !!G.save.padSwap;
+    const L = swap ? [2, 3] : [0, 1], Rr = swap ? [0, 1] : [2, 3];
+    // where each axis rests. Not taken from the first frame: browsers can report 0 for a moment before the real value,
+    // and a Mac pad on a non-standard mapping can report a trigger resting at -1 on what should be a stick axis.
+    // For the first 3 s an axis that sits still is measured; after that an untouched stick is re-centred slowly (worn sticks wander).
+    const T = typeof now === 'number' ? now : performance.now();   // the frame's clock (the same one as performance.now)
+    if (this.restId !== p.id) { this.restId = p.id; this.rest = []; this.trig = []; this.calm = []; this.t0 = T; }
+    const R0 = this.rest, early = T - this.t0 < 3000;
+    if (!this.calm.length && ax.every(v => !v)) { this.t0 = T; this.lx = this.ly = this.rx = this.ry = 0; return; }   // a blank first report, before the real readings arrive
+    for (let i = 0; i < ax.length; i++) {
+      const v = +ax[i] || 0, c = this.calm[i] || (this.calm[i] = {lo:v, hi:v, t:T, first:v});
+      if (v < c.lo) c.lo = v; if (v > c.hi) c.hi = v;
+      if (c.hi - c.lo > (early ? 0.03 : 0.012)) { c.lo = c.hi = v; c.t = T; if (Math.abs(v - (R0[i] ?? c.first)) > 0.08) c.moved = true; continue; }   // it moved: start the stillness clock again
+      const still = T - c.t;
+      if (early && still > 700) {
+        if (p.mapping !== 'standard' && Math.abs(v) > 0.9) this.trig[i] = true;   // parked at the end of its travel: a trigger, not a stick
+        else if (Math.abs(v) < 0.35) { R0[i] = v; this.trig[i] = false; }
+      } else if (!early && still > 2000 && !this.trig[i] && Math.abs(v - (R0[i] || 0)) < 0.3 && Math.abs(v) < 0.35) R0[i] = v;   // left alone for 2 s: that's centre now
+    }
+    // an axis nobody has moved yet is at rest, whatever it reads
+    const a = i => { if (this.trig[i] || !(this.calm[i] && this.calm[i].moved)) return 0; const v = +ax[i] || 0; return Math.max(-1, Math.min(1, v - (R0[i] || 0))); };
+    [this.lx, this.ly] = stick(a(L[0]), a(L[1])); [this.rx, this.ry] = stick(a(Rr[0]), a(Rr[1]));
+  },
   /* called every frame by the UI loop, before the game updates */
   poll(g, dt, now){
     if (this.capturing) return;   // the Controller screen is listening for a button
@@ -74,13 +99,7 @@ const Pad = G.pad = {
     const btn = a => M[a] >= 0 && raw(M[a]);
     const press = a => M[a] >= 0 && raw(M[a]) && !this.prev[M[a]];
     const release = a => M[a] >= 0 && !raw(M[a]) && this.prev[M[a]];
-    const ax = p.axes || [], swap = !!G.save.padSwap;
-    const L = swap ? [2, 3] : [0, 1], Rr = swap ? [0, 1] : [2, 3];
-    // resting point per axis, learned while the sticks look untouched; an axis resting near the end of its travel is a trigger, not a stick
-    if (this.restId !== p.id) { this.restId = p.id; this.rest = ax.map(v => { v = +v || 0; return Math.abs(v) < 0.3 || (p.mapping !== 'standard' && Math.abs(v) > 0.98) ? v : 0; }); this.restN = 0; }   // a stick held at connect isn't taken as its rest
-    const R0 = this.rest, a = i => { const v = +ax[i] || 0, r = R0[i] || 0; if (Math.abs(r) > 0.6) return 0; return Math.max(-1, Math.min(1, v - r)); };
-    if (this.restN < 600) { this.restN++; for (let i = 0; i < ax.length; i++) { const v = +ax[i] || 0; if (Math.abs(v - (R0[i] || 0)) < 0.25 && Math.abs(v) < 0.4) R0[i] = (R0[i] || 0)*0.97 + v*0.03; } }
-    [this.lx, this.ly] = stick(a(L[0]), a(L[1])); [this.rx, this.ry] = stick(a(Rr[0]), a(Rr[1]));
+    this.sticks(p, now);
     const used = this.lx || this.ly || this.rx || this.ry || p.buttons.some((b, i) => b && b.pressed && i !== 16);
     if (used) this.lastUsed = now;
     this.active = now - this.lastUsed < 4000;
@@ -150,7 +169,10 @@ const Pad = G.pad = {
   setOpt(k, v){ G.save[k] = v; G.persist(); this.renderScreen(); },
   screenTick(){
     const p = this.pick(), st = document.getElementById('padState');
-    if (st) st.textContent = p ? `Connected: ${p.id.replace(/\(.*?\)/g, '').trim().slice(0, 60)}` : 'No controller found. Plug one in or pair it, then press any button.';
+    if (st) st.textContent = p ? `Connected: ${p.id.replace(/\(.*?\)/g, '').trim().slice(0, 60)}${p.mapping === 'standard' ? '' : ' (non-standard layout)'}` : 'No controller found. Plug one in or pair it, then press any button.';
+    if (p && !G.game) this.sticks(p, performance.now());   // no flight running: keep learning the rest points here, so the readout is live
+    const raw = document.getElementById('padRaw');   // live stick readings: if the plane drifts with the sticks let go, this shows which axis
+    if (raw && p) { const f = v => (v >= 0 ? ' ' : '') + (+v || 0).toFixed(2); raw.textContent = `Raw axes: ${(p.axes || []).slice(0, 6).map((v, i) => `${i}:${f(v)}${this.trig && this.trig[i] ? ' (trigger, ignored)' : ''}`).join('  ')}  ·  after deadzone: fly ${f(this.lx)} ${f(this.ly)}  aim ${f(this.rx)} ${f(this.ry)}`; }
     if (!this.capturing || !p) return;
     const now = p.buttons.map(b => !!b && (b.pressed || b.value > 0.5));
     if (!this.capPrev) { this.capPrev = now; return; }   // ignore whatever was already held when listening started
@@ -176,7 +198,7 @@ const Pad = G.pad = {
       return;
     }
     el.innerHTML = tabs + `
-      <p class="pad-state" id="padState"></p>
+      <p class="pad-state" id="padState"></p><p class="pad-state" id="padRaw" style="font-family:monospace;font-size:12px"></p>
       <div class="pad-grid">${ACTIONS.map(a => {
         const cap = this.capturing === a.id;
         return `<div class="pad-row${cap ? ' cap' : ''}"><span>${esc(a.label)}</span><b>${cap ? 'Press a button…' : esc(this.btnName(M[a.id]))}</b>
