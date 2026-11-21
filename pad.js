@@ -17,7 +17,7 @@ const B = {cross:0, circle:1, square:2, triangle:3, l1:4, r1:5, l2:6, r2:7, crea
 /* sticks: a round deadzone (the stick's distance from centre, not each axis alone), measured from where each axis
    actually rests. Worn sticks rest off centre, and some browsers (Safari and Firefox on a Mac, with a non-standard
    mapping) report a trigger at rest as -1 on what should be a stick axis: that read as full down and dived the plane. */
-const DZ = () => Math.max(0.05, Math.min(0.45, G.save.padDZ || 0.2));
+const DZ = () => Math.max(0.05, Math.min(0.45, G.save.padDZ || 0.21));
 const stick = (x, y) => { const d = Math.hypot(x, y), z = DZ(); if (d < z) return [0, 0]; const k = Math.min(1, (d - z)/(1 - z))/d; return [x*k, y*k]; };
 const dz = v => stick(v, 0)[0];
 const curve = v => Math.sign(v)*v*v*0.55 + v*0.45;   // gentle near the middle, full at the edge
@@ -161,7 +161,7 @@ const Pad = G.pad = {
   close(){ this.capturing = null; this.capturingKey = null; if (G.keymap) G.keymap.renderHelp(); if (this.from === 'pause' && G.game && G.game.paused) G.UI.screen('pause'); else G.UI.menu(); },
   listen(id){ this.capturing = id; this.capPrev = null; this.renderScreen(); },
   clear(id){ this.setMap(id, -1); },
-  reset(){ this.capturingKey = null; G.save.padMap = {}; G.save.padSwap = false; G.save.padSens = 1; G.save.padDZ = 0.2; G.save.padInvertAim = false; G.save.padRumble = true; G.persist(); this.capturing = null; this.renderScreen(); },
+  reset(){ this.capturingKey = null; G.save.padMap = {}; G.save.padSwap = false; G.save.padSens = 1; G.save.padDZ = 0.21; G.save.padInvertAim = false; G.save.padRumble = true; G.persist(); this.capturing = null; this.renderScreen(); },
   setMap(id, b){
     const M = this.map();
     // a button does one job: whatever had it before takes this action's old button
@@ -210,7 +210,7 @@ const Pad = G.pad = {
       }).join('')}</div>
       <div class="pad-opts">
         <label><span>Aim speed (right stick)</span><input type="range" min="0.4" max="2" step="0.05" value="${S.padSens || 1}" oninput="G.save.padSens = +this.value; G.persist()"></label>
-        <label><span>Stick deadzone (raise it if the plane drifts or dives with the sticks let go)</span><input type="range" min="0.05" max="0.45" step="0.01" value="${S.padDZ || 0.2}" oninput="G.save.padDZ = +this.value; G.persist()"></label>
+        <label><span>Stick deadzone (raise it if the plane drifts or dives with the sticks let go)</span><input type="range" min="0.05" max="0.45" step="0.01" value="${S.padDZ || 0.21}" oninput="G.save.padDZ = +this.value; G.persist()"></label>
         <label><input type="checkbox" ${S.padSwap ? 'checked' : ''} onchange="G.pad.setOpt('padSwap', this.checked)"> Swap sticks (right stick flies, left aims)</label>
         <label><input type="checkbox" ${S.invert ? 'checked' : ''} onchange="G.pad.setOpt('invert', this.checked)"> Invert pitch (the same setting as the mouse's)</label>
         <label><input type="checkbox" ${S.padInvertAim ? 'checked' : ''} onchange="G.pad.setOpt('padInvertAim', this.checked)"> Invert the aim stick's up and down</label>
