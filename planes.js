@@ -247,6 +247,12 @@ G.Plane = class {
   }
   /* The gunner: picks the nearest enemy inside his arc, fires short bursts with a rough lead and a wobble that
      changes every burst. Good enough to make chasing a turret plane risky, poor enough to miss a lot. */
+  /* sides that share a sky without shooting: the police and the player's side (unless the heat is up), rivals, and other pilots' duels */
+  peaceWith(q){
+    if ((q.police && this.team === 0 || this.police && q.team === 0) && !G.policeHostile) return true;
+    if (this.team === 0 && (q.rival || (G.Net && G.Net.notMine && G.Net.notMine(q)))) return true;
+    return false;
+  }
   updateTurrets(dt){
     const g = this.g; if (g.done || this.frozen || this.docked) return;
     for (const t of this.turrets) {
@@ -256,7 +262,7 @@ G.Plane = class {
       const mz = tA.copy(t.pos).applyQuaternion(this.q).add(this.pos);
       if (!t.tgt || !this.inArc(t, t.tgt, mz)) {
         t.tgt = null; let bd = 600;
-        for (const q of g.planes) { if (!q.alive || q.team === this.team || q.invuln || q.docked || q.noTarget) continue; const d = q.pos.distanceTo(mz); if (d < bd && this.inArc(t, q, mz)) { bd = d; t.tgt = q; } }
+        for (const q of g.planes) { if (!q.alive || q.team === this.team || q.invuln || q.docked || q.noTarget || this.peaceWith(q)) continue; const d = q.pos.distanceTo(mz); if (d < bd && this.inArc(t, q, mz)) { bd = d; t.tgt = q; } }
         if (!t.tgt) { t.rest = 0.4; continue; }
         t.burst = 0.6 + Math.random()*0.6;
         const e = 0.13 + (this.isPlayer || this.team === 0 ? 0 : 0.01); t.bias.set((Math.random() - 0.5)*e, (Math.random() - 0.5)*e, (Math.random() - 0.5)*e);   // this burst's aiming error

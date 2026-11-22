@@ -250,7 +250,7 @@ const Net = G.Net = {
   },
   planeMsg(p){
     const L = p.L;
-    return {t:'pl', nid:p.nid, tid:p.tid || undefined, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace, rv:p.rival ? 1 : undefined, cr:p.crew ? 1 : undefined,
+    return {t:'pl', nid:p.nid, tid:p.tid || undefined, team:p.team, name:p.name, cs:p.callsign, owner:p.remote ? p.remote.id : (p.isPlayer ? 'host' : null), ace:!!p.ace, rv:p.rival ? 1 : undefined, cop:p.police ? 1 : undefined, cr:p.crew ? 1 : undefined,
       L:{chassis:L.chassis, paint:L.paint, guns:L.guns, turrets:L.turrets, rocket:L.rocket, hp:L.hp, arm:L.arm}, ...this.parkedTag(p)};
   },
   /* ---- changing aeroplanes in co-op (game.parkPlane / swapPlayer). The host owns every parked plane; guests see them
@@ -452,7 +452,8 @@ const Net = G.Net = {
   hostFrame(g, dt){
     if (this.vs) this.vsFrame(g, dt);
     if (!this.links.length || g.paused) return;
-    if ((g.hudT = (g.hudT || 0) - dt) <= 0) { g.hudT = 2; if (g.mission && !g.mission.open) for (const k of ['lastsides', 'lastcover', 'lastclue']) if (this[k]) this.broadcast(Object.assign({t:'hud'}, JSON.parse(this[k]))); if (this.lastObj && !(g.mission && g.mission.open)) this.broadcast({t:'hud', k:'obj', text:this.lastObj}); }   // panels go only when they change; repeat them now and then for anyone who missed it
+    // every 2 s: the police's mood (guests colour and target them by it), and the panels
+    if ((g.hudT = (g.hudT || 0) - dt) <= 0) { g.hudT = 2; this.broadcast({t:'cops', h:G.policeHostile ? 1 : 0}); if (g.mission && !g.mission.open) for (const k of ['lastsides', 'lastcover', 'lastclue']) if (this[k]) this.broadcast(Object.assign({t:'hud'}, JSON.parse(this[k]))); if (this.lastObj && !(g.mission && g.mission.open)) this.broadcast({t:'hud', k:'obj', text:this.lastObj}); }   // panels go only when they change; repeat them now and then for anyone who missed it
     g.snapT -= dt; if (g.snapT > 0) return; g.snapT = 1/SNAP_HZ;
     const P = [], S = [];
     for (const p of g.planes) {
@@ -569,6 +570,7 @@ const Net = G.Net = {
       case 'hit': if (g && G.game === g) { G.HUD.hitMark(); if (g.audio) g.audio.hitThem(); } break;
       case 'kill': if (g && G.game === g) g.kills++; break;   // the host's feed line already names us
       case 'hud': if (g && G.game === g) this.guestHud(m); break;
+      case 'cops': G.policeHostile = !!m.h; break;
       case 'ev': if (g && G.game === g && !g.done && g.realMission && !g.realMission.open) this.guestEvents(g, m.E, false); break;
       case 'music': if (g && G.game === g && !g.done && typeof m.k === 'string' && /^[a-z0-9_]{1,24}$/i.test(m.k) && G.music) G.music.play(m.k); break;
       case 'end': if (g && G.game === g) this.guestEnd(g, m); break;
@@ -639,7 +641,7 @@ const Net = G.Net = {
     const L = G.stockLoadout(G.CHASSIS[m.L && m.L.chassis] ? m.L.chassis : 'vandal');
     try { if (m.L.paint) L.paint = m.L.paint.slice(0, 3).map(x => x | 0); if (Array.isArray(m.L.guns) && m.L.guns.length === L.guns.length) L.guns = m.L.guns.map(x => ({cal:x && G.GUNS[x.cal] ? x.cal : null, ammo:'slug'})); if (Array.isArray(m.L.turrets)) L.turrets = m.L.turrets.filter(t => t && G.GUNS[t.cal]).map(t => ({cal:t.cal, ammo:'slug'})); if (G.ROCKETS[m.L.rocket]) L.rocket = m.L.rocket; } catch (e) {}
     this.localSpawn = true; const p = g.addPlane({loadout:L, team:m.team === 0 ? 0 : 1, name:String(m.name || '').slice(0, 30), callsign:String(m.cs || m.name || '').slice(0, 30), pos:new V3(0, -9999, 0)}); this.localSpawn = false;
-    p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; if (m.cr) p.netCrew = true; if (m.rv) p.rival = true; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};   // netCrew: the host's wingmen; the sound skips them as it does on the host
+    p.nid = m.nid; p.remote = {id:m.owner || 'ai'}; p.ace = !!m.ace; if (m.cr) p.netCrew = true; if (m.rv) p.rival = true; if (m.cop) p.police = true; p.puppet = true; p.net = {p:new V3(0, -9999, 0), q:new Q(), v:new V3(), at:-1};   // netCrew: the host's wingmen; the sound skips them as it does on the host
     p.obj.visible = false;
     g.netPlanes.set(m.nid, p);
     if (typeof m.pk === 'string') this.markParked(g, p, m.pk, m.ho);
