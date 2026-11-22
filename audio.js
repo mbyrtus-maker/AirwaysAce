@@ -29,7 +29,7 @@ const A = G.audio = {
       // the Zephyr's turbine is a recording of its own, fetched alongside the game
       if (typeof fetch === 'function') fetch('sounds/turbine2.wav').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.edges('turbine', b); this.buf.turbine = this.seamless(b, this.trim.turbine, 0.35); this.trim.turbine = {s:0, e:this.buf.turbine.duration}; }).catch(() => {});
       if (typeof fetch === 'function') for (const k of ['creak', 'tear']) fetch(`sounds/${k}.wav?v=1`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf[k] = b; this.trim[k] = {s:0, e:b.duration}; }).catch(() => {});   // airframe failing: made from the rivet and hull recordings
-      if (typeof fetch === 'function') fetch('sounds/prop_pass.wav?v=2').then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => { this.buf.pass = b; this.trim.pass = {s:0, e:b.duration}; }).catch(() => {});
+      // (the recorded fly-by whoosh, sounds/prop_pass.wav, is no longer loaded or played anywhere)
       // more engine voices, each a seamless WAV loop: an inline V12 for the sleek fighters, and the Whirligig's rotor chop
       if (typeof fetch === 'function') for (const k of ['v12', 'rotor', 'heavy', 'rough', 'steam', 'prop_light', 'prop_smooth', 'prop_twin', 'prop_heavy']) fetch(`sounds/${k}.wav?v=${/^prop_/.test(k) ? 3 : 2}`).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => { const p = c.decodeAudioData(b, ok, no); if (p && p.then) p.then(ok, no); })).then(b => {
         if (/^prop_/.test(k)) { this.buf[k] = b; this.trim[k] = {s:0, e:b.duration}; return; }   // the prop recordings are cut to loop on their own, end in step with start: a long blend here would phase like a passing plane
@@ -163,7 +163,6 @@ const A = G.audio = {
       const k2 = this.eng2.key, vr = k2 === 'turbine' ? 0.95 : this.VRATE[k2] || 1, vg = k2 === 'turbine' ? 1.1 : this.VGAIN[k2] || 1;
       if (best) { const closing = -best.vel.clone().sub(P ? P.vel : best.vel).dot(best.pos.clone().sub(game.camera.position).normalize()); this.eng2.src.playbackRate.setTargetAtTime(Math.max(0.6, 0.95 + closing/700)*vr*(k2 === 'turbine' ? 1 : this.pitchOf(best)), t, 0.08); }
       this.eng2.g.gain.setTargetAtTime(game.running ? a*0.32*vg : 0, t, 0.1);
-      if (best && !best.crew && !best.netCrew && this.buf.pass && bd < 140 && game.running && !(best.st && best.st.jet) && best.vel.clone().sub(P ? P.vel : best.vel).length() > 45 && !this.thr('pass', 4500)) this.one('pass', 0.55*(1 - bd/140) + 0.2, this.pitchOf(best));   // whoosh: the recorded flyby
       const p2 = /^(v12|heavy|rough)$/.test(k2); if (p2 && !this.prop2 && this.buf.engine) { this.prop2 = this.loop('engine', 0); if (this.prop2) this.prop2.src.detune.value = 260; }
       if (this.prop2) { this.prop2.src.playbackRate.value = this.eng2.src.playbackRate.value*1.05/(vr || 1); this.prop2.g.gain.setTargetAtTime(game.running && p2 ? a*0.32*0.38 : 0, t, 0.1); }   // their propellers too
     }
