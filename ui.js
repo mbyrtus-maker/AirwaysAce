@@ -468,17 +468,7 @@ Object.assign(UI, {
     const soldHere = new Set(all.filter(it => it.at.id === here).map(it => it.kind + ':' + it.id)), list = all.filter(it => it.at.id === here || !soldHere.has(it.kind + ':' + it.id));   // sold where you stand: no need to list it elsewhere too
     const planes = list.filter(it => it.kind === 'chassis'), mods = list.filter(it => it.kind === 'mod');
     const mark = O.wp ? `<p class="note">Marked on your map: <b>${esc(O.wp.label)}</b>. <a href="#" onclick="UI.O.wp=null;UI.renderContact();return false">Clear</a></p>` : '';
-    // further afield: what other regions sell that you can't get here (and don't own yet), and where, for the chart table
-    const hereIds = new Set(all.map(it => it.kind + ':' + it.id)), far = [];
-    for (const R of Object.values(G.REGIONS)) { if (R.id === O.R.id) continue;
-      for (const s of R.sites || []) { const C = s.contact && G.CONTACTS[s.contact]; if (!C || !C.shop) continue;
-        for (const it of C.shop) { const kind = it.mod ? 'mod' : 'chassis', id = it.mod || it.chassis, key = kind + ':' + id;
-          if (hereIds.has(key) || (kind === 'mod' ? G.hasMod(id) : S.owned.includes(id)) || far.some(f => f.key === key)) continue;
-          const name = kind === 'mod' ? G.MODS[id].name : G.CHASSIS[id].name, price = it.price || (kind === 'mod' ? G.MODS[id].price : 0);
-          far.push({key, kind, name, price, where:`${s.name}, ${R.name}`}); } } }
-    far.sort((a, b) => a.kind === b.kind ? a.price - b.price : a.kind === 'chassis' ? -1 : 1);
-    const afar = far.length ? `<h4 style="font-size:13px;margin-top:8px">Further afield <em style="font-style:normal;color:var(--dim);letter-spacing:0;text-transform:none">set course on the chart table</em></h4>${far.map(f => `<div class="shop"><b>${esc(f.name)}</b><em class="note" style="margin:0">$${f.price.toLocaleString()}</em><span>${f.kind === 'chassis' ? 'Aeroplane' : 'Upgrade'} · ${esc(f.where)}</span></div>`).join('')}` : '';
-    return `${mark}${planes.length ? `<h4 style="font-size:13px;margin-top:8px">Aeroplanes</h4>${planes.map(row).join('')}` : ''}${mods.length ? `<h4 style="font-size:13px;margin-top:8px">Upgrades</h4>${mods.map(row).join('')}` : ''}${afar}`;
+    return `${mark}${planes.length ? `<h4 style="font-size:13px;margin-top:8px">Aeroplanes</h4>${planes.map(row).join('')}` : ''}${mods.length ? `<h4 style="font-size:13px;margin-top:8px">Upgrades</h4>${mods.map(row).join('')}` : ''}`;
   },
   rewardText(rw){ const o = []; if (rw.livery) o.push(`${G.LIVERIES[rw.livery].name} paint`); if (rw.chassis) o.push(`a ${G.CHASSIS[rw.chassis].name}`); if (rw.mod) o.push(G.MODS[rw.mod].name); return o.join(' and '); },
   fmtT(t){ const m = Math.floor(t/60), s = t - m*60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`; },
