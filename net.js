@@ -199,6 +199,8 @@ const Net = G.Net = {
         break; }
       case 'st': if (g && G.game === g) this.guestState(g, L, m); break;
       case 'gh': if (g && G.game === g && !g.done) this.hostClaim(g, L, m); break;
+      case 'gs': if (g && G.game === g && !g.done) this.hostShipClaim(g, L, m); break;
+      case 'gt': if (g && G.game === g && !g.done) this.hostTargetClaim(g, L, m); break;
       case 'load': if (m.L && typeof m.L === 'object') { L.load = this.cleanLoad(m.L); if (g && L.proxy) { this.removeNetPlane(g, L.proxy); L.proxy = null; } } break;   // a guest left the hangar in another aeroplane: their next update brings the new stand-in
       case 'dead': if (g && L.proxy && L.proxy.alive) { const src = this.byNid(g, m.by); L.proxy.destroy(src, m.how || 'shot'); } break;
       case 'order': if (g && G.ORDERS && Object.values(G.ORDERS).includes(m.o) && g.wingmen && g.wingmen.length) { g.order(m.o); G.HUD.feed(`${L.name}: ${G.ORDER_NAMES[m.o]}`); } break;
@@ -305,8 +307,46 @@ const Net = G.Net = {
   claimHit(p, dmg, facing, ammo, o){
     if (!this.host || p.rival || this.notMine(p)) return; const g = p.g, now = g.t;   // a rival can't be shot down: no hit marker either
     if (now - (this.claimT || 0) > 1) { this.claimT = now; this.claimN = 0; } if (++this.claimN > 200) return;   // several fast guns on a big target can land well over 60 a second
+    if (!p.nid) {   // a plane my own job asked for, not yet tied to the host's: hold the hits and send them once it is
+      const Q = p.heldHits || (p.heldHits = []); if (Q.length < 60) Q.push({d:r2(dmg), f:facing | 0, a:ammo && ammo.id || 'slug', o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen}});
+      G.HUD.hitMark(); if (g.audio && g.audio.hitThem) g.audio.hitThem(); return;
+    }
     this.host.send({t:'gh', n:p.nid, d:r2(dmg), f:facing | 0, a:ammo && ammo.id || 'slug', o:{armorMul:o.armorMul, wingMul:o.wingMul, pen:o.pen}});
     if (g.audio && g.audio.hitThem) g.audio.hitThem(); G.HUD.hitMark();
+  },
+  /* guest: one of my bullets or rockets hit a ship or airship (where on it, in its own frame) or a ground target */
+  claimShip(s, kind, a, b, dmg, ammo, reach, fire){
+    if (!this.host) return; const g = s.g, i = g.ships.indexOf(s); if (i < 0) return;
+    if (g.t - (this.claimT || 0) > 1) { this.claimT = g.t; this.claimN = 0; } if (++this.claimN > 200) return;
+    const v = p => [r2(p.x), r2(p.y), r2(p.z)];
+    this.host.send({t:'gs', i, nm:String(s.name || '').slice(0, 40), k:kind, a:v(a), b:b ? v(b) : undefined, d:r2(dmg), am:ammo && ammo.id || undefined, r:reach ? r2(reach) : undefined, f:fire ? 1 : undefined});
+    G.HUD.hitMark(); if (g.audio && g.audio.hitThem) g.audio.hitThem();
+  },
+  claimTarget(g, t, d){
+    if (!this.host) return; const i = (g.targets || []).indexOf(t); if (i < 0) return;
+    if (g.t - (this.claimT || 0) > 1) { this.claimT = g.t; this.claimN = 0; } if (++this.claimN > 200) return;
+    this.host.send({t:'gt', i, d:r2(d)}); G.HUD.hitMark(); if (g.audio && g.audio.hitThem) g.audio.hitThem();
+  },
+  /* host: replay a guest's hit on a ship (the points come in the ship's own frame, so lag doesn't move them) or a target */
+  hostShipClaim(g, L, m){
+    const P = L.proxy, s = g.ships[m.i | 0], S = L.claims || (L.claims = {ok:0, noPlane:0, noTarget:0, range:0, rate:0});
+    if (!P || !P.alive) { S.noPlane++; return; } if (!s || !s.alive || s.team === 0 || (typeof m.nm === 'string' && m.nm !== String(s.name || '').slice(0, 40))) { S.noTarget++; return; }   // the name must match: a guest's ship can sit at another index for a moment while it's being set up
+    if (P.pos.distanceTo(s.pos) > 2200) { S.range++; return; }
+    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 240) { S.rate++; return; }
+    const V = a => Array.isArray(a) && a.length === 3 && a.every(x => typeof x === 'number' && isFinite(x) && Math.abs(x) < 400) ? new V3(a[0], a[1], a[2]) : null;
+    const a = V(m.a), d = Math.max(0, Math.min(m.k === 'x' ? 400 : 60, +m.d || 0)); if (!a) return;
+    S.ok++; this.claiming = true;
+    try {
+      if (m.k === 'x') s.blast(s.worldPoint(a, new V3()), d, Math.max(1, Math.min(40, +m.r || 8)), P, !!m.f);
+      else { const b = V(m.b); if (b) s.hitBy(s.worldPoint(a, new V3()), s.worldPoint(b, new V3()), d, G.AMMO[m.am] || G.AMMO.slug, P); }
+    } finally { this.claiming = false; }
+  },
+  hostTargetClaim(g, L, m){
+    const P = L.proxy, t = (g.targets || [])[m.i | 0], S = L.claims || (L.claims = {ok:0, noPlane:0, noTarget:0, range:0, rate:0});
+    if (!P || !P.alive) { S.noPlane++; return; } if (!t || !t.alive || t.team === 0) { S.noTarget++; return; }
+    if (P.pos.distanceTo(t.pos) > 2200) { S.range++; return; }
+    if ((L.claimT || 0) < g.t - 1) { L.claimT = g.t; L.claimN = 0; } if (++L.claimN > 240) { S.rate++; return; }
+    S.ok++; this.claiming = true; try { g.hitTarget(t, Math.max(0, Math.min(400, +m.d || 0)), P); } finally { this.claiming = false; }
   },
   /* host: a guest says they hit something. Believe it within reason: alive, an enemy, in gun range of their plane, a sane amount */
   hostClaim(g, L, m){
@@ -595,7 +635,7 @@ const Net = G.Net = {
     if (m.owner && m.owner === this.me) return;   // that's my own stand-in on the host
     if (g.netPlanes.has(m.nid)) return;
     const mine = m.tid && g.netTids && g.netTids.get(m.tid);
-    if (mine && m.tid[0] === 'j') { g.netTids.delete(m.tid); if (mine.netGone) { if (this.host) this.host.send({t:'despawn', nid:m.nid}); return; } mine.nid = m.nid; g.netPlanes.set(m.nid, mine); return; }
+    if (mine && m.tid[0] === 'j') { g.netTids.delete(m.tid); if (mine.netGone) { if (this.host) this.host.send({t:'despawn', nid:m.nid}); return; } mine.nid = m.nid; g.netPlanes.set(m.nid, mine); if (mine.heldHits && this.host) { for (const h of mine.heldHits) this.host.send(Object.assign({t:'gh', n:m.nid}, h)); mine.heldHits = null; } return; }
     const L = G.stockLoadout(G.CHASSIS[m.L && m.L.chassis] ? m.L.chassis : 'vandal');
     try { if (m.L.paint) L.paint = m.L.paint.slice(0, 3).map(x => x | 0); if (Array.isArray(m.L.guns) && m.L.guns.length === L.guns.length) L.guns = m.L.guns.map(x => ({cal:x && G.GUNS[x.cal] ? x.cal : null, ammo:'slug'})); if (Array.isArray(m.L.turrets)) L.turrets = m.L.turrets.filter(t => t && G.GUNS[t.cal]).map(t => ({cal:t.cal, ammo:'slug'})); if (G.ROCKETS[m.L.rocket]) L.rocket = m.L.rocket; } catch (e) {}
     this.localSpawn = true; const p = g.addPlane({loadout:L, team:m.team === 0 ? 0 : 1, name:String(m.name || '').slice(0, 30), callsign:String(m.cs || m.name || '').slice(0, 30), pos:new V3(0, -9999, 0)}); this.localSpawn = false;

@@ -561,7 +561,8 @@ Object.assign(UI, {
     }).join('');
     const regs = Object.values(G.REGIONS).map(R => b(R.name, `G.save.open.region='${R.id}'`, O.region === R.id)).join('');
     const times = [['Morning', 9], ['Afternoon', 14], ['Dusk', 18], ['Night', 22]].map(([n, h]) => b(n, `G.save.open.hour=${h}`, O.hour === h)).join('');
-    const flight = g ? `<section><h4>This flight · ${esc(M.open ? G.REGIONS[O.region].name : M.title)}</h4><div class="bt">
+    const tally = G.Net && G.Net.role === 'host' && G.Net.links.length ? `<p class="note">Guest hits accepted / rejected: ${G.Net.links.map(L => { const c = L.claims || {}; return `${esc(L.name || 'guest')} ${c.ok || 0} / ${(c.noPlane || 0) + (c.noTarget || 0) + (c.range || 0) + (c.rate || 0)}${(c.noPlane || c.noTarget || c.range || c.rate) ? ` (no plane ${c.noPlane || 0}, gone ${c.noTarget || 0}, range ${c.range || 0}, too many ${c.rate || 0})` : ''}`; }).join(' · ')}</p>` : '';
+    const flight = g ? `<section><h4>This flight · ${esc(M.open ? G.REGIONS[O.region].name : M.title)}</h4>${tally}<div class="bt">
         ${b('Win now', 'UI.devWin(true)')}${b('Fail now', 'UI.devWin(false)')}${b('Repair & rearm', 'UI.devRepair()')}
         ${M.open ? b('Spawn bandits', 'UI.devBandits()') + b('Finish job: gold', "const m=G.game.mission;if(m.job)m.finishJob({win:true,medal:'gold',time:60})") + b('+5,000 stunt pts', 'const m=G.game.mission;m.award(5000,"DEV");m.bank()') : ''}
         ${b('Teleport to Margaret', 'const g=G.game,P=g.player;P.onGround=false;P.frozen=false;P.pos.copy(g.ships[0].pos).add(new THREE.Vector3(0,-80,-200));P.speed=60')}</div></section>` : '';

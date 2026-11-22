@@ -50,6 +50,12 @@ G.Airship = class {
 
   /* ---- damage ---- */
   hitBy(a, b, dmg, ammo, src){
+    // co-op guest: my own bullet, judged here where I saw the ship; the host replays it on its copy, in the ship's own frame (net.js claimShip)
+    if (this.g.netGuest && src && src === this.g.player && G.Net && G.Net.claimShip && this.alive && this.state !== 'surrendered' && this.state !== 'captured' && this.state !== 'passive') {
+      const hit = this.comps ? this.comps.some(c => c.alive && !c.virtual && segClosest(this.toLocal(a, tA).clone(), this.toLocal(b, tB).clone(), c.pos, tC) >= -1 && tC.distanceTo(c.pos) < c.r + 1.5) || this.inside(b) : this.inside(b);
+      if (hit) G.Net.claimShip(this, 'b', this.toLocal(a, new V3()), this.toLocal(b, new V3()), dmg, ammo);
+      return hit;
+    }
     if (!this.alive || this.state === 'surrendered' || this.state === 'captured' || this.state === 'passive') {
       if (this.alive && this.inside(b)) { if (this.state === 'passive' && this.g.mission.onPassiveHit) this.g.mission.onPassiveHit(this.g, this, src); return true; }
       return false;
@@ -93,6 +99,7 @@ G.Airship = class {
   /* rockets and big blasts: every part within reach takes a share */
   blast(world, dmg, reach, src, fire){
     if (!this.alive) return;
+    if (this.g.netGuest && src && src === this.g.player && G.Net && G.Net.claimShip) { G.Net.claimShip(this, 'x', this.toLocal(world, new V3()), null, dmg, null, reach, fire); return; }   // my rocket: the host replays the blast
     if (!this.comps) { this.damage(dmg, src); return; }
     const l = this.toLocal(world, tA).clone(), ammo = {a:1, i:1};
     let hitPart = false;
@@ -278,7 +285,8 @@ G.Combat = {
   /* static targets: {pos (world), r, hp, hpMax, team, label, group, alive}; registered by a mission */
   addTarget(t){ t.hpMax = t.hpMax || t.hp; t.alive = true; t.team = t.team ?? 1; (this.targets || (this.targets = [])).push(t); return t; },
   hitTarget(t, d, src){
-    if (!t.alive || this.netGuest) return;
+    if (!t.alive) return;
+    if (this.netGuest) { if (src && src === this.player && G.Net && G.Net.claimTarget) G.Net.claimTarget(this, t, d); return; }   // my own hit on a ground target: tell the host
     if (this.netHost && G.Net) G.Net.hostHit(src); t.hp -= d;
     if (src && src.isPlayer) { G.HUD.hitMark(); if (this.audio) this.audio.hitThem(); }
     if (t.hp <= 0) {
@@ -379,12 +387,12 @@ G.Combat = {
         segClosest(b.prev, b.pos, t.pos, tC);
         if (tC.distanceToSquared(t.pos) < 2.6*2.6) { t.hp -= b.dmg; this.fx.spark(tC); dead = true; if (t.hp <= 0) { G.HUD.feed(`${b.owner && b.owner.isPlayer ? 'You' : b.owner && b.owner.callsign ? b.owner.callsign : 'Gunners'} shot down a torpedo`, b.owner && b.owner.isPlayer); if (b.owner && b.owner.isPlayer) G.HUD.hitMark(); } break; }
       }
-      if (!dead && this.targets) for (const t of this.targets) {
+      if (!dead && this.targets && !b.noPlanes) for (const t of this.targets) {
         if (!t.alive || t.team === b.team || Math.abs(t.pos.x - b.pos.x) > 60 || Math.abs(t.pos.z - b.pos.z) > 60) continue;
         segClosest(b.prev, b.pos, t.pos, tC);
         if (tC.distanceToSquared(t.pos) < t.r*t.r) { this.hitTarget(t, b.dmg*(b.ammo.a + b.ammo.i)*0.5, b.owner); this.fx.spark(tC); dead = true; break; }
       }
-      if (!dead) for (const s of ships) if (s.alive && s.team !== b.team && b.pos.distanceToSquared(s.pos) < 130*130 && s.hitBy(b.prev, b.pos, b.dmg, b.ammo, b.owner)) { this.fx.spark(b.pos, [1, 0.7, 0.4]); dead = true; break; }
+      if (!dead && !b.noPlanes) for (const s of ships) if (s.alive && s.team !== b.team && b.pos.distanceToSquared(s.pos) < 130*130 && s.hitBy(b.prev, b.pos, b.dmg, b.ammo, b.owner)) { this.fx.spark(b.pos, [1, 0.7, 0.4]); dead = true; break; }
       if (!dead && b.pos.y < 600 && b.pos.y < Math.max(w.height(b.pos.x, b.pos.z), 0.4)) { this.fx.dust(b.pos); dead = true; }
       if (dead) { this.bullets[i] = this.bullets[this.bullets.length - 1]; this.bullets.pop(); }
     }
@@ -401,6 +409,7 @@ G.Combat = {
       }
       if (!hitAt) for (const s of ships) {
         if (!s.alive || s.team === r.team || r.pos.distanceToSquared(s.pos) > 130*130) continue;
+        if (this.netHost && r.owner && r.owner.remote && r.owner.human) { if (s.inside(r.pos)) { hitAt = r.pos.clone(); break; } continue; }   // show only
         const near = s.inside(r.pos) || (s.comps && s.comps.some(c => c.alive && !c.virtual && s.toLocal(r.pos, tD).distanceTo(c.pos) < c.r + 1));
         if (near) { hitAt = r.pos.clone(); s.blast(r.pos, r.def.dmg*(r.def.id === 'he' ? 2 : r.def.id === 'ap' ? 1.6 : 0.6), r.def.splash, r.owner, r.def.id === 'he'); break; }
       }
@@ -413,6 +422,7 @@ G.Combat = {
   },
   explodeRocket(r, at, direct){
     const d = r.def; this.fx.explosion(at, d.id === 'flak' ? 0.5 : 0.75);
+    if (this.netHost && r.owner && r.owner.remote && r.owner.human) { if (this.audio) this.audio.boom(at, false); return; }   // a guest's stand-in fired it: the guest reports what it hit
     if (this.targets) for (const t of this.targets) if (t.alive && t.team !== r.team) { const dd = t.pos.distanceTo(at); if (dd < t.r + d.splash) this.hitTarget(t, d.dmg*(d.id === 'he' ? 2.2 : d.id === 'ap' ? 1.6 : 0.8)*(dd < t.r + 2 ? 1 : 0.5), r.owner); }
     if (this.torps) for (const t of this.torps) if (t.team !== r.team && t.pos.distanceTo(at) < d.splash + 4) { t.hp = 0; G.HUD.feed(r.owner && r.owner.isPlayer ? 'You blew up a torpedo' : 'A torpedo was blown up', r.owner && r.owner.isPlayer); }
     if (this.audio) this.audio.boom(at, false);
