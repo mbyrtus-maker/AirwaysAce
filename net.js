@@ -859,22 +859,38 @@ for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['fee
    so updates that arrive unevenly no longer jerk it about. Past the newest update it coasts on its velocity for at most
    a quarter second. Each sender has its own clock (n.clk): how far its game time runs ahead of ours, tracked on the
    quickest arrivals so a late packet doesn't drag it. */
-const LAG = 0.1, tP = new V3(), qP = new Q();
+const LAG0 = 0.08, LAGMAX = 0.3, tP = new V3(), qP = new Q(), tC = new V3();
+// how far in the past to draw: enough to cover how late updates have been arriving lately (a stuttering host sends in bursts)
+const lagOf = clk => Math.max(LAG0, Math.min(LAGMAX, 0.04 + (clk.jit || 0)*1.15));
 G.netSample = (g, n, clk, T, x, y, z, qx, qy, qz, qw, vx, vy, vz) => {
   const s = T - g.t; if (clk.off !== undefined && Math.abs(s - clk.off) > 2) { clk.off = undefined; n.buf = []; }   // their clock jumped (a new flight): start over
   clk.off = clk.off === undefined ? s : s > clk.off ? clk.off + (s - clk.off)*0.3 : clk.off + (s - clk.off)*0.02;
+  const late = Math.max(0, clk.off - s); clk.jit = Math.max(late, (clk.jit || 0)*0.996);   // the worst recent lateness, fading over several seconds
+  clk.newest = Math.max(clk.newest ?? -1e9, T);
   const B = n.buf || (n.buf = []); if (B.length && T <= B[B.length - 1].t) return;
   B.push({t:T, p:new V3(x, y, z), q:new Q(qx, qy, qz, qw).normalize(), v:new V3(vx, vy, vz)}); if (B.length > 10) B.shift(); n.clk = clk;
 };
 G.Plane.prototype.remoteUpdate = function(dt){
   const n = this.net, g = this.g;
   if (n && n.buf && n.buf.length && n.clk) {
-    const B = n.buf, rt = g.t + n.clk.off - LAG; let a = B[0], b = null;
+    // one playback clock per sender, stepped once a frame: it runs a little slow while updates are late (a stuttering host) and a little fast to catch up,
+    // so planes keep to their real paths instead of being guessed ahead and snapped back
+    const C = n.clk;
+    if (C.ft !== g.t) { C.ft = g.t; const want = Math.min(g.t + C.off, C.newest ?? -1e9) - lagOf(C);
+      if (C.play === undefined || Math.abs(want - C.play) > 0.6) C.play = want; else C.play += dt*Math.max(0.6, Math.min(1.6, 1 + (want - C.play)*3)); }
+    const B = n.buf, rt = C.play; let a = B[0], b = null;
     for (let i = B.length - 1; i >= 0; i--) if (B[i].t <= rt) { a = B[i]; b = B[i + 1] || null; break; }
-    if (b) { const f = Math.max(0, Math.min(1, (rt - a.t)/Math.max(1e-3, b.t - a.t))); tP.lerpVectors(a.p, b.p, f); qP.copy(a.q).slerp(b.q, f); this.vel.lerpVectors(a.v, b.v, f); }
-    else { const e = Math.max(0, Math.min(0.25, rt - a.t)); tP.copy(a.p).addScaledVector(a.v, e); qP.copy(a.q); this.vel.copy(a.v); }
+    if (b) { const f = Math.max(0, Math.min(1, (rt - a.t)/Math.max(1e-3, b.t - a.t))); tP.lerpVectors(a.p, b.p, f); qP.copy(a.q).slerp(b.q, f); }
+    else {   // past the newest update: carry on round the curve it was flying (from the last two updates), not off along the tangent
+      const e = Math.max(0, Math.min(0.2, rt - a.t)), pv = B.length > 1 ? B[B.length - 2] : null; tP.copy(a.p).addScaledVector(a.v, e);
+      if (pv && a.t - pv.t > 1e-3) tP.addScaledVector(tA.copy(a.v).sub(pv.v).divideScalar(a.t - pv.t), 0.5*e*e);
+      qP.copy(a.q);
+    }
+    const was = tA.copy(this.pos);
     if (this.pos.distanceToSquared(tP) > 250*250) this.pos.copy(tP); else this.pos.lerp(tP, 1 - Math.exp(-dt*30));
     this.q.slerp(qP, 1 - Math.exp(-dt*30));
+    // the velocity the gunsight leads with is how this plane is actually moving on this screen, so the lead matches what you see
+    if (dt > 0) { const mv = tC.copy(this.pos).sub(was).divideScalar(dt); if (mv.lengthSq() < 400*400) this.vel.lerp(mv, 1 - Math.exp(-dt*12)); }
   } else if (n && n.at >= 0) {
     const age = Math.min(0.4, g.t - n.at), k = 1 - Math.exp(-dt*12);
     tA.copy(n.p).addScaledVector(n.v, age);
