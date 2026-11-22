@@ -59,6 +59,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .meta{display:flex;justify-content:space-between;font-size:15px;color:var(--dim)}.meta b{color:var(--brass);font-size:22px}
 .settings{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;font-size:14px;color:var(--dim)}
 .settings input[type=range]{accent-color:var(--brass)}
+.ctlTabs{display:flex;align-items:center;gap:6px;margin-bottom:8px}.ctlTabs .lbl{margin:0 auto 0 0}.ctlTabs button{background:none;border:1px solid rgba(217,164,65,.35);color:var(--dim);font:inherit;font-size:12px;letter-spacing:.08em;padding:3px 10px;border-radius:3px;cursor:pointer}.ctlTabs button.on{background:rgba(217,164,65,.18);border-color:var(--brass);color:var(--brass)}
 .controls{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14px;color:#d8ccb2}.controls kbd{color:var(--brass)}
 @media (max-width:860px){#menu .wrap{grid-template-columns:1fr}}
 
@@ -260,7 +261,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
   </div>
   <div class="mcol">
     <div class="card"><div class="meta"><span>Lucky Margaret · bank</span><b id="mCash"></b></div><canvas class="mprev" id="mPrev"></canvas><div class="note" id="mRecord"></div></div>
-    <div class="card"><span class="lbl">Controls · keyboard and mouse</span><div class="controls">
+    <div class="card"><div class="ctlTabs"><span class="lbl">Controls</span><button id="mCtlKbB" class="on" onclick="UI.ctlTab('kb')">Keyboard &amp; mouse</button><button id="mCtlPadB" onclick="UI.ctlTab('pad')">Controller</button></div><div class="controls" id="mCtlPad" hidden></div><div class="controls" id="mCtlKb">
       <kbd>Mouse</kbd><span>Aim. The plane flies toward the circle.</span><kbd>Left click</kbd><span>Guns (all pairs)</span><kbd>Right click / Space</kbd><span>Dumbfire rockets</span>
       <kbd>W / S</kbd><span>Throttle</span><kbd>A / D · Q / E</kbd><span>Roll · rudder override</span><kbd>Double-tap A / D · Q / E</kbd><span>Barrel roll · snap turn</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps: slow flight for landing and hooks</span><kbd>G</kbd><span>Gear up / down (retractable planes; land wheels-up and you crash)</span><kbd>C</kbd><span>Chase or cockpit view</span><kbd>V</kbd><span>Look back</span><kbd>Esc</kbd><span>Pause</span></div></div>
     <div class="card"><span class="lbl">Settings</span><div class="settings">
@@ -345,9 +346,9 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="story4.js?v=1120script"></script>
 <script src="tutorial.js?v=1122tut"></script>
 <script src="net.js?v=1122form"></script>
-<script src="pad.js?v=1122tut"></script>
+<script src="pad.js?v=1122ctl"></script>
 <script src="keys.js?v=1120sight"></script>
-<script src="ui.js?v=1122tut"></script>
+<script src="ui.js?v=1122ctl"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>

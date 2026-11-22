@@ -33,7 +33,7 @@ const UI = G.UI = {
   screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact', 'controls', 'ach']) if ($(s)) $(s).hidden = s !== id; },
   /* ---------- main menu ---------- */
   menu(){
-    UI.forceMission = null; if (G.card) G.card.reset();
+    UI.forceMission = null; try { UI.ctlTab(UI.ctlWhich || (G.pad && G.pad.active ? 'pad' : 'kb')); } catch (e) {} if (G.card) G.card.reset();
     if (G.Net) setTimeout(() => G.Net.render(), 0);
     UI.quit(); this.screen('menu'); G.HUD.show(false);
     G.music.play(G.save.story && /end$/.test(G.save.story.node) && (G.save.mission || 'story') === 'story' ? 'home' : 'sidewalk');
@@ -62,6 +62,15 @@ const UI = G.UI = {
     $('mRecord').textContent = `${S.sorties} sorties · ${S.wins} wins · ${S.kills} kills`;
     $('mVol').value = S.vol ?? 0.7; $('mAmb').value = S.amb ?? 0.8; $('mMus').value = G.music.vol(); $('mSens').value = S.mouseSens; $('mInv').checked = !!S.invert; $('mAssist').checked = !!S.aimAssist;
     preview.show($('mPrev'), S.load);
+  },
+  // a controller plugged in while the menu is up: refresh the card's button names (PlayStation or Xbox)
+  _padHook: typeof addEventListener === 'function' && addEventListener('gamepadconnected', () => setTimeout(() => { if (UI.ctlWhich === 'pad') UI.ctlTab('pad'); }, 300)),
+  /* the menu's Controls card: keyboard and mouse, or the controller's buttons as they're bound now */
+  ctlTab(which){
+    UI.ctlWhich = which; const pad = which === 'pad';
+    $('mCtlKb').hidden = pad; $('mCtlPad').hidden = !pad; $('mCtlKbB').classList.toggle('on', !pad); $('mCtlPadB').classList.toggle('on', pad);
+    if (pad && G.pad) $('mCtlPad').innerHTML = G.pad.helpRows().map(([a, b]) => `<kbd>${esc(a)}</kbd><span>${esc(b)}</span>`).join('') +
+      `<span style="grid-column:1/-1;color:var(--dim);margin-top:4px">${G.pad.index >= 0 ? 'Rebind buttons and set the deadzone under Controls above.' : 'No controller found yet: press a button on it. Rebind under Controls above.'}</span>`;
   },
   /* the tutorial: its own sortie, never part of the story or open skies */
   flightSchool(){

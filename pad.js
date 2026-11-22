@@ -57,6 +57,12 @@ const Pad = G.pad = {
   ACTIONS, DEFAULTS,
   sens:() => G.save.padSens || 1,
   map(){ return Object.assign({}, DEFAULTS, G.save.padMap || {}); },
+  /* the controller's controls as [button, what] rows, from the current bindings, for the menu's Controls card */
+  helpRows(){
+    const M = this.map();
+    return [['Left stick', 'Fly: roll and pitch, directly'], ['Right stick', 'Aim, as the mouse does (the plane follows)']]
+      .concat(ACTIONS.filter(a => M[a.id] >= 0).map(a => [this.btnName(M[a.id]), a.label]));
+  },
   btnName(i){ if (i == null || i < 0) return '—'; const set = /xbox|xinput|microsoft/i.test(this.name) ? NAMES.xb : NAMES.ps; return set[i] || 'Button ' + i; },
 
   pick(){
