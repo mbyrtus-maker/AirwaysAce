@@ -33,6 +33,7 @@ const UI = G.UI = {
   screen(id){ for (const s of ['menu', 'hangar', 'pause', 'debrief', 'loading', 'chart', 'contact', 'controls', 'ach']) if ($(s)) $(s).hidden = s !== id; },
   /* ---------- main menu ---------- */
   menu(){
+    UI.forceMission = null; if (G.card) G.card.reset();
     if (G.Net) setTimeout(() => G.Net.render(), 0);
     UI.quit(); this.screen('menu'); G.HUD.show(false);
     G.music.play(G.save.story && /end$/.test(G.save.story.node) && (G.save.mission || 'story') === 'story' ? 'home' : 'sidewalk');
@@ -43,7 +44,8 @@ const UI = G.UI = {
     const storyNode = S.story.node, inStory = (S.mission || 'story') === 'story';
     const M = inStory ? (G.MISSIONS[storyNode] || null) : (G.MISSIONS[S.mission] || G.MISSIONS.ambush);
     $('mList').innerHTML = `<button class="${inStory ? 'on' : ''}" onclick="UI.pickMission('story')"><span>${esc(/end$/.test(storyNode) ? 'The story so far' : G.chapterOf(storyNode))}</span><b>${/end$/.test(storyNode) ? 'To be continued' : 'Episode ' + G.STORY[storyNode].n + ': ' + esc(G.MISSIONS[storyNode].title)}</b></button>` +
-      `<button class="${S.mission === 'open' ? 'on' : ''}" onclick="UI.chart()"><span>Open skies · ${esc(G.REGIONS[S.open.region].name)}</span><b>Chart table</b></button>`;
+      `<button class="${S.mission === 'open' ? 'on' : ''}" onclick="UI.chart()"><span>Open skies · ${esc(G.REGIONS[S.open.region].name)}</span><b>Chart table</b></button>` +
+      `<button onclick="UI.flightSchool()"><span>${S.schooled ? 'Refresher' : 'New pilots start here'}</span><b>Flight School</b></button>`;
     if (inStory && /end$/.test(storyNode)) {
       $('mBrief').innerHTML = `<div class="b-top"><span class="tag">The Lucky Thirteen</span><span>The End</span></div><h3>The End</h3><p class="recap">${esc(G.storyRecap())}</p>
         <ul>${S.story.log.map(l => `<li>${esc(l.title)} · <b>${{perfect:'Perfect', success:'Success', fail:'Failure'}[l.kind]}</b></li>`).join('')}</ul><div class="row"><button class="btn ghost sm" onclick="UI.restartChapter()">Start over from Chapter 1</button></div>`;
@@ -61,8 +63,13 @@ const UI = G.UI = {
     $('mVol').value = S.vol ?? 0.7; $('mAmb').value = S.amb ?? 0.8; $('mMus').value = G.music.vol(); $('mSens').value = S.mouseSens; $('mInv').checked = !!S.invert; $('mAssist').checked = !!S.aimAssist;
     preview.show($('mPrev'), S.load);
   },
+  /* the tutorial: its own sortie, never part of the story or open skies */
+  flightSchool(){
+    if (G.Net && G.Net.role) { G.HUD.toast('Flight School is for one pilot. Leave the co-op lobby first.'); return; }
+    UI.forceMission = 'tutorial'; UI.fly();
+  },
   restartChapter(){ G.save.story = G.newStory(); G.save.mission = 'story'; G.persist(); UI.menu(); },
-  current(){ const S = G.save; if (S.mission === 'open') return G.MISSIONS.open; return (S.mission || 'story') === 'story' ? G.MISSIONS[(S.story || G.newStory()).node] : (G.MISSIONS[S.mission] || G.MISSIONS.ambush); },
+  current(){ const S = G.save; if (UI.forceMission && G.MISSIONS[UI.forceMission]) return G.MISSIONS[UI.forceMission]; if (S.mission === 'open') return G.MISSIONS.open; return (S.mission || 'story') === 'story' ? G.MISSIONS[(S.story || G.newStory()).node] : (G.MISSIONS[S.mission] || G.MISSIONS.ambush); },
   pickMission(id){ G.save.mission = id; G.persist(); UI.menu(); },
   saveCall(){ const v = ($('mCall').value || G.save.callsign || '').trim().slice(0, 18); G.save.callsign = v; G.persist(); if (!v && $('menu').hidden) { UI.menu(); setTimeout(() => $('mCall').focus(), 50); } return v; },
 
@@ -169,7 +176,7 @@ const UI = G.UI = {
       const M = this.current(); if (!M) { this.menu(); return; } $('hTitle').textContent = M.title;
       const g = new G.Game(renderer, M); g.camera.aspect = innerWidth/innerHeight; g.camera.updateProjectionMatrix();
       G.save.sorties++; G.persist();
-      this.screen(null); G.HUD.show(true); if (G.keymap) G.keymap.renderHelp(); $('hHelp').hidden = false; setTimeout(() => { $('hHelp').hidden = true; }, 14000);
+      this.screen(null); G.HUD.show(true); if (G.keymap) G.keymap.renderHelp(); $('hHelp').hidden = !!M.tutorial; if (!M.tutorial) setTimeout(() => { $('hHelp').hidden = true; }, 14000);
       $('hSides').innerHTML = ''; G.HUD.sk = null; $('hStunt').hidden = true; $('hTitle').textContent = M.open ? G.REGIONS[G.save.open.region].name : M.title; G.HUD.wing(g); G.HUD.objective('Drop from the trapeze');
     }, 40);
   },
@@ -188,7 +195,7 @@ const UI = G.UI = {
   retry(){ this.fly(); },
   quit(){ const g = G.game; if (G.weatherSound) G.weatherSound.silence(); if (g && G.Net) G.Net.onQuit(g); if (g) { g.dispose(); G.game = null; } if (document.pointerLockElement) document.exitPointerLock(); },
   pause(on){
-    const g = G.game; if (!g || g.done || UI.inContact || UI.inDev) return; g.paused = on; this.screen(on ? 'pause' : null);
+    const g = G.game; if (!g || g.done || UI.inContact || UI.inDev || (G.card && G.card.open)) return; g.paused = on; this.screen(on ? 'pause' : null);
     const op = !!g.mission.open; $('pOpen').hidden = !op; $('pStd').hidden = op; if (op) $('pAbandon').hidden = !g.mission.job;
     if (G.audio.ctx) { if (on) G.audio.ctx.suspend(); else G.audio.ctx.resume(); }
     if (on) { const S = G.save; $('pVol').value = S.vol ?? 0.7; $('pAmb').value = S.amb ?? 0.8; $('pMus').value = G.music.vol(); }

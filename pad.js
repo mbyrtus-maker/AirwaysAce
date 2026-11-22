@@ -105,6 +105,10 @@ const Pad = G.pad = {
     const used = this.lx || this.ly || this.rx || this.ry || p.buttons.some((b, i) => b && b.pressed && i !== 16);
     if (used) this.lastUsed = now;
     this.active = now - this.lastUsed < 4000;
+    if (G.card && G.card.open) {   // a reading card is up: any new button press closes it, and nothing else
+      const fresh = p.buttons.some((b, i) => raw(i) && !this.prev[i]);
+      this.prev = p.buttons.map((b, i) => raw(i)); if (fresh) G.card.close(); return;
+    }
 
     if (g && !g.done && !g.inHangar) {
       if (press('pause')) { if (g.paused) G.UI.resume(); else G.UI.pause(true); }

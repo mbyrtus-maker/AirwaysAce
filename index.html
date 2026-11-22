@@ -108,6 +108,23 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .hp{position:absolute;background:rgba(12,16,26,.55);border:1px solid rgba(217,164,65,.35);border-radius:2px;padding:9px 12px}
 #hObjP{top:max(14px,env(safe-area-inset-top));left:16px;width:min(360px,44vw)}
 #hObjP .t{font-family:var(--f-deco);font-size:22px;line-height:1}#hGoal{margin-top:5px;font-size:15px;color:#f3d9a4}
+#tutCard{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(8,10,16,.35),rgba(8,10,16,.72));pointer-events:auto}
+#tutCard[hidden]{display:none}
+#tutCard .tc{width:min(620px,88vw);background:linear-gradient(#f1e5c9,#e4d3ad);color:#2a1d05;border:2px solid #8a6a2a;box-shadow:0 0 0 6px rgba(20,14,6,.55),0 24px 60px rgba(0,0,0,.6);padding:26px 32px 20px;position:relative;animation:tcIn .28s ease-out}
+#tutCard .tc:before{content:'';position:absolute;inset:7px;border:1px solid rgba(138,106,42,.55);pointer-events:none}
+#tutCard .tcTag{font-family:var(--f-ui);font-weight:600;letter-spacing:.22em;text-transform:uppercase;font-size:12px;color:#8a5a12}
+#tutCard h2{font-family:var(--f-deco);font-weight:400;font-size:34px;margin:6px 0 10px;color:#1d1405;letter-spacing:.03em}
+#tutCard p{font-family:var(--f-type);font-size:16px;line-height:1.5;margin:0 0 10px;color:#33260c}
+#tutCard .tcKeys{margin:14px 0 6px;border-top:1px solid rgba(138,106,42,.5);padding-top:10px;display:grid;grid-template-columns:auto auto 1fr;gap:7px 14px;align-items:center;font-size:15px}
+#tutCard .tcKeys.kb{grid-template-columns:auto 1fr}
+#tutCard .tcRow{display:contents}
+#tutCard .tcHead{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8a5a12}
+#tutCard kbd{background:#2a1d05;color:#f1e5c9;border:none;padding:1px 7px;border-radius:3px;font-size:14px;white-space:nowrap}
+#tutCard .tcWhat{color:#2a1d05;font-weight:600}
+#tutCard .tcGo{margin-top:16px;text-align:center;font-family:var(--f-ui);font-weight:600;letter-spacing:.18em;text-transform:uppercase;font-size:13px;color:#8a5a12;opacity:0;transition:opacity .3s}
+#tutCard.tcReady .tcGo{opacity:1;animation:tcBlink 1.6s ease-in-out infinite}
+@keyframes tcIn{from{transform:translateY(14px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+@keyframes tcBlink{50%{opacity:.45}}
 #hClue{margin-top:6px;padding:6px 9px;border-left:3px solid #c9a24e;background:rgba(20,14,6,.45);font-size:14px;line-height:1.35;font-style:italic;color:#f1e3c2}#hClue b{font-style:normal;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c9a24e;display:block;margin-bottom:2px}
 #hSides{list-style:none;margin:6px 0 0;padding:0;font-size:14px;color:var(--dim)}#hSides li{display:flex;gap:6px;align-items:baseline}#hSides b{margin-left:auto;font-weight:500;color:var(--cream)}
 #hSides li.sec{color:#c9a6f0}#hSides li.sec[data-st="ok"]{color:#b98af0}#hCover{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#e8e0cc;flex-wrap:wrap}#hCover i{flex:1;height:7px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;min-width:90px}#hCover i b{display:block;height:100%;background:#9ef0a0;transition:width .4s}#hCover i b.mid{background:#f2c14e}#hCover i b.lo{background:#ff6b57}#hCover em{font-style:normal;min-width:34px;text-align:right}#hCover small{flex-basis:100%;text-transform:none;letter-spacing:0;color:#ffb39a}#hSides li[data-st="ok"]{color:var(--ok)}#hSides li[data-st="fail"]{color:#9a7f74;text-decoration:line-through}
@@ -229,6 +246,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
     <kbd>Double-tap A / D</kbd><span>Barrel roll (dodges fire)</span><kbd>R / Z</kbd><span>Immelmann / Split-S</span><kbd>F</kbd><span>Flaps (land, dock, skyhook)</span><kbd>G</kbd><span>Landing gear (retractable planes)</span><kbd>Double-tap Q / E</kbd><span>Snap turn</span><kbd>1–5</kbd><span>Wingmen: attack, cover, zeppelin, form, go home</span><kbd>C</kbd><span>Chase / cockpit</span><kbd>V</kbd><span>Look back</span><kbd>M</kbd><span>Sound</span><kbd>H</kbd><span>This help</span><kbd>Esc</kbd><span>Pause</span></div><p class="padhelp"><b>Controller</b> (defaults; remap keys and buttons under Controls on the menu or pause screen): left stick flies · right stick aims · R2 guns · L2 rockets · R1/L1 throttle · Cross nitro (and drops you off the trapeze) · Circle barrel roll · Triangle Immelmann · Square Split-S · L3 flaps · Create/View gear · R3 hold to look back, tap for cockpit · Touchpad camera · D-pad wingmen (down twice: send home) · Options pause</p></div>
 </div>
 
+<div id="tutCard" hidden></div>
 <div class="screen" id="menu" hidden><div class="wrap">
   <div class="mcol">
     <div class="title"><div class="kicker">The Lucky Thirteen present</div><h1 class="deco">Ace of the<br>Airways</h1><p class="sub">1937. The nation's in pieces, the highways belong to the sky, and the sky belongs to whoever can hold it.</p></div>
@@ -325,10 +343,11 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="story2.js?v=1119diff"></script>
 <script src="story3.js?v=1120script"></script>
 <script src="story4.js?v=1120script"></script>
+<script src="tutorial.js?v=1122tut"></script>
 <script src="net.js?v=1121warp"></script>
-<script src="pad.js?v=1120hangar"></script>
+<script src="pad.js?v=1122tut"></script>
 <script src="keys.js?v=1120sight"></script>
-<script src="ui.js?v=1121hits"></script>
+<script src="ui.js?v=1122tut"></script>
 <script src="weather.js"></script>
 <script src="ach.js"></script>
 </body></html>
