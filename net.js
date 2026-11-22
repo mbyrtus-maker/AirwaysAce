@@ -1025,6 +1025,7 @@ Object.assign(Net, {
   vsArm(s, J){
     const up0 = J.update, beg0 = J.begin, pts0 = J.onPoints, ob0 = J.objective, race = s.type === 'race', def = J.def;
     s.J = J; s.def = def; J.vsS = s;
+    J.vs = true;   // versus: net.js runs the countdown, so the job's own formation start stands down
     if (beg0) J.begin = function(){ if (s.solo || s.phase === 'go') return beg0.apply(this, arguments); if (s.owner === Net.myPid()) s.wantBegin = Net.g ? Net.g.t : 0; };
     if (pts0) J.onPoints = function(){ if (s.solo || (s.phase === 'go' && !s.myDone)) return pts0.apply(this, arguments); };
     J.update = dt => {

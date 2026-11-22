@@ -1803,20 +1803,67 @@ ENG.race = (O, def) => {
   // for co-op versus races (net.js): where the start is, the ring count, the time limit, the medal for a time, and how far along a plane is
   J.start = rings[seq[0]].pos; J.nRings = seq.length; J.limit = bronze*2.2; J.medalFor = t => t <= gold ? 'gold' : t <= silver ? 'silver' : t <= bronze ? 'bronze' : null;
   J.progOf = (pos, k) => k + (k < seq.length ? 1 - Math.min(1, pos.distanceTo(pts[seq[k]])/600) : 0);
+  // the rivals: with a formation start they're spawned now and circle behind the start ring until the pilot arrives,
+  // then form up and go together on a 3-2-1. Co-op versus races run their own countdown (net.js sets J.vs)
+  const first0 = rings[seq[0]], fwd0 = first0.n, side0 = new V3(fwd0.z, 0, -fwd0.x);
+  const behind = (d, i, k = 45) => first0.pos.clone().addScaledVector(fwd0, -d).addScaledVector(side0, (i - (def.rivals - 1)/2)*k);
+  const raceRoute = () => seq.slice(1).map(ix => ({x:pts[ix].x, z:pts[ix].z, y:pts[ix].over ?? pts[ix].y, r:26}));
+  const slot = i => behind(120, i, 40).add(new V3(0, 10 + i*6, 0));
+  J.spawnRivals = hold => {
+    for (let i = 0; i < def.rivals; i++) {
+      const L = G.stockLoadout(i === 2 ? 'sparrowhawk' : 'gallant'); L.paint = [[0xf1e9d6, 0x2f5d8a, 0xc0392b], [0x2b2b2b, 0xe0742a, 0xf2c14e], [0x5a2a4a, 0xf1e9d6, 0x6fb0d9]][i % 3]; L.hp = 0;
+      const nm = G.name1920s({nick:true});
+      let pos = slot(i);
+      if (hold) { const h = behind(700, i, 0), a = i*2.1, gy = Math.max(g.world.height(h.x, h.z), 0.4); pos = h.add(new V3(Math.sin(a)*260, 0, Math.cos(a)*260)); pos.y = gy + 170; }
+      const p = g.addPlane({loadout:L, team:1, name:nm.full, callsign:nm.short, pos, q:new Q().setFromUnitVectors(Z, fwd0), speed:hold ? 70 : Math.max(60, P.speed), ai:{role:'fighter', skill:0.75}, grace:3});
+      p.invuln = true; const pl = g.pilots[g.pilots.length - 1];
+      pl.raceThrottle = 0.92 + 0.03*i; pl.raceDone = false; pl.side = i*2.1;
+      if (hold) { const h = behind(700, i, 0); pl.route = [{x:h.x, z:h.z, r:26}]; pl.wp = 1; }   // past its only waypoint: it circles it
+      pl.onWaypoint = k => { if (J.started && k >= pl.route.length && !pl.raceDone) { pl.raceDone = true; pl.finishT = J.t; } };
+      J.rivals.push({p, pl});
+    }
+  };
+  J.formation = !!def.rivals; J.stage = 'hold';
+  if (J.formation) J.spawnRivals(true);
+  J.toLine = () => {   // two marks straight down the approach: they arrive abreast and moving as the flag drops
+    J.stage = 'line'; J.lineT = 0;
+    J.rivals.forEach((r, i) => { const A = behind(700, i), B = behind(330, i), y = first0.pos.y + 8 + i*5; r.pl.route = [{x:A.x, z:A.z, y, r:70}, {x:B.x, z:B.z, y, r:50}]; r.pl.wp = 0; });
+    G.HUD.radio(G.RADIO.short, `Pilots to the line! ${J.rivals.map(r => r.p.callsign).join(', ')} are forming up behind the start ring. Wait for the flag.`);
+  };
+  J.toHold = () => { J.stage = 'hold'; J.rivals.forEach((r, i) => { const h = behind(700, i, 0); r.pl.route = [{x:h.x, z:h.z, r:26}]; r.pl.wp = 1; }); };
   J.begin = () => {
-    J.started = true; J.k = 1; J.t = 0; if (g.audio) g.audio.ding();
+    J.started = true; J.k = 1; J.t = 0; J.stage = 'go'; if (g.audio) g.audio.ding();
     if (def.rivals) {
-      const first = rings[seq[0]], back = first.pos.clone().addScaledVector(first.n, -120);
-      for (let i = 0; i < def.rivals; i++) {
-        const L = G.stockLoadout(i === 2 ? 'sparrowhawk' : 'gallant'); L.paint = [[0xf1e9d6, 0x2f5d8a, 0xc0392b], [0x2b2b2b, 0xe0742a, 0xf2c14e], [0x5a2a4a, 0xf1e9d6, 0x6fb0d9]][i % 3]; L.hp = 0;
-        const nm = G.name1920s({nick:true}), pos = back.clone().add(new V3((i - (def.rivals - 1)/2)*40, 10 + i*6, 0));
-        const p = g.addPlane({loadout:L, team:1, name:nm.full, callsign:nm.short, pos, q:new Q().setFromUnitVectors(Z, first.n), speed:Math.max(60, P.speed), ai:{role:'fighter', skill:0.75}, grace:3});
-        p.invuln = true; const pl = g.pilots[g.pilots.length - 1];
-        pl.route = seq.slice(1).map(ix => ({x:pts[ix].x, z:pts[ix].z, y:pts[ix].over ?? pts[ix].y, r:26})); pl.wp = 0; pl.raceThrottle = 0.92 + 0.03*i; pl.raceDone = false;
-        pl.onWaypoint = k => { if (k >= pl.route.length && !pl.raceDone) { pl.raceDone = true; pl.finishT = J.t; } };
-        J.rivals.push({p, pl});
+      if (!J.rivals.length) J.spawnRivals(false);
+      J.rivals.forEach((r, i) => {
+        // a rival still off circling (a versus start, which runs its own countdown) is brought up to the line
+        if (r.p.alive && r.p.pos.distanceTo(first0.pos) > 900) { r.p.pos.copy(slot(i)); r.p.q.setFromUnitVectors(Z, fwd0); r.p.speed = Math.max(60, P.speed); r.p.vel.copy(fwd0).multiplyScalar(r.p.speed); }
+        r.pl.route = raceRoute(); r.pl.wp = 0;
+      });
+      if (!J.formation || J.vs) G.HUD.radio(G.RADIO.short, `They\'re off! ${J.rivals.map(r => r.p.callsign).join(', ')} on your tail.`);
+    }
+  };
+  /* the formation start: hold -> line (rivals come down the approach) -> count (3-2-1) -> GO */
+  J.formationTick = (dt, r0, crossedStart) => {
+    const dP = P.pos.distanceTo(r0.pos);
+    courseMark(O, r0.pos, J.stage === 'hold' ? `${def.title.toUpperCase()} · START LINE` : J.stage === 'count' ? `START · ${Math.max(1, Math.ceil(J.count))}` : 'START · WAIT FOR THE FLAG', {R:r0.R, n:r0.n});
+    if (crossedStart && J.stage !== 'hold') { G.HUD.toast('Jumped the start! Come round and wait for the flag'); }
+    if (J.stage === 'hold') { if (dP < 1000 && P.alive) J.toLine(); return; }
+    if (dP > 1600) { J.toHold(); G.HUD.radio(G.RADIO.short, 'Start\'s on hold till you\'re back at the line, flyer.'); return; }
+    if (J.stage === 'line') {
+      J.lineT += dt;
+      const ready = J.rivals.every(r => !r.p.alive || r.pl.wp >= 1) || J.lineT > 14;
+      if (ready && dP < 750) { J.stage = 'count'; J.count = 3; J.lastN = 0; }
+      return;
+    }
+    if (J.stage === 'count') {
+      J.count -= dt; const n = Math.ceil(J.count);
+      if (n > 0 && n !== J.lastN) { J.lastN = n; G.HUD.banner(def.title, `${n}…`); G.HUD.toast(`${def.title} starts in ${n}`); if (g.audio) g.audio.ding(); }
+      if (J.count <= 0) {
+        J.begin(); J.k = 0;   // the clock is running; the start ring is the first one through
+        G.HUD.banner('GO!', def.title); G.HUD.toast('GO!'); setTimeout(() => { if (G.game === g) G.HUD.banner(null); }, 1300);
+        G.HUD.radio(G.RADIO.short, `And they\'re off! ${J.rivals.map(r => r.p.callsign).join(', ')} and you, through the start ring.`);
       }
-      G.HUD.radio(G.RADIO.short, `They\'re off! ${J.rivals.map(r => r.p.callsign).join(', ')} on your tail.`);
     }
   };
   J.place = () => {
@@ -1832,7 +1879,9 @@ ENG.race = (O, def) => {
       if (r.boost) for (const x of J.rivals) if (x.p.alive && through(r, x.p, 12)) x.p.nitro = 4;
     }
     if (!J.started) {
-      const r0 = rings[seq[0]]; courseMark(O, r0.pos, `${def.title.toUpperCase()} · START`, {R:r0.R, n:r0.n});
+      const r0 = rings[seq[0]];
+      if (J.formation && !J.vs) return J.formationTick(dt, r0, crossed.has(r0));
+      courseMark(O, r0.pos, `${def.title.toUpperCase()} · START`, {R:r0.R, n:r0.n});
       if (crossed.has(r0)) J.begin();
       return;
     }
@@ -1852,7 +1901,7 @@ ENG.race = (O, def) => {
     if (after) g.markers.push({pos:after, label:'THEN', col:COURSE_DIM, noDist:true});   // the one after, faint, to plan your line
     if (J.t > bronze*2.2) return def.treasure ? O.trialDone(def, false, null, J.t) : {win:false, note:'Out of time', say:'We\'ll be here all night. Race called off.'};
   };
-  J.objective = () => J.started ? `${def.title} · ring ${Math.min(J.k, seq.length)}/${seq.length - 1} · ${fmt(J.t)}${J.rivals.length ? ` · ${['', '1st', '2nd', '3rd', '4th'][J.place()]}` : ` · gold ${fmt(gold)}`}`
+  J.objective = () => !J.started && J.formation && !J.vs ? ({hold:`${def.title}: fly to the start line`, line:`${def.title}: line up behind the start ring and wait for the flag`, count:`${def.title}: starting in ${Math.max(1, Math.ceil(J.count))}`}[J.stage] || '') : J.started ? `${def.title} · ring ${Math.min(J.k, seq.length)}/${seq.length - 1} · ${fmt(J.t)}${J.rivals.length ? ` · ${['', '1st', '2nd', '3rd', '4th'][J.place()]}` : ` · gold ${fmt(gold)}`}`
                                 : `${def.title}: fly through the start ring to begin`;
   J.sides = () => [{text:`Gold ${fmt(gold)} · silver ${fmt(silver)} · bronze ${fmt(bronze)}`, st:'live', val:J.started ? fmt(J.t) : ''}];
   J.cleanup = () => {

@@ -38,10 +38,15 @@ for (const rid of regions) for (const hour of [11, 22]) {
         const P = g.player; P.pos.set(0, 600, 0); P.speed = 70; P.frozen = false; g.running = true; g.paused = false;
         O.startJob(def, O.sites.find(s => s.contact === def.contact)); step(g, 60);
         const J = O.job; if (!J) { console.log(`  ${def.id}: ended at once`); continue; }
+        if (J.formation) {   // formation start: wait behind the start ring for the rivals and the 3-2-1
+          const st = J.start.clone(), hold = () => { P.pos.copy(st).add(new V3(0, 40, -500)); P.speed = 60; P.onGround = false; };
+          let w = 0; while (!J.started && w++ < 30*40 && O.job === J) step(g, 1, 1/30, hold);
+          console.log(`  ${def.id}: formation start ${J.started ? 'GO after ' + (w/30).toFixed(1) + ' s' : 'never started (' + J.stage + ')'}, rivals ${J.rivals.map(r => r.p.pos.distanceTo(st).toFixed(0) + ' m').join(', ')} from the start`);
+        }
         // walk the job's targets: teleport onto each one
         for (let k = 0; k < 40 && O.job === J; k++) {
           let tgt = null;
-          if (def.type === 'race') { const pts = J.len; const ring = g.markers.find(m => /NEXT|START|FINISH/.test(m.label)); if (ring) tgt = ring.pos; }
+          if (def.type === 'race') { const pts = J.len; const ring = g.markers.find(m => m.course && /NEXT|START|FINISH/.test(m.label)) || g.markers.find(m => /NEXT|START|FINISH/.test(m.label)); if (ring) tgt = ring.pos; }
           else if (def.type === 'bounty') { tgt = O.P[def.at]; for (const p of g.planes) if (p.team === 1 && p.alive && J.up) p.destroy(P, 'shot'); for (const s of g.ships) if (s !== O.ship && s.alive) { s.alive = false; g.onShipDown(s); } }
           else if (def.type === 'photo') { const sh = J.shots.find(x => !x.got); if (!sh) { step(g, 2); continue; } P.onGround = false; P.pos.copy(sh.pos).add(new V3(Math.min(500, (sh.range || 1000)*0.6), 60, 0)); P.q.setFromUnitVectors(new V3(0, 0, 1), sh.pos.clone().sub(P.pos).normalize()); P.axes(); P.speed = 50; P.vel.copy(P.fwd).multiplyScalar(50); g.snapPhoto = true; J.update(1/60); g.snapPhoto = false; step(g, 1); continue; }
           else if (def.type === 'stunt') { const c = O.P[def.at]; P.onGround = false; P.pos.set(c.x, c.y + 80, c.z); P.speed = 70; O.award(3000, 'TEST'); step(g, 2); continue; }
