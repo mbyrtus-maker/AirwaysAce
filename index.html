@@ -108,6 +108,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 .hp{position:absolute;background:rgba(12,16,26,.55);border:1px solid rgba(217,164,65,.35);border-radius:2px;padding:9px 12px}
 #hObjP{top:max(14px,env(safe-area-inset-top));left:16px;width:min(360px,44vw)}
 #hObjP .t{font-family:var(--f-deco);font-size:22px;line-height:1}#hGoal{margin-top:5px;font-size:15px;color:#f3d9a4}
+#hClue{margin-top:6px;padding:6px 9px;border-left:3px solid #c9a24e;background:rgba(20,14,6,.45);font-size:14px;line-height:1.35;font-style:italic;color:#f1e3c2}#hClue b{font-style:normal;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c9a24e;display:block;margin-bottom:2px}
 #hSides{list-style:none;margin:6px 0 0;padding:0;font-size:14px;color:var(--dim)}#hSides li{display:flex;gap:6px;align-items:baseline}#hSides b{margin-left:auto;font-weight:500;color:var(--cream)}
 #hSides li.sec{color:#c9a6f0}#hSides li.sec[data-st="ok"]{color:#b98af0}#hCover{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#e8e0cc;flex-wrap:wrap}#hCover i{flex:1;height:7px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;min-width:90px}#hCover i b{display:block;height:100%;background:#9ef0a0;transition:width .4s}#hCover i b.mid{background:#f2c14e}#hCover i b.lo{background:#ff6b57}#hCover em{font-style:normal;min-width:34px;text-align:right}#hCover small{flex-basis:100%;text-transform:none;letter-spacing:0;color:#ffb39a}#hSides li[data-st="ok"]{color:var(--ok)}#hSides li[data-st="fail"]{color:#9a7f74;text-decoration:line-through}
 #hShipP{top:max(14px,env(safe-area-inset-top));right:16px;width:230px;font-size:14px}
@@ -202,7 +203,7 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:.85em;border:1px solid cur
 <canvas id="ov" hidden></canvas>
 
 <div id="hud" hidden>
-  <div class="hp" id="hObjP"><div class="t" id="hTitle">Black Lantern Ambush</div><div id="hGoal"></div><ul id="hSides"></ul><div id="hCover" hidden></div></div><div id="hFlash" style="position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:40"></div>
+  <div class="hp" id="hObjP"><div class="t" id="hTitle">Black Lantern Ambush</div><div id="hGoal"></div><div id="hClue" hidden></div><ul id="hSides"></ul><div id="hCover" hidden></div></div><div id="hFlash" style="position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:40"></div>
   <div class="hp" id="hShipP"><div class="r"><span>Lucky Margaret</span><b id="hShipV">100%</b><i class="bar"><i id="hShip" style="width:100%"></i></i><span>Raiders airborne</span><b id="hFoes">0</b></div></div>
   <div class="hp" id="hFlight">
     <div class="big"><div><small>MPH</small><b id="hSpd">0</b></div><div><small>FEET</small><b id="hAlt">0</b></div></div>
@@ -315,16 +316,16 @@ window.addEventListener('load', function(){ setTimeout(function(){
 <script src="combat.js?v=1120hangar"></script>
 <script src="ai.js?v=1119diff"></script>
 <script src="audio.js?v=1120coop2"></script>
-<script src="hud.js?v=1120course"></script>
-<script src="game.js?v=1120patch"></script>
+<script src="hud.js?v=1121clue"></script>
+<script src="game.js?v=1121clue"></script>
 <script src="traffic.js"></script>
-<script src="story.js?v=1120patch"></script>
-<script src="open.js?v=1121photo"></script>
+<script src="story.js?v=1121clue"></script>
+<script src="open.js?v=1121clue"></script>
 <script src="rust.js?v=1120patch"></script>
 <script src="story2.js?v=1119diff"></script>
 <script src="story3.js?v=1120script"></script>
 <script src="story4.js?v=1120script"></script>
-<script src="net.js?v=1120patch"></script>
+<script src="net.js?v=1121clue"></script>
 <script src="pad.js?v=1120hangar"></script>
 <script src="keys.js?v=1120sight"></script>
 <script src="ui.js?v=1121buy"></script>

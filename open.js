@@ -1061,6 +1061,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (far < 7000) this.farWarn = false;
     if (!obj) obj = far > 7800 ? 'Edge of the chart. Turn back toward the Margaret.' : `Free flight · land at a field or hook a skyhook to meet contacts · stunts score points`;
     G.HUD.objective(obj);
+    G.HUD.clue(this.job && this.job.clue ? this.job.clue() : null);
     this.hudSides(g);
   },
   /* every tunnel and sea cave flown clean through, end to end, is ticked off in the save, region by region */
@@ -1628,7 +1629,7 @@ const OPEN = G.MISSIONS.open = Object.assign(Object.create(base), {
     if (def.go) G.HUD.radio(G.CONTACTS[def.contact].name.replace(/".*" /, '').split(' ').slice(-1)[0], def.go);
   },
   finishJob(res){
-    const g = this.g, job = this.job, def = job.def, S = G.save.open; this.job = null;
+    const g = this.g, job = this.job, def = job.def, S = G.save.open; this.job = null; G.HUD.clue(null);
     if (job.cleanup) job.cleanup();
     const rec = S.jobs[def.id] || (S.jobs[def.id] = {done:0});
     const who = G.CONTACTS[def.contact].name.replace(/".*" /, '').split(' ').slice(-1)[0];
@@ -1970,6 +1971,7 @@ ENG.errand = (O, def) => {
     const nx = legs[J.i]; if (nx && nx.riddle) setTimeout(() => G.HUD.radio(G.RADIO.short, nx.riddle), 2500);
   };
   if (legs[0].riddle) setTimeout(() => G.HUD.radio(G.RADIO.short, legs[0].riddle), 3000);
+  J.clue = () => { const l = legs[J.i]; return l && l.riddle || null; };   // shown under the objective (G.HUD.clue)
   J.onHooked = site => { const l = legs[J.i]; if (l && l.how === 'hook' && l.site === site.id) { J.hookedOk = true; } };
   J.onStunt = () => { if (F.stunts) J.broke = 'You did stunts with the cargo aboard!'; if (F.comfort) J.comfort -= 35; };
   J.onTouchdown = hard => { if (hard && F.hard) J.broke = 'Hard landing. The crate didn\'t survive it.'; };

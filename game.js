@@ -51,6 +51,7 @@ G.Game = class {
     // missions are single objects reused from one try to the next. Whatever a try left on one (a "first wave launched" flag, a counter)
     // would carry into the retry: Skull Rock's first wave never came back. Story missions are wiped back to their definition first
     if (!mission.open) { const keep = DEF_KEYS.get(mission) || (DEF_KEYS.set(mission, new Set(Object.keys(mission))), DEF_KEYS.get(mission)); for (const k of Object.keys(mission)) if (!keep.has(k)) delete mission[k]; }
+    if (G.HUD && G.HUD.clue) G.HUD.clue(null);   // a fresh flight: no clue left over from the last
     mission.setup(this);
     if (G.setNightWindows) G.setNightWindows(this.world.time);
     if (G.weatherFor) G.weatherFor(this);

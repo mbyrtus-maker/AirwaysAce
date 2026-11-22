@@ -1,0 +1,30 @@
+'use strict';
+const fs = require('fs'), vm = require('vm'), path = require('path');
+require('./three-mock.js');
+global.window = global; global.innerWidth = 1600; global.innerHeight = 900; global.devicePixelRatio = 1;
+const els = {}; global.document = {getElementById:id => els[id] || (els[id] = Fake()), createElement:() => Fake(), addEventListener(){}, exitPointerLock(){}, pointerLockElement:null, querySelector:() => null, body:Fake()};
+global.addEventListener = () => {}; global.requestAnimationFrame = () => 0;
+const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v) => { LS[k] = String(v); }, removeItem:k => { delete LS[k]; }};
+global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
+global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
+const dir = process.argv[2];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'rust', 'story2', 'story3', 'story4', 'net', 'pad', 'keys', 'ui', 'weather', 'ach'];
+for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
+const G = global.G, V3 = THREE.Vector3;
+const R = new Proxy({}, {get:() => () => {}});
+const el = () => document.getElementById('hClue');
+const show = () => el().hidden ? '(hidden)' : String(el().innerHTML).replace(/<[^>]+>/g, ' · ').slice(0, 110);
+// an open-skies riddle job
+const def = G.JOBS.find(j => j.type === 'errand' && j.legs.some(l => l.riddle));
+G.save.open.region = Object.values(G.REGIONS).find(R0 => R0.sites.some(s => s.contact === def.contact)).id; G.save.open.hour = def.night ? 22 : 12;
+let g = new G.Game(R, G.MISSIONS.open); G.game = g; let O = g.mission; O.drop(); for (let i = 0; i < 10; i++) g.update(1/30);
+console.log('before the job:', show());
+O.startJob(def, O.sites.find(s => s.contact === def.contact)); for (let i = 0; i < 5; i++) g.update(1/30);
+console.log(def.id, 'leg 1:', show());
+O.job.i = 1; g.update(1/30); console.log(def.id, 'leg 2:', show());
+O.abandon && O.abandon(); g.update(1/30); console.log('after the job:', show());
+// the Meridian Hunt
+g = new G.Game(R, G.MISSIONS.c2m2); G.game = g; g.player.destroy = () => {}; g.mission.drop(); for (let i = 0; i < 30; i++) g.update(1/30);
+console.log('Meridian Hunt clue 1:', show()); g.mission.clue = 2; g.update(1/30); console.log('Meridian Hunt clue 3:', show());
+g = new G.Game(R, G.MISSIONS.c1m1); console.log('next flight starts with:', show());
+process.exit(0);

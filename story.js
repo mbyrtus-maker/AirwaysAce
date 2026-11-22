@@ -548,6 +548,7 @@ G.MISSIONS.c2m2 = Object.assign(Object.create(base), {
     if (this.clue < 4) {
       g.markers.push({pos:tB.copy(site).setY(site.y + (this.clue === 2 ? this.arch.h*0.45 : 40)).clone(), label:names[this.clue], col:'#f2c14e', edgeOnly:dist > 1800, noDist:dist > 1800});
       G.HUD.objective(`Clue ${this.clue + 1} of 4: ${['the lighthouse', 'the windmill', 'under the viaduct', 'the wreck'][this.clue]}, ${bearingWord(P.pos, site)} · Duke ${this.duke >= 4 ? 'is at the wreck!' : 'on clue ' + Math.min(4, this.duke + 1)}`);
+      G.HUD.clue(this.riddles[this.clue]);   // Vane's riddle for this clue, under the objective
       let hit = false;
       if (this.clue === 0) hit = P.pos.distanceTo(site) < 200;
       if (this.clue === 1) hit = P.pos.distanceTo(site) < 180;

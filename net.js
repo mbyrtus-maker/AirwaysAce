@@ -412,7 +412,7 @@ const Net = G.Net = {
   hostFrame(g, dt){
     if (this.vs) this.vsFrame(g, dt);
     if (!this.links.length || g.paused) return;
-    if ((g.hudT = (g.hudT || 0) - dt) <= 0) { g.hudT = 2; if (g.mission && !g.mission.open) for (const k of ['lastsides', 'lastcover']) if (this[k]) this.broadcast(Object.assign({t:'hud'}, JSON.parse(this[k]))); if (this.lastObj && !(g.mission && g.mission.open)) this.broadcast({t:'hud', k:'obj', text:this.lastObj}); }   // panels go only when they change; repeat them now and then for anyone who missed it
+    if ((g.hudT = (g.hudT || 0) - dt) <= 0) { g.hudT = 2; if (g.mission && !g.mission.open) for (const k of ['lastsides', 'lastcover', 'lastclue']) if (this[k]) this.broadcast(Object.assign({t:'hud'}, JSON.parse(this[k]))); if (this.lastObj && !(g.mission && g.mission.open)) this.broadcast({t:'hud', k:'obj', text:this.lastObj}); }   // panels go only when they change; repeat them now and then for anyone who missed it
     g.snapT -= dt; if (g.snapT > 0) return; g.snapT = 1/SNAP_HZ;
     const P = [], S = [];
     for (const p of g.planes) {
@@ -663,6 +663,7 @@ const Net = G.Net = {
     else if (m.k === 'feed') G.HUD.feed(txt(m.text), false);
     else if (m.k === 'obj' && !(this.g && this.g.realMission && this.g.realMission.open)) G.HUD.objective(txt(m.text));
     else if (m.k === 'sides' && Array.isArray(m.list) && !(this.g && this.g.realMission && this.g.realMission.open)) G.HUD.sides(m.list.slice(0, 8).filter(s => s && typeof s === 'object').map(s => ({text:txt(s.text), st:/^(ok|fail|live|warn)$/.test(s.st) ? s.st : 'live', val:txt(s.val).slice(0, 30), secret:!!s.secret})));
+    else if (m.k === 'clue' && !(this.g && this.g.realMission && this.g.realMission.open)) G.HUD.clue(txt(m.text).slice(0, 300) || null);
     else if (m.k === 'cover' && !(this.g && this.g.realMission && this.g.realMission.open)) G.HUD.cover(m.v == null ? null : Math.max(0, Math.min(100, +m.v || 0)), txt(m.note).slice(0, 120));
   },
   guestDown(g, src){
@@ -798,14 +799,14 @@ if (G.regionScene) { const rs0 = G.regionScene; G.regionScene = function(...a){ 
 /* the host's music changes go to everyone: mission scripts run only on the host, so a scripted change (Odile's café, the treasure hunt) never happened for a guest */
 if (G.music) { const play0 = G.music.play; G.music.play = function(k){ const g = G.game; if (g && g.netHost && Net.links.length && !g.done && typeof k === 'string') Net.broadcast({t:'music', k}); return play0.apply(this, arguments); }; }
 /* the host repeats radio, kill feed and objectives to everyone */
-for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['feed', text => ({k:'feed', text})], ['objective', text => ({k:'obj', text})], ['sides', list => ({k:'sides', list})], ['cover', (v, note) => ({k:'cover', v, note})]]) {
+for (const [k, fn] of [['radio', (who, text) => ({k:'radio', who, text})], ['feed', text => ({k:'feed', text})], ['objective', text => ({k:'obj', text})], ['sides', list => ({k:'sides', list})], ['cover', (v, note) => ({k:'cover', v, note})], ['clue', text => ({k:'clue', text:text || ''})]]) {
   const orig = G.HUD[k];
   G.HUD[k] = function(...a){
     const g = G.game;
     if (g && g.netHost && Net.links.length && !Net.quiet) {
       const m = fn(...a);
       if (k === 'objective') { if (Net.lastObj === m.text) return orig.apply(this, a); Net.lastObj = m.text; }   // objectives are set every frame; send changes only
-      if (k === 'sides' || k === 'cover') { const j = JSON.stringify(m); if (Net['last' + k] === j) return orig.apply(this, a); Net['last' + k] = j; if (g.mission && g.mission.open) return orig.apply(this, a); }   // these too
+      if (k === 'sides' || k === 'cover' || k === 'clue') { const j = JSON.stringify(m); if (Net['last' + k] === j) return orig.apply(this, a); Net['last' + k] = j; if (g.mission && g.mission.open) return orig.apply(this, a); }   // these too
       if (m.text && k === 'feed') m.text = String(m.text).replace(/^You\b/, G.save.callsign || 'The host');
       Net.broadcast(Object.assign({t:'hud'}, m));
     }
