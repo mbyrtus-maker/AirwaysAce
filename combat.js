@@ -135,10 +135,18 @@ G.Airship = class {
       this.state = 'running'; if (this.g.onShipRun) this.g.onShipRun(this);
     }
   }
+  /* how much fight is left in her, 0..1: hull points for plain ships; for component ships, her gas cells and engines */
+  health(){
+    if (!this.alive) return 0;
+    if (!this.comps) return clamp(this.hp/this.hpMax, 0, 1);
+    const P = this.comps.filter(c => c.kind === 'cell' || c.kind === 'engine'); if (!P.length) return 1;
+    return clamp(P.reduce((s, c) => s + (c.alive ? c.hp/c.hpMax : 0), 0)/P.length, 0, 1);
+  }
   damage(d, src){
     if (!this.alive || this.g.netGuest) return;
     // a ship that can be hurt but not sunk (the Resolute in Running the Blockade): the damage goes into her engines instead
-    if (this.cripple) { const C = this.cripple; C.got = Math.min(C.pool, C.got + d); if (this.g.mission && this.g.mission.onCripple) this.g.mission.onCripple(this.g, this, C.got/C.pool, src); return; }
+    if (this.cripple) { const C = this.cripple; C.got = Math.min(C.pool, C.got + d*(src instanceof G.Airship ? 0.4 : 1));   // another ship's torpedoes bruise her; your guns do the real work
+      if (this.g.mission && this.g.mission.onCripple) this.g.mission.onCripple(this.g, this, C.got/C.pool, src); return; }
     this.hp -= d;
     if (this.g.onShipHit) this.g.onShipHit(this, src, d);
     if (this.hp <= 0) { this.hp = 0; this.alive = false; this.state = 'destroyed'; if (this.g.onShipDown) this.g.onShipDown(this, src); }
@@ -195,8 +203,14 @@ G.Airship = class {
       this.heading += Math.max(-cap, Math.min(cap, wrapA(want - this.heading)));
       // torpedoes: one slow fish at the other ship every half minute inside 2 km
       this.torpCd = (this.torpCd ?? 12 + Math.random()*8) - dt;
-      if (this.torpCd <= 0 && !this.g.done && !this.noTorps && F.alive && dist < 2000 && this.state !== 'surrendered' && (!this.comps || this.alivePart('engine').length)) { this.torpCd = 28 + Math.random()*8; this.g.spawnTorpedo(this, F); }
+      const ck = this.cripple ? this.cripple.got/this.cripple.pool : 0;
+      if (this.torpCd <= 0 && !this.g.done && !this.noTorps && ck < 1 && F.alive && dist < 2000 && this.state !== 'surrendered' && (!this.comps || this.alivePart('engine').length)) { this.torpCd = (28 + Math.random()*8)*(1 + 1.5*ck); this.g.spawnTorpedo(this, F); }
     } else this.heading += this.turn*dt;
+    if (this.dest && this.foe && this.alive && this.torpRunning) {   // running for it, but firing back over her shoulder
+      const F = this.foe, dist = Math.hypot(F.pos.x - this.pos.x, F.pos.z - this.pos.z);
+      this.torpCd = (this.torpCd ?? 10 + Math.random()*6) - dt;
+      if (this.torpCd <= 0 && !this.g.done && F.alive && dist < 2000 && (!this.comps || this.alivePart('engine').length)) { this.torpCd = (this.torpGap || 26) + Math.random()*8; this.g.spawnTorpedo(this, F); }
+    }
     this.pace += (paceT - this.pace)*Math.min(1, dt*0.5);
     this.vel.set(Math.sin(this.heading), 0, Math.cos(this.heading)).multiplyScalar(this.speed*this.pace);
     this.pos.addScaledVector(this.vel, dt);
@@ -317,8 +331,9 @@ G.Combat = {
     const fin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.7), G.mat(0x26221f)); fin.position.z = -2.4; const fin2 = fin.clone(); fin2.rotation.z = Math.PI/2;
     m.add(body, nose, fin, fin2); m.position.copy(p); this.scene.add(m);
     (this.torps || (this.torps = [])).push({pos:p, prev:p.clone(), vel:aim.multiplyScalar(38).add(ship.vel), m, owner:ship, team:ship.team, target, hp:40, life:90});
-    if (ship.team !== 0) G.HUD.radio(G.RADIO.short, G.pick(['Torpedo away from the Nightjar! Shoot it down before it reaches us!', 'Another fish headed our way! Somebody stop it!']));
-    else G.HUD.feed('The Margaret fired a torpedo', false);
+    const who = ship.name || 'the enemy ship', at = target === this.ship ? 'us' : target.name || 'us';
+    if (ship.team !== 0) G.HUD.radio(G.RADIO.short, G.pick([`Torpedo away from ${who}, running for ${at}! Shoot it down!`, `Another fish from ${who}, headed for ${at}! Somebody stop it!`]));
+    else G.HUD.feed(`${ship === this.ship ? 'The Margaret' : ship.name || 'A friendly ship'} fired a torpedo`, false);
   },
   /* an air torpedo from a bomber: drops off the belly, lights after half a second, runs up to 140 m/s and steers (gently) at
      the enemy airship or ground target nearest the nose when it was dropped; it bursts on that, on any enemy airship it meets,
@@ -352,6 +367,10 @@ G.Combat = {
           t.vel.copy(dir).multiplyScalar(sp);
         }
       }
+      else if (t.target && t.target.alive && t.target.pos) {   // a ship's fish: a gyro keeps it gently on its target
+        const sp = t.vel.length(), want = tA.copy(t.target.pos).addScaledVector(t.target.vel || tB.set(0, 0, 0), Math.min(20, t.target.pos.distanceTo(t.pos)/38)).sub(t.pos).normalize();
+        t.vel.normalize().lerp(want, Math.min(1, dt*0.35)).normalize().multiplyScalar(sp);
+      }
       t.prev.copy(t.pos); t.pos.addScaledVector(t.vel, dt); t.life -= dt;
       t.m.position.copy(t.pos); t.m.lookAt(tA.copy(t.pos).add(t.vel));
       if (Math.random() < dt*20) this.fx.trail(t.pos, 1.1);
@@ -369,7 +388,7 @@ G.Combat = {
       if (!boom && S.alive && S.inside(t.pos, 2)) {
         boom = true; this.fx.explosion(t.pos, 2.6); if (this.audio) this.audio.boom(t.pos, true);
         if (S.comps) S.blast(t.pos, 320, 16, t.owner, true); else S.damage(380, t.owner);
-        if (S.team === 0) G.HUD.radio(G.CAPTAIN.short, 'Torpedo hit! We\'re holed amidships!'); else G.HUD.feed('Torpedo hit on the Nightjar!', true);
+        if (S === this.ship) G.HUD.radio(G.CAPTAIN.short, 'Torpedo hit! We\'re holed amidships!'); else G.HUD.feed(`Torpedo hit on ${S.name || 'the enemy ship'}!`, S.team !== 0);
       } else if (boom) { this.fx.explosion(t.pos, 1.2); if (this.audio) this.audio.boom(t.pos, false); }
       if (boom) { this.scene.remove(t.m); T.splice(i, 1); }
     }

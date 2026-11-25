@@ -361,10 +361,11 @@ G.MISSIONS.c5m1 = EP({
     const S = this.P.smoke;
     this.pirateLaunch(g, 'Hook\'s live. The Gull\'s off our bow. Brimstone\'s watching from the Keep. So is Hale, from the other side.', {pos:new V3(S.x - 600, 700, S.z - 500), heading:-Math.PI/2, turn:0});
     this.ship.dest = new V3(-9000, 0, -600); this.ship.speed0 = this.ship.speed = 7;
-    this.gull = g.addShip({team:0, kind:'raider', name:'Gilded Gull', label:'GILDED GULL', paint:{hull:0x3a2a20, band:0xb88a2a, trim:0x161616, scale:0.85, hpMul:0.8}, pos:new V3(S.x - 300, 640, S.z + 200), heading:-Math.PI/2, speed:9, turn:0.01, noRun:true, dest:new V3(-8600, 0, 300)});
-    this.resolute = g.addShip({team:1, name:'HMS Resolute', paint:{hull:0x8a96a4, band:0x2a3a52, trim:0xb88a2a}, pos:new V3(-6400, 760, -200), heading:Math.PI/2, speed:4, turn:0.006, hp:5000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8)], noRun:true});
+    this.gull = g.addShip({team:0, kind:'raider', name:'Gilded Gull', label:'GILDED GULL', paint:{hull:0x3a2a20, band:0xb88a2a, trim:0x161616, scale:0.85, hpMul:0.8}, pos:new V3(S.x - 300, 640, S.z + 200), heading:-Math.PI/2, speed:11, turn:0.01, noRun:true, dest:new V3(-8600, 0, 300)});
+    this.resolute = g.addShip({team:1, name:'HMS Resolute', paint:{hull:0x8a96a4, band:0x2a3a52, trim:0xb88a2a}, pos:new V3(-6400, 760, -200), heading:Math.PI/2, speed:6, turn:0.022, hp:5000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8)], noRun:true});
     this.smokeAt = new V3(-7300, 520, -1400);
-    this.resolute.foe = this.gull; this.resolute.standoff = 900;
+    this.resolute.foe = this.gull; this.resolute.standoff = 800;
+    this.gull.foe = this.resolute; this.gull.torpRunning = true; this.gull.torpGap = 44;   // the Gull runs for open water, but she fires back
     this.resolute.cripple = {pool:1800, got:0}; this.resSpeed = this.resolute.speed0; this.crippleStep = 0;   // you can wreck her engines, never sink her
   },
   /* shots on the Resolute: her engines take it. A third, two thirds, all the way: she slows, then limps; Brimstone notices */
@@ -385,9 +386,9 @@ G.MISSIONS.c5m1 = EP({
     const Rs = this.resolute, ck = Rs.cripple ? Rs.cripple.got/Rs.cripple.pool : 0;
     if (Rs.alive) { Rs.speed0 = this.resSpeed*(1 - 0.85*ck); if (ck > 0.15 && Math.random() < dt*12*ck) { const w = Rs.worldPoint(new V3((Math.random() < 0.5 ? -1 : 1)*16, -6, -30 + Math.random()*40), new V3()); g.fx.smoke.emit(w.x, w.y, w.z, (Math.random() - 0.5)*3, 6, (Math.random() - 0.5)*3, 5 + ck*4, 4, 0.12, 0.11, 0.1, 0.6, 7, 0.3, 1.5); } }
     this.waveT -= dt;
-    if (this.waveT <= 0 && this.waves < 4 && this.resolute.alive) { this.waveT = 40; this.waves++; const n = this.waves === 1 ? 3 : 2;
+    if (this.waveT <= 0 && this.resolute.alive && this.gull.alive && g.planes.filter(p => p.alive && p.team === 1).length < 4) { this.waveT = 32 + 14*ck; this.waves++; const n = this.waves === 1 ? 3 : this.waves % 3 === 0 ? 3 : 2;
       const n2 = ck >= 0.66 ? Math.max(1, n - 1) : n;   // fires on her hangar deck: fewer fighters get off
-      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n2, {skill:0.5, strafe:this.signal ? n : 1, shipTarget:Gu});
+      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n2, {skill:0.5, strafe:this.signal ? n2 : Math.min(n2, this.waves % 2 ? 1 : 2), shipTarget:Gu});
       G.HUD.radio(G.RADIO.short, `${n2} navy fighters off the Resolute${this.signal ? ', and they\'re going for the Gull' : ''}!`); }
     // the secret: Hale's smoke, behind the navy line
     if (!this.signal) {
@@ -402,7 +403,9 @@ G.MISSIONS.c5m1 = EP({
     }
     if (Gu.alive) g.markers.push({pos:Gu.worldPoint(new V3(0, 40, 0), new V3()), label:'GILDED GULL', col:'#8fe3a8', edgeOnly:true});
     const toGo = Gu.alive ? Math.hypot(Gu.pos.x - Gu.dest.x, Gu.pos.z - Gu.dest.z) : 0;
-    G.HUD.objective(Gu.alive ? `Gilded Gull ${Math.round(Gu.hp/Gu.hpMax*100)}% · ${Math.round(toGo*YD)} yd to open water${this.signal ? ' · you\'ve signalled Hale' : ''}` : 'The Gull is gone');
+    const gh = Gu.health();
+    if (Gu.alive && !this.signal) for (const [lim, msg] of [[0.6, 'The Gull\'s hurt! Keep those fish off her!'], [0.35, 'The Gull\'s losing gas fast! One more torpedo and she\'s done!']]) if (gh < lim && !(this.gullWarn >= lim)) { if (!this.gullWarn || lim < this.gullWarn) { this.gullWarn = lim; G.HUD.radio(BRIM, msg); } }
+    G.HUD.objective(Gu.alive ? `Gilded Gull ${Math.round(gh*100)}% · ${Math.round(toGo*YD)} yd to open water${this.signal ? ' · you\'ve signalled Hale' : ''}` : 'The Gull is gone');
     if (Gu.alive && toGo < 400 && !this.ended) {
       this.ended = true; this.coverAdd(15, 'the Gull got through');
       G.HUD.radio(BRIM, 'My guns are through. Black Thirteen, you have a seat at my table.');
