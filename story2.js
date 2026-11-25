@@ -361,10 +361,10 @@ G.MISSIONS.c5m1 = EP({
     const S = this.P.smoke;
     this.pirateLaunch(g, 'Hook\'s live. The Gull\'s off our bow. Brimstone\'s watching from the Keep. So is Hale, from the other side.', {pos:new V3(S.x - 600, 700, S.z - 500), heading:-Math.PI/2, turn:0});
     this.ship.dest = new V3(-9000, 0, -600); this.ship.speed0 = this.ship.speed = 7;
-    this.gull = g.addShip({team:0, kind:'raider', name:'Gilded Gull', label:'GILDED GULL', paint:{hull:0x3a2a20, band:0xb88a2a, trim:0x161616, scale:0.85, hpMul:0.8}, pos:new V3(S.x - 300, 640, S.z + 200), heading:-Math.PI/2, speed:11, turn:0.01, noRun:true, dest:new V3(-8600, 0, 300)});
+    this.gull = g.addShip({team:0, kind:'raider', name:'Gilded Gull', label:'GILDED GULL', paint:{hull:0x3a2a20, band:0xb88a2a, trim:0x161616, scale:0.85, hpMul:0.45}, pos:new V3(S.x - 300, 640, S.z + 200), heading:-Math.PI/2, speed:15, turn:0.01, noRun:true, dest:new V3(-8000, 0, 300)});
     this.resolute = g.addShip({team:1, name:'HMS Resolute', paint:{hull:0x8a96a4, band:0x2a3a52, trim:0xb88a2a}, pos:new V3(-6400, 760, -200), heading:Math.PI/2, speed:6, turn:0.022, hp:5000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8)], noRun:true});
     this.smokeAt = new V3(-7300, 520, -1400);
-    this.resolute.foe = this.gull; this.resolute.standoff = 800;
+    this.resolute.foe = this.gull; this.resolute.standoff = 800; this.resolute.foeTorpGap = 19;   // a short run, so she fires often
     this.gull.foe = this.resolute; this.gull.torpRunning = true; this.gull.torpGap = 44;   // the Gull runs for open water, but she fires back
     this.resolute.cripple = {pool:1800, got:0}; this.resSpeed = this.resolute.speed0; this.crippleStep = 0;   // you can wreck her engines, never sink her
   },
@@ -388,7 +388,7 @@ G.MISSIONS.c5m1 = EP({
     this.waveT -= dt;
     if (this.waveT <= 0 && this.resolute.alive && this.gull.alive && g.planes.filter(p => p.alive && p.team === 1).length < 4) { this.waveT = 32 + 14*ck; this.waves++; const n = this.waves === 1 ? 3 : this.waves % 3 === 0 ? 3 : 2;
       const n2 = ck >= 0.66 ? Math.max(1, n - 1) : n;   // fires on her hangar deck: fewer fighters get off
-      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n2, {skill:0.5, strafe:this.signal ? n2 : Math.min(n2, this.waves % 2 ? 1 : 2), shipTarget:Gu});
+      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n2, {skill:0.5, strafe:this.signal ? n2 : Math.min(n2, 2), shipTarget:Gu});
       G.HUD.radio(G.RADIO.short, `${n2} navy fighters off the Resolute${this.signal ? ', and they\'re going for the Gull' : ''}!`); }
     // the secret: Hale's smoke, behind the navy line
     if (!this.signal) {

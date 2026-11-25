@@ -204,7 +204,7 @@ G.Airship = class {
       // torpedoes: one slow fish at the other ship every half minute inside 2 km
       this.torpCd = (this.torpCd ?? 12 + Math.random()*8) - dt;
       const ck = this.cripple ? this.cripple.got/this.cripple.pool : 0;
-      if (this.torpCd <= 0 && !this.g.done && !this.noTorps && ck < 1 && F.alive && dist < 2000 && this.state !== 'surrendered' && (!this.comps || this.alivePart('engine').length)) { this.torpCd = (28 + Math.random()*8)*(1 + 1.5*ck); this.g.spawnTorpedo(this, F); }
+      if (this.torpCd <= 0 && !this.g.done && !this.noTorps && ck < 1 && F.alive && dist < 2000 && this.state !== 'surrendered' && (!this.comps || this.alivePart('engine').length)) { this.torpCd = ((this.foeTorpGap || 28) + Math.random()*8)*(1 + 1.5*ck); this.g.spawnTorpedo(this, F); }
     } else this.heading += this.turn*dt;
     if (this.dest && this.foe && this.alive && this.torpRunning) {   // running for it, but firing back over her shoulder
       const F = this.foe, dist = Math.hypot(F.pos.x - this.pos.x, F.pos.z - this.pos.z);
