@@ -279,7 +279,10 @@ G.MISSIONS.c4m3 = EP({
     this.g = g; this.phase = 0; this.pt = 0; this.ended = false; this.seenShots = 0; this.crash = null; this.dun = null; this.hitT = 0;
     this.ucInit(g);
     const Gp = this.P.gallows;
-    this.launch(g, `Hook's live. Dunmore's warming up at the Gallows. Drop and go, ${G.save.callsign || 'Ace'}. Lights off.`, {pos:new V3(Gp.x - 900, 600, Gp.z - 1600), heading:0.4, turn:0, shipName:'Black Margaret', shipPaint:BLACK_MARGARET, load:pirateLoad('vandal')});
+    // the Margaret waits off the Gallows on Dunmore's side of the crown: a short dive puts you on his tail
+    const Kp = this.P.keep, toK = tA.copy(Kp).sub(Gp).setY(0).normalize(), sideK = new V3(toK.z, 0, -toK.x);
+    const at = new V3(Gp.x, 0, Gp.z).addScaledVector(toK, -350).addScaledVector(sideK, 450); at.y = Math.max(Gp.y + 450, ground(g, at.x, at.z) + 400);
+    this.launch(g, `Hook's live. Dunmore's warming up at the Gallows, right under us. Drop and go, ${G.save.callsign || 'Ace'}. Lights off.`, {pos:at, heading:Math.atan2(toK.x, toK.z), turn:0, shipName:'Black Margaret', shipPaint:BLACK_MARGARET, load:pirateLoad('vandal')});
   },
   drop(){
     base.drop.call(this); const g = this.g, Gp = this.P.gallows, K = this.P.keep;
@@ -298,7 +301,7 @@ G.MISSIONS.c4m3 = EP({
     this.patrols.forEach((p, i) => { if (!p.alive) return; const pts = this.patrolPts[i], k = Math.floor(this.pt/40) % 2; flyTo(g, p, pts[k], {throttle:0.7, agl:200}); p.fire = false;
       if (P.pos.distanceTo(p.pos) < 1400) g.markers.push({pos:p.pos, label:'PATROL', col:'#8fe3a8', noDist:false}); });
     if (D.alive) {
-      flyTo(g, D, K.clone().add(new V3(0, 260, 0)), {weave:0.35, seed:3, agl:140});
+      flyTo(g, D, K.clone().add(new V3(0, 260, 0)), {weave:0.35, seed:3, agl:140, throttle:0.72});   // a laden Sparrowhawk, nursing her engine: a Vandal flat out can run her down
       g.markers.push({pos:D.pos, label:'DUNMORE', col:'#ff6b57'});
       if (D.pos.distanceTo(K) < 700 && !this.ended) {
         this.ended = true; G.HUD.radio(BRIM, 'Silas Dunmore says the Black Thirteen are navy. Interesting. Very interesting.');
