@@ -1,0 +1,25 @@
+'use strict';
+const fs = require('fs'), vm = require('vm'), path = require('path');
+require('./three-mock.js');
+global.window = global; global.innerWidth = 1600; global.innerHeight = 900; global.devicePixelRatio = 1;
+const els = {}; global.document = {getElementById:id => els[id] || (els[id] = Fake()), createElement:() => Fake(), addEventListener(){}, exitPointerLock(){}, pointerLockElement:null, querySelector:() => null, body:Fake()};
+global.addEventListener = () => {}; global.requestAnimationFrame = () => 0;
+const LS = {}; global.localStorage = {getItem:k => LS[k] ?? null, setItem:(k, v) => { LS[k] = String(v); }, removeItem:k => { delete LS[k]; }};
+global.Path2D = function(){ return Fake(); }; global.DOMMatrix = function(){ return Fake(); };
+global.fetch = () => Promise.reject(new Error('offline')); global.Audio = function(){ return Fake(); }; global.Image = function(){ return Fake(); };
+const dir = process.argv[2];
+const order = ['data', 'sfx', 'world', 'models', 'planes', 'combat', 'ai', 'audio', 'hud', 'game', 'traffic', 'story', 'open', 'rust', 'story2', 'story3', 'story4', 'net', 'pad', 'keys', 'ui', 'weather', 'ach'];
+for (const f of order) vm.runInThisContext(fs.readFileSync(path.join(dir, f + '.js'), 'utf8'), {filename:f + '.js'});
+const G = global.G, V3 = THREE.Vector3;
+const R = new Proxy({}, {get:() => () => {}});
+const g = new G.Game(R, G.MISSIONS.c5m1), M = g.mission; for (let i = 0; i < 10; i++) g.update(1/30); M.drop(); for (let i = 0; i < 30; i++) g.update(1/30);
+const S = M.resolute, P = g.player; console.log('ud keys', Object.keys(S.obj.userData).join(','), 'kind', S.kind, 'ship model', typeof G.buildAirship);
+console.log('comps', S.comps ? S.comps.map(c => c.kind + ':' + c.hp.toFixed(0)).join(' ') : 'none', 'hp', S.hp, 'state', S.state);
+const sp0 = S.speed0, wasR = G.HUD.radio; const said = []; G.HUD.radio = (w, t) => said.push(w + ': ' + t.slice(0, 50));
+let hits = 0, rk = 0;
+while (S.cripple.got < S.cripple.pool && hits < 2000) { S.hitBy(S.pos.clone().add(new THREE.Vector3(0, 0, -300)), S.pos.clone(), 8, {a:1, i:1}, P); hits++; if (hits % 30 === 0) g.update(1/30); }
+for (let i = 0; i < 40; i++) g.update(1/30);
+console.log('bullet hits to cripple', hits, '(or', Math.ceil(1800/380), 'rockets) · alive', S.alive, 'hp', S.hp.toFixed(0) + '/' + S.hpMax, '· speed', sp0.toFixed(1), '->', S.speed0.toFixed(2), '· cover', M.cover);
+for (let i = 0; i < 300; i++) S.damage(999, P); console.log('after 300k more damage: alive', S.alive);
+console.log(said.join('\n'));
+process.exit(0);

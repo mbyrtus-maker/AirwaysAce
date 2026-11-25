@@ -136,7 +136,10 @@ G.Airship = class {
     }
   }
   damage(d, src){
-    if (!this.alive || this.g.netGuest) return; this.hp -= d;
+    if (!this.alive || this.g.netGuest) return;
+    // a ship that can be hurt but not sunk (the Resolute in Running the Blockade): the damage goes into her engines instead
+    if (this.cripple) { const C = this.cripple; C.got = Math.min(C.pool, C.got + d); if (this.g.mission && this.g.mission.onCripple) this.g.mission.onCripple(this.g, this, C.got/C.pool, src); return; }
+    this.hp -= d;
     if (this.g.onShipHit) this.g.onShipHit(this, src, d);
     if (this.hp <= 0) { this.hp = 0; this.alive = false; this.state = 'destroyed'; if (this.g.onShipDown) this.g.onShipDown(this, src); }
   }

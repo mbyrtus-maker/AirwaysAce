@@ -365,15 +365,30 @@ G.MISSIONS.c5m1 = EP({
     this.resolute = g.addShip({team:1, name:'HMS Resolute', paint:{hull:0x8a96a4, band:0x2a3a52, trim:0xb88a2a}, pos:new V3(-6400, 760, -200), heading:Math.PI/2, speed:4, turn:0.006, hp:5000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8)], noRun:true});
     this.smokeAt = new V3(-7300, 520, -1400);
     this.resolute.foe = this.gull; this.resolute.standoff = 900;
+    this.resolute.cripple = {pool:1800, got:0}; this.resSpeed = this.resolute.speed0; this.crippleStep = 0;   // you can wreck her engines, never sink her
+  },
+  /* shots on the Resolute: her engines take it. A third, two thirds, all the way: she slows, then limps; Brimstone notices */
+  onCripple(g, S, k, src){
+    const step = k >= 1 ? 3 : k >= 0.66 ? 2 : k >= 0.33 ? 1 : 0; if (step <= this.crippleStep) return; this.crippleStep = step;
+    const say = [null, ['Resolute\'s port engine is smoking! She\'s losing way!', 'Good shooting, Thirteen. Keep her slow.'],
+      ['Two engines out on the Resolute! She can\'t keep up with the Gull now!', 'Ha! Look at the navy limp. Brimstone will hear of this.'],
+      ['The Resolute\'s dead in the air! Engines gone. She\'ll not sink, but she\'ll not chase anyone either.', 'Black Thirteen, you crippled a navy cruiser. Brimstone owes you a drink.']][step];
+    G.HUD.radio(G.RADIO.short, say[0]); setTimeout(() => { if (G.game === g && !g.done) G.HUD.radio(BRIM, say[1]); }, 2500);
+    G.HUD.toast(['', 'Resolute slowed', 'Resolute limping', 'Resolute crippled'][step]); this.coverAdd(4, 'you hurt the navy');
+    if (step === 1 && !this.signal) setTimeout(() => { if (G.game === g && !g.done && !this.signal) G.HUD.radio(HALE, 'Steady on, Thirteen. Bruise us if you must, but she\'s not going down, and I know who\'s flying that Bulldog.'); }, 6000);
   },
   update(g, dt){
     this.pt += dt; const P = g.player, Gu = this.gull; this.ucTick(g, dt);
     if (this.spawnWingmenSoon > 0 && (this.spawnWingmenSoon -= dt) <= 0) { g.spawnWingmen(this.wing); this.brethren(g, Gu.pos.clone().add(new V3(0, 60, -150)), 3, {skill:0.5, chassis:'bulldog'}); G.HUD.radio(BRIM, 'Black Thirteen. Get my guns through, and you\'ll sit at my table.'); }
     if (this.phase !== 1 || this.ended || this.blown) { this.hudDone(g); return; }
+    // the Resolute's engines: the more you've wrecked, the slower she goes, and the more she smokes
+    const Rs = this.resolute, ck = Rs.cripple ? Rs.cripple.got/Rs.cripple.pool : 0;
+    if (Rs.alive) { Rs.speed0 = this.resSpeed*(1 - 0.85*ck); if (ck > 0.15 && Math.random() < dt*12*ck) { const w = Rs.worldPoint(new V3((Math.random() < 0.5 ? -1 : 1)*16, -6, -30 + Math.random()*40), new V3()); g.fx.smoke.emit(w.x, w.y, w.z, (Math.random() - 0.5)*3, 6, (Math.random() - 0.5)*3, 5 + ck*4, 4, 0.12, 0.11, 0.1, 0.6, 7, 0.3, 1.5); } }
     this.waveT -= dt;
     if (this.waveT <= 0 && this.waves < 4 && this.resolute.alive) { this.waveT = 40; this.waves++; const n = this.waves === 1 ? 3 : 2;
-      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n, {skill:0.5, strafe:this.signal ? n : 1, shipTarget:Gu});
-      G.HUD.radio(G.RADIO.short, `${n} navy fighters off the Resolute${this.signal ? ', and they\'re going for the Gull' : ''}!`); }
+      const n2 = ck >= 0.66 ? Math.max(1, n - 1) : n;   // fires on her hangar deck: fewer fighters get off
+      this.hostiles(g, 'navy', this.resolute.pos.clone().add(new V3(300, -80, 0)), n2, {skill:0.5, strafe:this.signal ? n : 1, shipTarget:Gu});
+      G.HUD.radio(G.RADIO.short, `${n2} navy fighters off the Resolute${this.signal ? ', and they\'re going for the Gull' : ''}!`); }
     // the secret: Hale's smoke, behind the navy line
     if (!this.signal) {
       g.markers.push({pos:this.smokeAt, label:'HALE\'S SIGNAL SMOKE', col:'#c9a6f0'});
