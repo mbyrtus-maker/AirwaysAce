@@ -363,7 +363,7 @@ G.MISSIONS.c5m1 = EP({
     this.ship.dest = new V3(-9000, 0, -600); this.ship.speed0 = this.ship.speed = 7;
     this.gull = g.addShip({team:0, kind:'raider', name:'Gilded Gull', label:'GILDED GULL', paint:{hull:0x3a2a20, band:0xb88a2a, trim:0x161616, scale:0.85, hpMul:0.45}, pos:new V3(S.x - 300, 640, S.z + 200), heading:-Math.PI/2, speed:15, turn:0.01, noRun:true, dest:new V3(-8000, 0, 300)});
     this.resolute = g.addShip({team:1, name:'HMS Resolute', paint:{hull:0x8a96a4, band:0x2a3a52, trim:0xb88a2a}, pos:new V3(-6400, 760, -200), heading:Math.PI/2, speed:6, turn:0.022, hp:5000, flak:true, guns:[new V3(7, -24, 26), new V3(-7, -24, -8)], noRun:true});
-    this.smokeAt = new V3(-7300, 520, -1400);
+    this.smokeAt = new V3(-5600, 560, -1100);   // about 2.3 km from the start, off the Gull's track on the navy side
     this.resolute.foe = this.gull; this.resolute.standoff = 800; this.resolute.foeTorpGap = 19;   // a short run, so she fires often
     this.gull.foe = this.resolute; this.gull.torpRunning = true; this.gull.torpGap = 44;   // the Gull runs for open water, but she fires back
     this.resolute.cripple = {pool:1800, got:0}; this.resSpeed = this.resolute.speed0; this.crippleStep = 0;   // you can wreck her engines, never sink her
